@@ -62,7 +62,14 @@ namespace ParallaxShader
             FlightGlobals.GetHomeBody().pqsController.highQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
             FlightGlobals.GetHomeBody().pqsController.mediumQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
             FlightGlobals.GetHomeBody().pqsController.lowQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
-            FlightGlobals.GetHomeBody().pqsController.ultraQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
+
+            FlightGlobals.GetHomeBody().pqsController.lowQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            FlightGlobals.GetHomeBody().pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            FlightGlobals.GetHomeBody().pqsController.mediumQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            Debug.Log(FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.GetFloat("_Metallic") + " metallic");
+            Debug.Log(FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.GetColor("_MetallicTint") + " metallic tint");
+            //FlightGlobals.GetHomeBody().pqsController.ultraQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
         }
     }
     [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
@@ -169,7 +176,7 @@ namespace ParallaxShader
             material.SurfaceParallaxHeight = float.Parse(parallaxBody.GetValue("surfaceParallaxHeight"));
             material.SteepTextureScale = float.Parse(parallaxBody.GetValue("steepTextureScale"));
             material.SteepPower = float.Parse(parallaxBody.GetValue("steepPower"));
-    
+            material.Smoothness = float.Parse(parallaxBody.GetValue("smoothness"));
             return material;
     
         }
@@ -200,7 +207,6 @@ namespace ParallaxShader
         }
         public void Apply()
         {
-    
             CelestialBody body = FlightGlobals.GetBodyByName(bodyName);
             if (body == null)
             {
@@ -210,7 +216,7 @@ namespace ParallaxShader
             body.pqsController.highQualitySurfaceMaterial = parallaxMaterial;
             body.pqsController.mediumQualitySurfaceMaterial = parallaxMaterial;
             body.pqsController.lowQualitySurfaceMaterial = parallaxMaterial;
-            body.pqsController.ultraQualitySurfaceMaterial = parallaxMaterial;
+            //body.pqsController.ultraQualitySurfaceMaterial = parallaxMaterial;
         }
     }
     class ParallaxBodyMaterial
