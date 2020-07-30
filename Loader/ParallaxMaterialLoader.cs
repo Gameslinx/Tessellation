@@ -4,6 +4,8 @@ using UnityEngine;
 using System.Linq;
 using System.Security.Principal;
 using System.Collections.Generic;
+using Contracts.Predicates;
+using Smooth.Collections;
 
 namespace ParallaxShader
 {
@@ -54,39 +56,104 @@ namespace ParallaxShader
     }
 
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
-    public class position : MonoBehaviour
+    [DefaultExecutionOrder(900)]
+    public class Position : MonoBehaviour
     {
-        public void Update()
+        public void Start()
         {
-            FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
-            FlightGlobals.GetHomeBody().pqsController.highQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
-            FlightGlobals.GetHomeBody().pqsController.mediumQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
-            FlightGlobals.GetHomeBody().pqsController.lowQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
+            foreach (CelestialBody body in FlightGlobals.Bodies)
+            {
+                Debug.Log("PQS for: " + body.name);
+                foreach (PQSMod mod in body.GetComponentsInChildren<PQSMod>())
+                {
+                    Debug.Log("PQS: " + mod.ToString());
+                    Debug.Log("Name: " + mod.name + "\n");
+                }
+            }
+        }
+        public void LateUpdate()
+        {
+            CelestialBody body = FlightGlobals.currentMainBody;
+            body.pqsController.surfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.localPosition);
+            body.pqsController.highQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.localPosition);
+            body.pqsController.mediumQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.localPosition);
+            body.pqsController.lowQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.localPosition);
 
-            FlightGlobals.GetHomeBody().pqsController.lowQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-            FlightGlobals.GetHomeBody().pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-            FlightGlobals.GetHomeBody().pqsController.mediumQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-            FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-            Debug.Log(FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.GetFloat("_Metallic") + " metallic");
-            Debug.Log(FlightGlobals.GetHomeBody().pqsController.surfaceMaterial.GetColor("_MetallicTint") + " metallic tint");
+            body.pqsController.lowQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            body.pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            body.pqsController.mediumQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+            body.pqsController.surfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+
+
+
+            if (FlightGlobals.ActiveVessel != null)
+            {
+                Debug.Log("Planet pos: " + body.transform.localPosition);
+                Debug.Log("Vessel pos: " + FlightGlobals.ActiveVessel.transform.position);
+                if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+                {
+                    Vector3d vec = FlightGlobals.GetHomeBody().position;
+                    Vector3 noPres = new Vector3((float)(vec.x), (float)(vec.y), (float)(vec.z));
+                    Debug.Log(noPres.ToString("f10"));
+                    body.pqsController.surfaceMaterial.SetVector("_VesselOrigin", new Vector3((float)noPres.x, (float)noPres.y, (float)noPres.z));
+                }
+                
+
+            }
+
+
             //FlightGlobals.GetHomeBody().pqsController.ultraQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
+        }
+        public double Clamp(double value)
+        {
+            double position = value / 2048;
+            string posString = "0." + position.ToString().Split('.')[1];
+            position = double.Parse(posString);
+            value = position * 2048;
+            value = value / 2048;
+            return value;
+        }
+    }
+    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
+    class TerrainQualitySetter : MonoBehaviour
+    {
+        public void Start()
+        {
+            GameSettings.TERRAIN_SHADER_QUALITY--;
         }
     }
     [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
     class ParallaxShaderLoader : MonoBehaviour
     {
-        public static Dictionary<string, ParallaxBody> parallaxBodies;
-    
-        public void Awake()
-        {
-            parallaxBodies = new Dictionary<string, ParallaxBody>();
-        }
+        public static Dictionary<string, ParallaxBody> parallaxBodies = new Dictionary<string, ParallaxBody>();
+
         public void Start()
         {
             Log("Starting...");
             GetConfigNodes();
             ActivateConfigNodes();
+            GameSettings.TERRAIN_SHADER_QUALITY = 3;
         }
+        //public void GetConfigNodes()
+        //{
+        //    for (int i = 0; i < 1; i++)
+        //    {
+        //        Debug.Log("This parallax node has: " + 5 + " nodes");
+        //        for (int b = 0; b < 5; b++)
+        //        {
+        //            ParallaxBody a = new ParallaxBody();
+        //            string name = b.ToString();
+        //            a.Body = name;
+        //            parallaxBodies.Add(name, a);
+        //
+        //        }
+        //    }
+        //    foreach (KeyValuePair<string, ParallaxBody> body in parallaxBodies)
+        //    {
+        //        Debug.Log("Value: " + body.Value.Body);
+        //        Debug.Log("Key: " + body.Key);
+        //    }
+        //}
         public void GetConfigNodes()
         {
             UrlDir.UrlConfig[] nodeArray = GameDatabase.Instance.GetConfigs("Parallax");
@@ -96,6 +163,7 @@ namespace ParallaxShader
                 Debug.Log("This parallax node has: " + nodeArray[i].config.nodes.Count + " nodes");
                 for (int b = 0; b < nodeArray[i].config.nodes.Count; b++)
                 {
+                    Debug.Log("b is " + b);
                     Log("Debug: " + nodeArray[i].config.nodes[b].name);
                     ConfigNode parallax = nodeArray[i].config;
                     string bodyName = parallax.nodes[b].GetValue("name");
@@ -105,59 +173,65 @@ namespace ParallaxShader
                     ConfigNode parallaxBody = parallax.nodes[b].GetNode("Textures");
                     if (parallaxBody == null)
                     {
-                        Log("\tParallax Body is null! Cancelling load");
+                        Log(" - Parallax Body is null! Cancelling load");
                         return;
                     }
-                    Log("\tRetrieved body node");
+                    Log(" - Retrieved body node");
                     ParallaxBody thisBody = new ParallaxBody();
                     thisBody.Body = bodyName;
-                    ParallaxBodyMaterial thisBodyMaterial = CreateParallaxBodyMaterial(parallaxBody);
-                    Log("\tCreated parallax body material");
-                    thisBody.ParallaxBodyMaterial = thisBodyMaterial;
-                    Log("\tAssigned parallax body material");
-
+                    thisBody.ParallaxBodyMaterial = CreateParallaxBodyMaterial(parallaxBody, bodyName);
+        
+                    Log(" - Assigned parallax body material");
+        
                     try
                     {
                         parallaxBodies.Add(bodyName, thisBody); //Add to the list of parallax bodies
-                        Log("\tAdded " + bodyName + "'s parallax config successfully");
+                        Log(" - Added " + bodyName + "'s parallax config successfully");
+                        Log(parallaxBodies[bodyName].Body);
                     }
                     catch (Exception e)
                     {
-                        Log("\tDuplicate body detected!\n" + "\t\t" + e.ToString());
+                        Log(" - Duplicate body detected!\n" + " - " + e.ToString());
                         parallaxBodies[bodyName] = thisBody;
-                        Log("\tOverwriting current body");
+                        Log(" - Overwriting current body");
                     }
+                    Log("////////////////////////////////////////////////\n");
                 }
                 
             }
-            
-            
-            
+        
+            foreach (KeyValuePair<string, ParallaxBody> body in parallaxBodies)
+            {
+                Debug.Log(body.Value.Body);
+                Debug.Log(body.Key);
+            }
+        
             Log("Activating config nodes...");
         }
         public void ActivateConfigNodes()
         {
-            foreach (ParallaxBody body in parallaxBodies.Values)
+
+            foreach (KeyValuePair<string, ParallaxBody> body in parallaxBodies)
             {
-                if (body == null)
+                Log(body.Value.Body + " hey");
+                if (body.Value == null)
                 {
                     Log("Body is null");
                 }
-                body.CreateMaterial();
-                Log("Created material successfully for " + body.Body);
-                if (body.Body == null)
+                body.Value.CreateMaterial();
+                Log("Created material successfully for " + body.Value.Body);
+                if (body.Value.Body == null)
                 {
                     Debug.Log("Instance body is null");
                 }
-                body.Apply();
+                body.Value.Apply();
                 Debug.Log("Applied config nodes");
                 Debug.Log("There are " + parallaxBodies.Count + " Parallax bodies");
-                Log("////////////////////////////////////////////////");
+
             }
         }
-        public ParallaxBodyMaterial CreateParallaxBodyMaterial(ConfigNode parallaxBody)
+        public ParallaxBodyMaterial CreateParallaxBodyMaterial(ConfigNode parallaxBody, string bodyName)
         {
-            Debug.Log(parallaxBody.name);
             ParallaxBodyMaterial material = new ParallaxBodyMaterial();
             material.SurfaceTexture = parallaxBody.GetValue("surfaceTexture");
             material.SurfaceTextureParallaxMap = parallaxBody.GetValue("surfaceTextureParallaxMap");
@@ -177,6 +251,21 @@ namespace ParallaxShader
             material.SteepTextureScale = float.Parse(parallaxBody.GetValue("steepTextureScale"));
             material.SteepPower = float.Parse(parallaxBody.GetValue("steepPower"));
             material.Smoothness = float.Parse(parallaxBody.GetValue("smoothness"));
+            material.SurfaceTextureMid = parallaxBody.GetValue("surfaceTextureMid");
+            material.SurfaceTextureHigh = parallaxBody.GetValue("surfaceTextureHigh");
+            material.BumpMapMid = parallaxBody.GetValue("surfaceBumpMapMid");
+            material.BumpMapHigh = parallaxBody.GetValue("surfaceBumpMapHigh");
+            material.BumpMapSteep = parallaxBody.GetValue("surfaceBumpMapSteep");
+            material.LowStart = float.Parse(parallaxBody.GetValue("lowStart"));
+            material.LowEnd = float.Parse(parallaxBody.GetValue("lowEnd"));
+            material.HighStart = float.Parse(parallaxBody.GetValue("highStart"));
+            material.HighEnd = float.Parse(parallaxBody.GetValue("highEnd"));
+            material.PlanetName = bodyName;
+
+            string color = parallaxBody.GetValue("tintColor"); //it pains me to write colour this way as a brit
+            material.TintColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
+            Debug.Log(material.TintColor + " COLOR1");
+
             return material;
     
         }
@@ -188,9 +277,9 @@ namespace ParallaxShader
     }
     class ParallaxBody
     {
-        private static string bodyName;
-        private static ParallaxBodyMaterial parallaxBodyMaterial;
-        private static Material parallaxMaterial;
+        private string bodyName;
+        private ParallaxBodyMaterial parallaxBodyMaterial;
+        private Material parallaxMaterial;
         public string Body
         {
             get { return bodyName; }
@@ -222,7 +311,8 @@ namespace ParallaxShader
     class ParallaxBodyMaterial
     {
         private Material parallaxMaterial;
-    
+
+        private string planetName;
         private string surfaceTexture;
         private string surfaceTextureParallaxMap;
         private string surfaceTextureBumpMap;
@@ -242,9 +332,85 @@ namespace ParallaxShader
         private float surfaceParallaxHeight;
         private float steepTextureScale;
         private float smoothness;
+        private Color tintColor;
+
+        private string surfaceTextureMid;
+        private string surfaceTextureHigh;
+        private string bumpMapMid;
+        private string bumpMapHigh;
+        private string bumpMapSteep;
+
+        private float lowStart;
+        private float lowEnd;
+        private float highStart;
+        private float highEnd;
+
+        private float planetRadius;
     
         #region getsets
-      
+
+        public Color TintColor
+        {
+            get { return tintColor; }
+            set { tintColor = value; }
+        }
+        public string PlanetName
+        {
+            get { return planetName; }
+            set { planetName = value; }
+        }
+            
+        public float PlanetRadius
+        {
+            get { return planetRadius; }
+            set { planetRadius = value; }
+        }
+        public string SurfaceTextureMid
+        {
+            get { return surfaceTextureMid; }
+            set { surfaceTextureMid = value; }
+        }
+        public string SurfaceTextureHigh
+        {
+            get { return surfaceTextureHigh; }
+            set { surfaceTextureHigh = value; }
+        }
+        public string BumpMapMid
+        {
+            get { return bumpMapMid; }
+            set { bumpMapMid = value; }
+        }
+        public string BumpMapHigh
+        {
+            get { return bumpMapHigh; }
+            set { bumpMapHigh = value; }
+        }
+        public string BumpMapSteep
+        {
+            get { return bumpMapSteep; }
+            set { bumpMapSteep = value; }
+        }
+
+        public float LowStart
+        {
+            get { return lowStart; }
+            set { lowStart = value; }
+        }
+        public float LowEnd
+        {
+            get { return lowEnd; }
+            set { lowEnd = value; }
+        }
+        public float HighStart
+        {
+            get { return highStart; }
+            set { highStart = value; }
+        }
+        public float HighEnd
+        {
+            get { return highEnd; }
+            set { highEnd = value; }
+        }
         public string SurfaceTexture
         {
             get { return surfaceTexture; }
@@ -352,26 +518,64 @@ namespace ParallaxShader
             
     
             parallaxMaterial.SetTexture("_SurfaceTexture", LoadTexture(surfaceTexture));
+            Log("_SurfaceTexture", surfaceTexture);
             parallaxMaterial.SetTexture("_ParallaxMap", LoadTexture(surfaceTextureParallaxMap));
+            Log("_ParallaxMap", surfaceTextureParallaxMap);
             parallaxMaterial.SetTexture("_BumpMap", LoadTexture(surfaceTextureBumpMap));
+            Log("_BumpMap", surfaceTextureBumpMap);
             parallaxMaterial.SetTexture("_NoiseTex", LoadTexture(surfaceVarianceBlendMap));
+            Log("_NoiseTex", surfaceVarianceBlendMap);
             parallaxMaterial.SetTexture("_SurfaceVarianceTexture", LoadTexture(surfaceVarianceTexture));
+            Log("_SurfaceVarianceTexture", surfaceVarianceTexture);
             parallaxMaterial.SetTexture("_ParallaxMapMulti", LoadTexture(surfaceVarianceParallaxMap));
+            Log("_ParallaxMapMulti", surfaceVarianceParallaxMap);
             ParallaxMaterial.SetTexture("_SurfaceVarianceBumpMap", LoadTexture(surfaceVarianceBumpMap));
+            Log("_SurfaceVarianceBumpMap", surfaceVarianceBumpMap);
             parallaxMaterial.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            Log("_SteepTex", steepTexture);
     
             parallaxMaterial.SetFloat("_SteepPower", steepPower);
+            Log("_SteepPower", steepPower);
             parallaxMaterial.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            Log("_SurfaceTexture", surfaceTextureScale);
             parallaxMaterial.SetFloat("_SurfaceVarianceTextureScale", surfaceVarianceMapScale);
+            Log("_SurfaceVarianceTextureScale", surfaceVarianceMapScale);
             parallaxMaterial.SetTextureScale("_NoiseTex", CreateVector(surfaceVarianceTextureScale));
+            Log("_NoiseTex", surfaceVarianceTextureScale);
             parallaxMaterial.SetFloat("_SurfaceVarianceTexturePow", surfaceVarianceTexturePower);
+            Log("_SurfaceVarianceTexturePow", surfaceVarianceTexturePower);
             parallaxMaterial.SetTextureScale("_NoiseTex", CreateVector(surfaceVarianceBlendMapScale));
+            Log("_NoiseTex", surfaceVarianceBlendMapScale);
             parallaxMaterial.SetTextureScale("_ParallaxMap", CreateVector(surfaceParallaxMapScale));    //Currently doesn't do anything in the shader
+            Log("_ParallaxMap", surfaceParallaxMapScale);
             parallaxMaterial.SetFloat("_Parallax", surfaceParallaxHeight);
+            Log("_Parallax", surfaceParallaxHeight);
             parallaxMaterial.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            Log("_SteepTex", steepTextureScale);
             parallaxMaterial.SetFloat("_Metallic", smoothness);
-    
+            Log("_Metallic", smoothness);
+
+            parallaxMaterial.SetTexture("_SurfaceTextureMid", LoadTexture(surfaceTextureMid));
+            parallaxMaterial.SetTexture("_SurfaceTextureHigh", LoadTexture(surfaceTextureHigh));
+            parallaxMaterial.SetTexture("_BumpMapMid", LoadTexture(bumpMapMid));
+            parallaxMaterial.SetTexture("_BumpMapHigh", LoadTexture(bumpMapHigh));
+            parallaxMaterial.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterial.SetFloat("_LowStart", lowStart);
+            parallaxMaterial.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterial.SetFloat("_HighStart", highStart);
+            parallaxMaterial.SetFloat("_HighEnd", highEnd);
+            parallaxMaterial.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterial.SetColor("_MetallicTint", tintColor);
+
             return parallaxMaterial;
+        }
+        private void Log(string name, string value)
+        {
+            Debug.Log(name + " is " + value);
+        }
+        private void Log(string name, float value)
+        {
+            Debug.Log(name + " is " + value);
         }
         private Texture LoadTexture(string name)
         {
