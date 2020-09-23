@@ -28,9 +28,9 @@ Parallax improves upon the stock shader in a number of ways, for example:
 * Complete control over how much colour of a texture to apply to the surface VS how much colour of the surface to retain (using an influence map). This prevents your grass from changing colour on brown terrain, but lets you change the sand colour as it varies with the planet's surface colour.
 
 ## Availabity 
-Parallax will first be released for my planet pack 'Beyond Home' during its beta stage so that I can spend time working on fixing any bugs and working on improvements / optimizations before the mod is used elsewhere. After the beta stage, Parallax will be available for any planet configuration.
+Parallax has been for my planet pack 'Beyond Home' for its beta stage so that I can spend time working on fixing any bugs and working on improvements / optimizations before the mod is used elsewhere.
 
-As for system requirements, the trailer was recorded using the following specs:
+As for system requirements, the trailer was recorded using the following specs - But these are NOT the recommended system specs:
 * Intel i9 9900k, 5.0Ghz
 * RTX 2080 Super
 * 32GB DDR4
@@ -38,3 +38,9 @@ As for system requirements, the trailer was recorded using the following specs:
 Keep in mind that the trailer was also recorded at 4k. I don't have any other benchmarks for performance yet, but if you are running the game at 1080p you can expect similar performance with more modest specs.
 
 Parallax will be releasing for Beyond Home soon. I look forward to you all being able to experience it!
+
+## Installation
+- Download the correct version of Parallax for your KSP version
+- Drag and drop the "Parallax" folder into GameData
+- Adjust any settings you need to in the config (Parallax/Config/ParallaxGlobal.cfg)
+- Launch the game, and make sure your terrain quality is set to high
