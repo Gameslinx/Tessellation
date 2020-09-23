@@ -179,7 +179,7 @@ namespace PQSModExpansion
 
     }
 
-    public static class MeshHelper			//Taken from http://wiki.unity3d.com/index.php/MeshHelper - Parallax license doesn't apply
+    public static class MeshHelper
     {
         static List<Vector3> vertices;
         static List<Vector3> normals;
@@ -405,6 +405,38 @@ namespace PQSModExpansion
                 if (level > 3)
                     level++;
             }
+        }
+        [KSPAddon(KSPAddon.Startup.Flight, false)]
+        public class Divisions : MonoBehaviour
+        {
+            int maxLevelQuads = 0;
+            int nonMaxLevelQuads = 0;
+            int failedQuads = 0;
+            public void Start()
+            {
+                //QualitySettings.shadowDistance = 100000;
+                //QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+                QualitySettings.shadowNearPlaneOffset = 168;
+                //QualitySettings.shadowCascades = 10;
+                //QualitySettings.shadowCascade4Split = new Vector3(0.004f, 0.015f, 0.035f);
+            }
+            public void Update()
+            {
+                bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha5);
+                if (key)
+                {
+                    maxLevelQuads = 0;
+                    nonMaxLevelQuads = 0;
+                    foreach (PQ quad in FlightGlobals.currentMainBody.pqsController.quads)
+                    {
+                        Iterate(quad);
+                    }
+                    Debug.Log(maxLevelQuads);
+                    Debug.Log(nonMaxLevelQuads);
+                    Debug.Log(failedQuads);
+                }
+            }
+
         }
     }
 }
