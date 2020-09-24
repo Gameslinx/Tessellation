@@ -28,7 +28,7 @@ Parallax improves upon the stock shader in a number of ways, for example:
 * Complete control over how much colour of a texture to apply to the surface VS how much colour of the surface to retain (using an influence map). This prevents your grass from changing colour on brown terrain, but lets you change the sand colour as it varies with the planet's surface colour.
 
 ## Availabity 
-Parallax has been for my planet pack 'Beyond Home' for its beta stage so that I can spend time working on fixing any bugs and working on improvements / optimizations before the mod is used elsewhere.
+Parallax has been created for my planet pack 'Beyond Home' for its beta stage so that I can spend time working on fixing any bugs and working on improvements / optimizations before the mod is used elsewhere.
 
 As for system requirements, the trailer was recorded using the following specs - But these are NOT the recommended system specs:
 * Intel i9 9900k, 5.0Ghz
