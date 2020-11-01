@@ -8,7 +8,6 @@ using Contracts.Predicates;
 using Smooth.Collections;
 using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.SceneManagement;
-using Kopernicus.ConfigParser.Attributes;
 using PQSModExpansion;
 using System.Collections;
 using System.Security.Cryptography;
@@ -51,6 +50,81 @@ namespace ParallaxShader
             else
             {
                 Shader[] theseShaders = assetBundle.LoadAllAssets<Shader>();
+                Debug.Log("Loaded all shaders");
+                foreach (Shader thisShader in theseShaders)
+                {
+                    shaders.Add(thisShader.name, thisShader);
+                    Debug.Log("Loaded shader: " + thisShader.name);
+                }
+
+
+
+            }
+
+
+
+
+
+
+            filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Grass");
+            
+            if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
+            {
+                filePath = (filePath + "-linux.unity3d");
+            }
+            else if (Application.platform == RuntimePlatform.WindowsPlayer)
+            {
+                filePath = (filePath + "-windows.unity3d");
+            }
+            if (Application.platform == RuntimePlatform.OSXPlayer)
+            {
+                filePath = (filePath + "-macosx.unity3d");
+            }
+            var assetBundle2 = AssetBundle.LoadFromFile(filePath);
+            Debug.Log("Loaded bundle");
+            if (assetBundle2 == null)
+            {
+                Debug.Log("Failed to load bundle");
+                Debug.Log(filePath);
+            }
+            else
+            {
+                Shader[] theseShaders = assetBundle2.LoadAllAssets<Shader>();
+                Debug.Log("Loaded all shaders");
+                foreach (Shader thisShader in theseShaders)
+                {
+                    shaders.Add(thisShader.name, thisShader);
+                    Debug.Log("Loaded shader: " + thisShader.name);
+                }
+            
+            
+            
+            }
+
+            filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/ParallaxScaled");
+
+            if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
+            {
+                filePath = (filePath + "-linux.unity3d");
+            }
+            else if (Application.platform == RuntimePlatform.WindowsPlayer)
+            {
+                filePath = (filePath + "-windows.unity3d");
+            }
+            if (Application.platform == RuntimePlatform.OSXPlayer)
+            {
+                filePath = (filePath + "-macosx.unity3d");
+            }
+            var assetBundle3 = AssetBundle.LoadFromFile(filePath);
+            Debug.Log("Loaded bundle");
+            if (assetBundle3 == null)
+            {
+                Debug.Log("Failed to load bundle");
+                Debug.Log(filePath);
+            }
+            else
+            {
+                Shader[] theseShaders = assetBundle3.LoadAllAssets<Shader>();
                 Debug.Log("Loaded all shaders");
                 foreach (Shader thisShader in theseShaders)
                 {
@@ -201,7 +275,7 @@ namespace ParallaxShader
         }
     }
 
-    
+
     public static class ParallaxReflectionProbes
     {
         public static GameObject probe;
@@ -311,15 +385,15 @@ namespace ParallaxShader
                         probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
                         probe.cullingMask = Camera.main.cullingMask;   //Atmosphere, scaled scenery, skysphere
                         Debug.Log("Reflection probe created!");
-                        
+
                         ParallaxReflectionProbes.probeActive = true;
                         StartCoroutine(UpdateProbe());
-                         //cube = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                        //cube = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 
 
                     }
                     else
-                        //Mirror the reflection probe in the terrain, find radar height of terrain by casting a ray
+                    //Mirror the reflection probe in the terrain, find radar height of terrain by casting a ray
                     {
 
                         Vector3 cameraToPlanet = Vector3.Normalize(Camera.main.transform.position - FlightGlobals.currentMainBody.transform.position);  //Move camera along this vector
@@ -410,10 +484,20 @@ namespace ParallaxShader
     {
         public CelestialBody lastBody;
         public PQSMod_CelestialBodyTransform fader;
-       
+        public void Start()
+        {
+            QualitySettings.shadowDistance = 10000;
+            QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+            QualitySettings.shadowProjection = ShadowProjection.StableFit;
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.shadowCascade4Split = new Vector3(0.003f, 0.034f, 0.101f);
+
+            Camera.main.nearClipPlane = 0.1f;
+            Camera.current.nearClipPlane = 0.1f;
+        }
         public void Update()
         {
-            
+
             CelestialBody body = FlightGlobals.currentMainBody;
             if (ParallaxShaderLoader.parallaxBodies.ContainsKey(body.name))
             {
@@ -429,7 +513,28 @@ namespace ParallaxShader
                 body.pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
                 body.pqsController.ultraQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
 
-                
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+
 
             }
 
@@ -463,21 +568,45 @@ namespace ParallaxShader
             {
                 if (HighLogic.LoadedScene == GameScenes.FLIGHT && ParallaxShaderLoader.parallaxBodies.ContainsKey(body.name))
                 {
-    
+
                     Vector3d accuratePlanetPosition = FlightGlobals.currentMainBody.position;   //Double precision planet origin
                     double surfaceTexture_ST = ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SurfaceTextureScale;    //Scale of surface texture
                     Vector3d UV = accuratePlanetPosition * surfaceTexture_ST;
                     UV = new Vector3d(Clamp(UV.x), Clamp(UV.y), Clamp(UV.z));
                     Vector3 floatUV = new Vector3((float)UV.x, (float)UV.y, (float)UV.z);
-                    FlightGlobals.currentMainBody.pqsController.surfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
-                    FlightGlobals.currentMainBody.pqsController.highQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
-                    FlightGlobals.currentMainBody.pqsController.mediumQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
-                    FlightGlobals.currentMainBody.pqsController.lowQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
-                    FlightGlobals.currentMainBody.pqsController.ultraQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    //FlightGlobals.currentMainBody.pqsController.surfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    //FlightGlobals.currentMainBody.pqsController.highQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    //FlightGlobals.currentMainBody.pqsController.mediumQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    //FlightGlobals.currentMainBody.pqsController.lowQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    //FlightGlobals.currentMainBody.pqsController.ultraQualitySurfaceMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_SurfaceTextureUVs", floatUV);
+                    ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_SurfaceTextureUVs", floatUV);
+
+                    
                 }
                 
-    
+
+
             }
+            float _PlanetOpacity = FlightGlobals.currentMainBody.pqsController.surfaceMaterial.GetFloat("_PlanetOpacity");
+
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetFloat("_PlanetOpacity", _PlanetOpacity);
+            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetFloat("_PlanetOpacity", _PlanetOpacity);
 
             lastBody = body;
             //FlightGlobals.GetHomeBody().pqsController.ultraQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)FlightGlobals.GetHomeBody().transform.position);
@@ -487,8 +616,29 @@ namespace ParallaxShader
             return input % 1024.0;
         }
     }
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class IngameEditor : MonoBehaviour
+    {
+        public void Update()
+        {
+            bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha1);
+            bool key2 = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha2);
+
+            if (key)
+            {
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetFloat("_displacement_offset", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.GetFloat("_displacement_offset") + 0.05f);
+                ScreenMessages.PostScreenMessage(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.GetFloat("_displacement_offset").ToString(), 0.1f);
+            }
+            if (key2)
+            {
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetFloat("_displacement_offset", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.GetFloat("_displacement_offset") - 0.05f);
+                ScreenMessages.PostScreenMessage(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.GetFloat("_displacement_offset").ToString(), 0.1f);
+            }
+
+        }
+    }
     [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
-    class ParallaxShaderLoader : MonoBehaviour
+    public class ParallaxShaderLoader : MonoBehaviour
     {
         public static Dictionary<string, ParallaxBody> parallaxBodies = new Dictionary<string, ParallaxBody>();
         public static float timeElapsed = 0;
@@ -500,6 +650,31 @@ namespace ParallaxShader
             ActivateConfigNodes();
             timeElapsed = Time.realtimeSinceStartup - timeElapsed;
             Log("Parallax took " + timeElapsed + " milliseconds [" + timeElapsed / 1000 + " seconds] to load from start to finish.");
+
+            //var planetMeshFilter = FlightGlobals.GetBodyByName("Kerbin").scaledBody.GetComponent<MeshFilter>();
+            //planetMeshFilter.mesh = Resources.FindObjectsOfTypeAll<Mesh>().FirstOrDefault(t => t.name == "ParallaxStockTextures/_Scaled/KSPPlanetHuge");
+            //if (planetMeshFilter.mesh != null)
+            //{
+            //    Debug.Log("Mesh not null");
+            //}
+            //var planetMeshRenderer = FlightGlobals.GetBodyByName("Kerbin").scaledBody.GetComponent<MeshRenderer>();
+            //
+            //Material a = new Material(ParallaxLoader.GetShader("Custom/ParallaxScaled"));
+            //a.SetTexture("_ColorMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "ParallaxStockTextures/_Scaled/Kerbin_Color"));
+            //a.SetTexture("_NormalMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "ParallaxStockTextures/_Scaled/Kerbin_Normal"));
+            //a.SetTexture("_HeightMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "ParallaxStockTextures/_Scaled/Kerbin_Height"));
+            //a.SetTextureScale("_ColorMap", new Vector2(1, 1));
+            //a.SetFloat("_PlanetRadius", (float)(FlightGlobals.GetBodyByName("Kerbin").Radius / 600));
+            //a.SetFloat("_displacement_scale", 0f);
+            //a.SetFloat("_Metallic", 0.01f);
+            //a.SetFloat("_TessellationEdgeLength", 1f);
+            //a.SetFloat("_PlanetOpacity", 1);
+            //a.SetFloat("_FresnelExponent", 23.6f);
+            //a.SetFloat("_TransitionWidth", 0.5f);
+            //a.SetTexture("_FogTexture", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "ParallaxStockTextures/_Scaled/Kerbin_Fog"));
+            //
+            //planetMeshRenderer.material = a;
+            //Debug.Log("Material set");
         }
         public void GetConfigNodes()
         {
@@ -525,9 +700,9 @@ namespace ParallaxShader
                     ParallaxBody thisBody = new ParallaxBody();
                     thisBody.Body = bodyName;
                     thisBody.ParallaxBodyMaterial = CreateParallaxBodyMaterial(parallaxBody, bodyName);
-        
+
                     Log(" - Assigned parallax body material");
-        
+
                     try
                     {
                         parallaxBodies.Add(bodyName, thisBody); //Add to the list of parallax bodies
@@ -542,14 +717,14 @@ namespace ParallaxShader
                     }
                     Log("////////////////////////////////////////////////\n");
                 }
-                
+
             }
-        
+
             Log("Activating config nodes...");
         }
         public void ActivateConfigNodes()
         {
-    
+
             foreach (KeyValuePair<string, ParallaxBody> body in parallaxBodies)
             {
                 Log("////////////////////////////////////////////////");
@@ -559,7 +734,7 @@ namespace ParallaxShader
                 Log(" - Created material successfully");
                 body.Value.Apply();
                 Debug.Log(" - Applied config nodes");
-    
+
             }
         }
         public ParallaxBodyMaterial CreateParallaxBodyMaterial(ConfigNode parallaxBody, string bodyName)
@@ -589,13 +764,22 @@ namespace ParallaxShader
             material.FogRange = ParseFloat(parallaxBody, "fogRange");
             material.UseReflections = ParseBool(parallaxBody, "hasWater");
             material.ReflectionMask = ParseVector(parallaxBody, "reflectionMask");
-
+            material.DisplacementOffset = ParseFloat(parallaxBody, "displacementOffset");
+            material.NormalSpecularInfluence = ParseFloat(parallaxBody, "normalSpecularInfluence");
+            material.HasEmission = ParseBoolNumber(parallaxBody, "hasEmission");
+            
             string color = ParseString(parallaxBody, "tintColor"); //it pains me to write colour this way as a brit
             material.TintColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
-            Debug.Log(material.TintColor + " COLOR1");
-    
+            
+            color = ParseString(parallaxBody, "emissionColor");
+            if (color != null)
+            {
+                material.EmissionColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
+            }
+            
+
             return material;
-    
+
         }
         public string ParseString(ConfigNode parallaxBody, string value)
         {
@@ -623,6 +807,7 @@ namespace ParallaxShader
             {
                 Debug.Log(value + " was not assigned");
                 output = "Unused_Texture";
+                return realOutput;
             }
             try
             {
@@ -645,7 +830,7 @@ namespace ParallaxShader
                 {
                     Debug.Log("Error parsing bool: " + value);
                     return false;
-                    
+
                 }
             }
             catch
@@ -660,6 +845,35 @@ namespace ParallaxShader
             else
             {
                 realOutput = false;
+            }
+            return realOutput;
+        }
+        public int ParseBoolNumber(ConfigNode parallaxBody, string value)
+        {
+            string output = "";
+            int realOutput = 0;
+            try
+            {
+                output = parallaxBody.GetValue(value);
+                if (output == null)
+                {
+                    Debug.Log("Error parsing bool: " + value);
+                    return 0;
+
+                }
+            }
+            catch
+            {
+                Debug.Log(value + " was not assigned");
+                output = "Unused_Texture";
+            }
+            if (output.ToString().ToLower() == "true")
+            {
+                realOutput = 1;
+            }
+            else
+            {
+                realOutput = 0;
             }
             return realOutput;
         }
@@ -697,13 +911,23 @@ namespace ParallaxShader
         {
             Debug.Log("[Parallax]" + message);
         }
-        
+
     }
-    class ParallaxBody
+    public class ParallaxBody
     {
         private string bodyName;
         private ParallaxBodyMaterial parallaxBodyMaterial;
         private Material parallaxMaterial;
+        private Material parallaxMaterialSINGLELOW;
+        private Material parallaxMaterialSINGLEMID;
+        private Material parallaxMaterialSINGLEHIGH;
+
+        private Material parallaxMaterialSINGLESTEEPLOW;
+        private Material parallaxMaterialSINGLESTEEPMID;
+        private Material parallaxMaterialSINGLESTEEPHIGH;
+
+        private Material parallaxMaterialDOUBLELOW;
+        private Material parallaxMaterialDOUBLEHIGH;
         public string Body
         {
             get { return bodyName; }
@@ -714,13 +938,25 @@ namespace ParallaxShader
             get { return parallaxBodyMaterial; }
             set { parallaxBodyMaterial = value; }
         }
+        
         public void CreateMaterial()
         {
-            parallaxMaterial = parallaxBodyMaterial.CreateMaterial();
+            Material[] materials = parallaxBodyMaterial.CreateMaterial();
+            parallaxMaterial = materials[0];
+            parallaxMaterialSINGLELOW = materials[1];
+            parallaxMaterialSINGLEMID = materials[2];
+            parallaxMaterialSINGLEHIGH = materials[3];
+
+            parallaxMaterialSINGLESTEEPLOW = materials[4];
+            parallaxMaterialSINGLESTEEPMID = materials[5];
+            parallaxMaterialSINGLESTEEPHIGH = materials[6];
+
+            parallaxMaterialDOUBLELOW = materials[7];
+            parallaxMaterialDOUBLEHIGH = materials[8];
         }
         public void Apply()
         {
-            
+
             CelestialBody body = FlightGlobals.GetBodyByName(bodyName);
             if (body == null)
             {
@@ -733,34 +969,44 @@ namespace ParallaxShader
             body.pqsController.ultraQualitySurfaceMaterial = parallaxMaterial;
         }
     }
-    class ParallaxBodyMaterial : MonoBehaviour
+    public class ParallaxBodyMaterial : MonoBehaviour
     {
         private Material parallaxMaterial;
-    
+        private Material parallaxMaterialSINGLELOW;
+        private Material parallaxMaterialSINGLEMID;
+        private Material parallaxMaterialSINGLEHIGH;
+        private Material parallaxMaterialSINGLESTEEPLOW;
+        private Material parallaxMaterialSINGLESTEEPMID;
+        private Material parallaxMaterialSINGLESTEEPHIGH;
+        private Material parallaxMaterialDOUBLELOW;
+        private Material parallaxMaterialDOUBLEHIGH;
+
         private string planetName;
         private string surfaceTexture;
         private string surfaceTextureParallaxMap;
         private string surfaceTextureBumpMap;
         private string steepTexture;
-    
+
         private float steepPower;
         private float surfaceTextureScale;
         private float surfaceParallaxHeight;
+        private float displacementOffset;
         private float steepTextureScale;
         private float smoothness;
         private Color tintColor;
-    
+        private float normalSpecularInfluence;
+
         private string surfaceTextureMid;
         private string surfaceTextureHigh;
         private string bumpMapMid;
         private string bumpMapHigh;
         private string bumpMapSteep;
-    
+
         private float lowStart;
         private float lowEnd;
         private float highStart;
         private float highEnd;
-    
+
         private float planetRadius;
         private string influenceMap;
         private string fogTexture;
@@ -769,7 +1015,30 @@ namespace ParallaxShader
         private bool useReflections = false;
         private Vector4 reflectionMask = new Vector4(0, 0, 0, 0);
 
+        private int hasEmission = 0;
+        private Color emissionColor = new Color(0, 0, 0);
+
         #region getsets
+        public Color EmissionColor
+        {
+            get { return emissionColor; }
+            set { emissionColor = value; }
+        }
+        public int HasEmission
+        {
+            get { return hasEmission; }
+            set { hasEmission = value; }
+        }
+        public float NormalSpecularInfluence
+        {
+            get { return normalSpecularInfluence; }
+            set { normalSpecularInfluence = value; }
+        }
+        public float DisplacementOffset
+        {
+            get { return displacementOffset; }
+            set { displacementOffset = value; }
+        }
         public Vector4 ReflectionMask
         {
             get { return reflectionMask; }
@@ -805,7 +1074,7 @@ namespace ParallaxShader
             get { return planetName; }
             set { planetName = value; }
         }
-            
+
         public float PlanetRadius
         {
             get { return planetRadius; }
@@ -836,7 +1105,7 @@ namespace ParallaxShader
             get { return bumpMapSteep; }
             set { bumpMapSteep = value; }
         }
-    
+
         public float LowStart
         {
             get { return lowStart; }
@@ -887,7 +1156,7 @@ namespace ParallaxShader
             get { return surfaceTextureScale; }
             set { surfaceTextureScale = value; }
         }
-    
+
         public float SurfaceParallaxHeight
         {
             get { return surfaceParallaxHeight; }
@@ -908,68 +1177,111 @@ namespace ParallaxShader
             get { return parallaxMaterial; }
             set { parallaxMaterial = value; }
         }
-    
+        public Material ParallaxMaterialSINGLELOW
+        {
+            get { return parallaxMaterialSINGLELOW; }
+            set { parallaxMaterialSINGLELOW = value; }
+        }
+        public Material ParallaxMaterialSINGLEMID
+        {
+            get { return parallaxMaterialSINGLEMID; }
+            set { parallaxMaterialSINGLEMID = value; }
+        }
+        public Material ParallaxMaterialSINGLEHIGH
+        {
+            get { return parallaxMaterialSINGLEHIGH; }
+            set { parallaxMaterialSINGLEHIGH = value; }
+        }
+        public Material ParallaxMaterialSINGLESTEEPLOW
+        {
+            get { return parallaxMaterialSINGLESTEEPLOW; }
+            set { parallaxMaterialSINGLESTEEPLOW = value; }
+        }
+        public Material ParallaxMaterialSINGLESTEEPMID
+        {
+            get { return parallaxMaterialSINGLESTEEPMID; }
+            set { parallaxMaterialSINGLESTEEPMID = value; }
+        }
+        public Material ParallaxMaterialSINGLESTEEPHIGH
+        {
+            get { return parallaxMaterialSINGLESTEEPHIGH; }
+            set { parallaxMaterialSINGLESTEEPHIGH = value; }
+        }
+        public Material ParallaxMaterialDOUBLELOW
+        {
+            get { return parallaxMaterialDOUBLELOW; }
+            set { parallaxMaterialDOUBLELOW = value; }
+        }
+        public Material ParallaxMaterialDOUBLEHIGH
+        {
+            get { return parallaxMaterialDOUBLEHIGH; }
+            set { parallaxMaterialDOUBLEHIGH = value; }
+        }
         #endregion
-        public Material CreateMaterial()    //Does the shit ingame and stuffs
+        public void EnableKeywordFromInteger(Material material, int value, string keywordON, string keywordOFF)
+        {
+            if (value == 1)
+            {
+                material.EnableKeyword(keywordON);
+                material.DisableKeyword(keywordOFF);
+            }
+            else
+            {
+                material.EnableKeyword(keywordOFF);
+                material.DisableKeyword(keywordON);
+            }
+        }
+        public Material[] CreateMaterial()    //Does the shit ingame and stuffs
         {
             Log("Beginning material creation");
-            parallaxMaterial = new Material(ParallaxLoader.GetShader("Custom/ParallaxOcclusion"));
-            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
-            {
-                parallaxMaterial = FlightGlobals.currentMainBody.pqsController.surfaceMaterial;
-                parallaxMaterial.shader = ParallaxLoader.GetShader("Custom/ParallaxOcclusion");
-            }
-            
-    
-            parallaxMaterial.SetTexture("_SurfaceTexture", LoadTexture(surfaceTexture));
-            Log("_SurfaceTexture", surfaceTexture);
-            parallaxMaterial.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
-            Log("_DispTex", surfaceTextureParallaxMap);
-            parallaxMaterial.SetTexture("_BumpMap", LoadTexture(surfaceTextureBumpMap));
-            Log("_BumpMap", surfaceTextureBumpMap);
-            parallaxMaterial.SetTexture("_SteepTex", LoadTexture(steepTexture));
-            Log("_SteepTex", steepTexture);
-            parallaxMaterial.SetFloat("_SteepPower", steepPower);
-            Log("_SteepPower", steepPower);
-            parallaxMaterial.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
-            Log("_SurfaceTexture", surfaceTextureScale);
-            parallaxMaterial.SetFloat("_displacement_scale", surfaceParallaxHeight);
-            Log("_Parallax", surfaceParallaxHeight);
-            parallaxMaterial.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
-            Log("_SteepTex", steepTextureScale);
-            parallaxMaterial.SetFloat("_Metallic", smoothness);
-            Log("_Metallic", smoothness);
-            parallaxMaterial.SetTexture("_SurfaceTextureMid", LoadTexture(surfaceTextureMid));
-            Log("_SurfaceTextureMid", surfaceTextureMid);
-            parallaxMaterial.SetTexture("_SurfaceTextureHigh", LoadTexture(surfaceTextureHigh));
-            Log("_SurfaceTextureHigh", surfaceTextureHigh);
-            parallaxMaterial.SetTexture("_BumpMapMid", LoadTexture(bumpMapMid));
-            Log("_BumpMapMid", bumpMapMid);
-            parallaxMaterial.SetTexture("_BumpMapHigh", LoadTexture(bumpMapHigh));
-            Log("_BumpMapHigh", bumpMapHigh);
-            parallaxMaterial.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
-            Log("_BumpMapSteep", bumpMapSteep);
-            parallaxMaterial.SetFloat("_LowStart", lowStart);
-            Log("_LowStart", lowStart);
-            parallaxMaterial.SetFloat("_LowEnd", lowEnd);
-            Log("_LowEnd", lowEnd);
-            parallaxMaterial.SetFloat("_HighStart", highStart);
-            Log("_HighStart", highStart);
-            parallaxMaterial.SetFloat("_HighEnd", highEnd);
-            Log("_HighEnd", highEnd);
-            parallaxMaterial.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
-            Log("_PlanetRadius", FlightGlobals.GetBodyByName(planetName).Radius.ToString());
-            parallaxMaterial.SetColor("_MetallicTint", tintColor);
-            Log("_MetallicTint", tintColor.r.ToString() + "," + tintColor.g.ToString() + "," + tintColor.b.ToString());
-            parallaxMaterial.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
-            Log("_InfluenceMap", influenceMap);
-            parallaxMaterial.SetFloat("_TessellationRange", 99);
-            Log("_TessellationRange", 99);
-            parallaxMaterial.SetTexture("_FogTexture", LoadTexture(fogTexture));
-            Log("_FogTexture", fogTexture);
-            parallaxMaterial.SetFloat("_FogRange", fogRange);
-            Log("_FogRange", fogRange);
+            Material[] output = new Material[9];
+            parallaxMaterial = new Material(ParallaxLoader.GetShader("Custom/ParallaxFULL"));
+            parallaxMaterialSINGLELOW = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLE"));
+            parallaxMaterialSINGLEMID = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLE"));
+            parallaxMaterialSINGLEHIGH = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLE"));
+            parallaxMaterialSINGLESTEEPLOW = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLESTEEP"));
+            parallaxMaterialSINGLESTEEPMID = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLESTEEP"));
+            parallaxMaterialSINGLESTEEPHIGH = new Material(ParallaxLoader.GetShader("Custom/ParallaxSINGLESTEEP"));
+            parallaxMaterialDOUBLELOW = new Material(ParallaxLoader.GetShader("Custom/ParallaxDOUBLELOW"));
+            parallaxMaterialDOUBLEHIGH = new Material(ParallaxLoader.GetShader("Custom/ParallaxDOUBLEHIGH"));
+            //if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+            //{
+            //    parallaxMaterial = FlightGlobals.currentMainBody.pqsController.surfaceMaterial;
+            //    parallaxMaterial.shader = ParallaxLoader.GetShader("Custom/ParallaxOcclusion");
+            //} //Not needed any more
 
+
+            //influenceMap = "BeyondHome/Terrain/DDS/BlankAlpha";
+
+            //parallaxMaterial.SetTexture("_SurfaceTexture", LoadTexture(surfaceTexture));
+            //parallaxMaterial.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterial.SetTexture("_BumpMap", LoadTexture(surfaceTextureBumpMap));
+            //parallaxMaterial.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterial.SetFloat("_SteepPower", steepPower);
+            parallaxMaterial.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterial.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterial.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterial.SetFloat("_Metallic", smoothness);
+            //parallaxMaterial.SetTexture("_SurfaceTextureMid", LoadTexture(surfaceTextureMid));
+            //parallaxMaterial.SetTexture("_SurfaceTextureHigh", LoadTexture(surfaceTextureHigh));
+            //parallaxMaterial.SetTexture("_BumpMapMid", LoadTexture(bumpMapMid));
+            //parallaxMaterial.SetTexture("_BumpMapHigh", LoadTexture(bumpMapHigh));
+            //parallaxMaterial.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterial.SetFloat("_LowStart", lowStart);
+            parallaxMaterial.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterial.SetFloat("_HighStart", highStart);
+            parallaxMaterial.SetFloat("_HighEnd", highEnd);
+            parallaxMaterial.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterial.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterial.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterial.SetFloat("_TessellationRange", 99);
+            //parallaxMaterial.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterial.SetFloat("_FogRange", fogRange);
+            parallaxMaterial.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterial.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterial.SetFloat("_HasEmission", hasEmission);
+            
+            parallaxMaterial.SetColor("_EmissionColor", emissionColor);
             if (useReflections)
             {
                 parallaxMaterial.SetFloat("_UseReflections", 1);
@@ -982,20 +1294,356 @@ namespace ParallaxShader
             }
 
             parallaxMaterial.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterial.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterial.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterial.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+            //PARALLAX SINGLE
+
+            //parallaxMaterialSINGLELOW.SetTexture("_SurfaceTexture", LoadTexture(surfaceTexture));
+            //parallaxMaterialSINGLELOW.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLELOW.SetTexture("_BumpMap", LoadTexture(surfaceTextureBumpMap));
+            parallaxMaterialSINGLELOW.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLELOW.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLELOW.SetFloat("_Metallic", smoothness);
+            parallaxMaterialSINGLELOW.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLELOW.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLELOW.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLELOW.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLELOW.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLELOW.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLELOW.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLELOW.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialSINGLELOW.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLELOW.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLELOW.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialSINGLELOW.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialSINGLELOW.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialSINGLELOW.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLELOW.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLELOW.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLELOW.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLELOW.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLELOW.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLELOW.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+            //parallaxMaterialSINGLEMID.SetTexture("_SurfaceTexture", LoadTexture(surfaceTextureMid));
+            //parallaxMaterialSINGLEMID.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLEMID.SetTexture("_BumpMap", LoadTexture(bumpMapMid));
+            parallaxMaterialSINGLEMID.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLEMID.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLEMID.SetFloat("_Metallic", smoothness);
+            parallaxMaterialSINGLEMID.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLEMID.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLEMID.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLEMID.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLEMID.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLEMID.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLEMID.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLEMID.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialSINGLEMID.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLEMID.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLEMID.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialSINGLEMID.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialSINGLEMID.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialSINGLEMID.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLEMID.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLEMID.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLEMID.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLEMID.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLEMID.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLEMID.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
 
 
-            //INTERNAL global stuff
-            ParallaxMaterial.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
-            ParallaxMaterial.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
-            ParallaxMaterial.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
-            //
-            //Debug.Log(ParallaxSettings.tessellationEdgeLength + "edgelength");
-            //Debug.Log(ParallaxSettings.tessellationRange + "edgelength");
-            //Debug.Log(ParallaxSettings.tessellationMax + "edgelength");
+            //parallaxMaterialSINGLEHIGH.SetTexture("_SurfaceTexture", LoadTexture(surfaceTextureHigh));
+           // parallaxMaterialSINGLEHIGH.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLEHIGH.SetTexture("_BumpMap", LoadTexture(bumpMapHigh));
+            parallaxMaterialSINGLEHIGH.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLEHIGH.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLEHIGH.SetFloat("_Metallic", smoothness);
+            parallaxMaterialSINGLEHIGH.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLEHIGH.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLEHIGH.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLEHIGH.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLEHIGH.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLEHIGH.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLEHIGH.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLEHIGH.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialSINGLEHIGH.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLEHIGH.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLEHIGH.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialSINGLEHIGH.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialSINGLEHIGH.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialSINGLEHIGH.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLEHIGH.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLEHIGH.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLEHIGH.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLEHIGH.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLEHIGH.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLEHIGH.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+            //PARALLAX SINGLESTEEP
+
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_SurfaceTexture", LoadTexture(surfaceTexture));
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_BumpMap", LoadTexture(surfaceTextureBumpMap));
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_SteepPower", steepPower);
+            parallaxMaterialSINGLESTEEPLOW.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLESTEEPLOW.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_Metallic", smoothness);
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLESTEEPLOW.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialSINGLESTEEPLOW.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_displacement_offset", displacementOffset);
+            ParallaxMaterialSINGLESTEEPLOW.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialSINGLESTEEPLOW.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLESTEEPLOW.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLESTEEPLOW.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLESTEEPLOW.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLESTEEPLOW.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_SurfaceTexture", LoadTexture(surfaceTextureMid));
+           // parallaxMaterialSINGLESTEEPMID.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_BumpMap", LoadTexture(bumpMapMid));
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_SteepPower", steepPower);
+            parallaxMaterialSINGLESTEEPMID.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLESTEEPMID.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_Metallic", smoothness);
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLESTEEPMID.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialSINGLESTEEPMID.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            ParallaxMaterialSINGLESTEEPMID.SetFloat("_HasEmission", hasEmission);
+            ParallaxMaterialSINGLESTEEPMID.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLESTEEPMID.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLESTEEPMID.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLESTEEPMID.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLESTEEPMID.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_SurfaceTexture", LoadTexture(surfaceTextureHigh));
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_BumpMap", LoadTexture(bumpMapHigh));
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_SteepPower", steepPower);
+            parallaxMaterialSINGLESTEEPHIGH.SetTextureScale("_SurfaceTexture", CreateVector(surfaceTextureScale));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialSINGLESTEEPHIGH.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_Metallic", smoothness);
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_LowStart", lowStart);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_HighStart", highStart);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialSINGLESTEEPHIGH.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialSINGLESTEEPHIGH.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_TessellationRange", 99);
+           // parallaxMaterialSINGLESTEEPHIGH.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_FogRange", fogRange);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            ParallaxMaterialSINGLESTEEPHIGH.SetFloat("_HasEmission", hasEmission);
+            ParallaxMaterialSINGLESTEEPHIGH.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialSINGLESTEEPHIGH.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialSINGLESTEEPHIGH.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialSINGLESTEEPHIGH.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialSINGLESTEEPHIGH.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+
+            //PARALLAX DOUBLE
+
+            //parallaxMaterialDOUBLELOW.SetTexture("_SurfaceTextureLower", LoadTexture(surfaceTexture));
+            //parallaxMaterialDOUBLELOW.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialDOUBLELOW.SetTexture("_BumpMapLower", LoadTexture(surfaceTextureBumpMap));
+            //parallaxMaterialDOUBLELOW.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterialDOUBLELOW.SetFloat("_SteepPower", steepPower);
+            parallaxMaterialDOUBLELOW.SetTextureScale("_SurfaceTextureLower", CreateVector(surfaceTextureScale));
+            parallaxMaterialDOUBLELOW.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialDOUBLELOW.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterialDOUBLELOW.SetFloat("_Metallic", smoothness);
+            //parallaxMaterialDOUBLELOW.SetTexture("_SurfaceTextureHigher", LoadTexture(surfaceTextureMid));
+            //parallaxMaterialDOUBLELOW.SetTexture("_BumpMapHigher", LoadTexture(BumpMapMid));
+            //parallaxMaterialDOUBLELOW.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterialDOUBLELOW.SetFloat("_LowStart", lowStart);
+            parallaxMaterialDOUBLELOW.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialDOUBLELOW.SetFloat("_HighStart", highStart);
+            parallaxMaterialDOUBLELOW.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialDOUBLELOW.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialDOUBLELOW.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialDOUBLELOW.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialDOUBLELOW.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialDOUBLELOW.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialDOUBLELOW.SetFloat("_FogRange", fogRange);
+            parallaxMaterialDOUBLELOW.SetFloat("_displacement_offset", displacementOffset);
+            ParallaxMaterialDOUBLELOW.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialDOUBLELOW.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialDOUBLELOW.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialDOUBLELOW.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialDOUBLELOW.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialDOUBLELOW.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialDOUBLELOW.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialDOUBLELOW.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialDOUBLELOW.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_SurfaceTextureLower", LoadTexture(surfaceTextureMid));
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_DispTex", LoadTexture(surfaceTextureParallaxMap));
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_BumpMapLower", LoadTexture(bumpMapMid));
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_SteepTex", LoadTexture(steepTexture));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_SteepPower", steepPower);
+            parallaxMaterialDOUBLEHIGH.SetTextureScale("_SurfaceTextureLower", CreateVector(surfaceTextureScale));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_displacement_scale", surfaceParallaxHeight);
+            parallaxMaterialDOUBLEHIGH.SetTextureScale("_SteepTex", CreateVector(steepTextureScale));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_Metallic", smoothness);
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_SurfaceTextureHigher", LoadTexture(surfaceTextureHigh));
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_BumpMapHigher", LoadTexture(bumpMapHigh));
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_BumpMapSteep", LoadTexture(bumpMapSteep));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_LowStart", lowStart);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_LowEnd", lowEnd);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_HighStart", highStart);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_HighEnd", highEnd);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_PlanetRadius", (float)FlightGlobals.GetBodyByName(planetName).Radius);
+            parallaxMaterialDOUBLEHIGH.SetColor("_MetallicTint", tintColor);
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_InfluenceMap", LoadTexture(influenceMap));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_TessellationRange", 99);
+            //parallaxMaterialDOUBLEHIGH.SetTexture("_FogTexture", LoadTexture(fogTexture));
+            parallaxMaterialDOUBLEHIGH.SetFloat("_FogRange", fogRange);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_displacement_offset", displacementOffset);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_HasEmission", hasEmission);
+            parallaxMaterialDOUBLEHIGH.SetColor("_EmissionColor", emissionColor);
+            if (useReflections)
+            {
+                parallaxMaterialDOUBLEHIGH.SetFloat("_UseReflections", 1);
+                Log("_UseReflections", "true");
+            }
+            else
+            {
+                parallaxMaterialDOUBLEHIGH.SetFloat("_UseReflections", 0);
+                Log("_UseReflections", "false");
+            }
+
+            parallaxMaterialDOUBLEHIGH.SetVector("_ReflectionMask", reflectionMask);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_TessellationEdgeLength", ParallaxSettings.tessellationEdgeLength);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_TessellationRange", ParallaxSettings.tessellationRange);
+            parallaxMaterialDOUBLEHIGH.SetFloat("_TessellationMax", ParallaxSettings.tessellationMax);
+
+            EnableKeywordFromInteger(parallaxMaterial, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLELOW, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLEMID, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLEHIGH, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLESTEEPLOW, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLESTEEPMID, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialSINGLESTEEPHIGH, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialDOUBLELOW, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+            EnableKeywordFromInteger(parallaxMaterialDOUBLEHIGH, hasEmission, "EMISSION_ON", "EMISSION_OFF");
+
 
             ParseKeywords();    //Quality settings
+            output[0] = parallaxMaterial;
+            output[1] = parallaxMaterialSINGLELOW;
+            output[2] = ParallaxMaterialSINGLEMID;
+            output[3] = parallaxMaterialSINGLEHIGH;
 
-            return parallaxMaterial;
+            output[4] = parallaxMaterialSINGLESTEEPLOW;
+            output[5] = parallaxMaterialSINGLESTEEPMID;
+            output[6] = parallaxMaterialSINGLESTEEPHIGH;
+
+            output[7] = parallaxMaterialDOUBLELOW;
+            output[8] = parallaxMaterialDOUBLEHIGH;
+            return output;
         }
         public void ParseKeywords()
         {
@@ -1003,33 +1651,150 @@ namespace ParallaxShader
             {
                 parallaxMaterial.EnableKeyword("TESS_ON");
                 parallaxMaterial.DisableKeyword("TESS_OFF");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("TESS_OFF");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("TESS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("TESS_OFF");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLELOW.DisableKeyword("TESS_OFF");
+                parallaxMaterialSINGLEMID.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLEMID.DisableKeyword("TESS_OFF");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("TESS_ON");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("TESS_OFF");
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("TESS_ON");
+                parallaxMaterialDOUBLELOW.DisableKeyword("TESS_OFF");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("TESS_ON");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("TESS_OFF");
             }
             else
             {
                 parallaxMaterial.EnableKeyword("TESS_OFF");
                 parallaxMaterial.DisableKeyword("TESS_ON");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("TESS_ON");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("TESS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("TESS_ON");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLELOW.DisableKeyword("TESS_ON");
+                parallaxMaterialSINGLEMID.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLEMID.DisableKeyword("TESS_ON");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("TESS_OFF");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("TESS_ON");
+
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("TESS_OFF");
+                parallaxMaterialDOUBLELOW.DisableKeyword("TESS_ON");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("TESS_OFF");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("TESS_ON");
             }
 
             if (ParallaxSettings.tessellateLighting == true)
             {
                 parallaxMaterial.EnableKeyword("HQ_LIGHTS_ON");
                 parallaxMaterial.DisableKeyword("HQ_LIGHTS_OFF");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("HQ_LIGHTS_OFF");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLELOW.DisableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLEMID.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLEMID.DisableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("HQ_LIGHTS_OFF");
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialDOUBLELOW.DisableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("HQ_LIGHTS_OFF");
             }
             else
             {
                 parallaxMaterial.EnableKeyword("HQ_LIGHTS_OFF");
                 parallaxMaterial.DisableKeyword("HQ_LIGHTS_ON");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("HQ_LIGHTS_ON");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLELOW.DisableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLEMID.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLEMID.DisableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("HQ_LIGHTS_ON");
+
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialDOUBLELOW.DisableKeyword("HQ_LIGHTS_ON");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("HQ_LIGHTS_OFF");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("HQ_LIGHTS_ON");
             }
 
             if (ParallaxSettings.tessellateShadows == true)
             {
                 parallaxMaterial.EnableKeyword("HQ_SHADOWS_ON");
                 parallaxMaterial.DisableKeyword("HQ_SHADOWS_OFF");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("HQ_SHADOWS_OFF");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLELOW.DisableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLEMID.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLEMID.DisableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("HQ_SHADOWS_OFF");
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialDOUBLELOW.DisableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("HQ_SHADOWS_OFF");
             }
             else
             {
                 parallaxMaterial.EnableKeyword("HQ_SHADOWS_OFF");
                 parallaxMaterial.DisableKeyword("HQ_SHADOWS_ON");
+
+                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLESTEEPMID.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLESTEEPMID.DisableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("HQ_SHADOWS_ON");
+
+                parallaxMaterialSINGLELOW.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLELOW.DisableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLEMID.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLEMID.DisableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialSINGLEHIGH.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialSINGLEHIGH.DisableKeyword("HQ_SHADOWS_ON");
+
+
+                parallaxMaterialDOUBLELOW.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialDOUBLELOW.DisableKeyword("HQ_SHADOWS_ON");
+                parallaxMaterialDOUBLEHIGH.EnableKeyword("HQ_SHADOWS_OFF");
+                parallaxMaterialDOUBLEHIGH.DisableKeyword("HQ_SHADOWS_ON");
             }
         }
         public void SetTexturesOnDemand()
@@ -1060,7 +1825,7 @@ namespace ParallaxShader
         {
             Debug.Log("\t" + message);
         }
-        private Texture LoadTexture(string name)
+        public Texture LoadTexture(string name)
         {
             try
             {
@@ -1092,25 +1857,25 @@ namespace ParallaxShader
         }
         public void Update()
         {
-            //timeElapsed = Time.realtimeSinceStartup;
-            //currentBody = FlightGlobals.currentMainBody;
-            //bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha2);
-            //if (currentBody != lastKnownBody && key)           //Vessel is around a new planet, so its textures must be loaded
-            //{
-            //    bool bodyExists = ParallaxShaderLoader.parallaxBodies.ContainsKey(currentBody.name);
-            //    if (bodyExists)
-            //    {
-            //        Log("SOI changed, beginning transfer of surface textures for " + currentBody.name);
-            //        Log("Unloading " + activeTextures.Count + " textures");
-            //        UnloadTextures();
-            //        LoadTextures();
-            //    }
-            //    timeElapsed = Time.realtimeSinceStartup - timeElapsed;
-            //    Debug.Log("Loading " + activeTextures.Count + " textures from disk took " + timeElapsed + "ms");
-            //    lastKnownBody = currentBody;
-            //}
-            
-            
+            timeElapsed = Time.realtimeSinceStartup;
+            currentBody = FlightGlobals.currentMainBody;
+            bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha2);
+            if (currentBody != lastKnownBody)           //Vessel is around a new planet, so its textures must be loaded
+            {
+                bool bodyExists = ParallaxShaderLoader.parallaxBodies.ContainsKey(currentBody.name);
+                if (bodyExists)
+                {
+                    Log("SOI changed, beginning transfer of surface textures for " + currentBody.name);
+                    Log("Unloading " + activeTextures.Count + " textures");
+                    UnloadTextures();
+                    LoadTextures();
+                }
+                timeElapsed = Time.realtimeSinceStartup - timeElapsed;
+                Debug.Log("Loading " + activeTextures.Count + " textures from disk took " + timeElapsed + "ms");
+                lastKnownBody = currentBody;
+            }
+
+
         }
         private void Log(string message)
         {
@@ -1176,12 +1941,59 @@ namespace ParallaxShader
 
                 activeTextures[path.Key] = textureRef;
 
-                FlightGlobals.currentMainBody.pqsController.surfaceMaterial.SetTexture(path.Key, textureRef);
+                //FlightGlobals.currentMainBody.pqsController.surfaceMaterial.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterial.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetTexture(path.Key, textureRef);
+                ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetTexture(path.Key, textureRef);
 
-                
+                if (path.Key == "_SurfaceTexture")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetTexture("_SurfaceTextureLower", textureRef);
+                }
+                if (path.Key == "_SurfaceTextureMid")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture("_SurfaceTextureLower", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetTexture("_SurfaceTextureHigher", textureRef);
+                }
+                if (path.Key == "_SurfaceTextureHigh")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetTexture("_SurfaceTexture", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture("_SurfaceTextureHigher", textureRef);
+                }
+                if (path.Key == "_BumpMap")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetTexture("_BumpMapLower", textureRef);
+                }
+                if (path.Key == "_BumpMapMid")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture("_BumpMapLower", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetTexture("_BumpMapHigher", textureRef);
+                }
+                if (path.Key == "_BumpMapHigh")
+                {
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetTexture("_BumpMap", textureRef);
+                    ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture("_BumpMapHigher", textureRef);
+                }
+                Debug.Log("Set texture: " + path.Key + " // " + textureRef.name);
                 //.pqsController.surfaceMaterial.SetTexture(path.Key, textureRef);
             }
-            ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.SetTexturesOnDemand();
+            //ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.SetTexturesOnDemand();
             //
             //FlightGlobals.currentMainBody.pqsController.surfaceMaterial = ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterial;
             //FlightGlobals.currentMainBody.pqsController.highQualitySurfaceMaterial = ParallaxShaderLoader.parallaxBodies[planetName].ParallaxBodyMaterial.ParallaxMaterial;
@@ -1244,27 +2056,6 @@ namespace ParallaxShader
             texture.Apply();
 
             return (texture);
-        }
-    }
-    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
-    public class KSCColor : PQSMod
-    {
-        Vector3 colorTotal = new Vector3(0, 0, 0);
-        int totalConfirmed = 0;
-        public override void OnQuadBuilt(PQ quad)
-        {
-            if (quad.subdivision >= FlightGlobals.GetHomeBody().pqsController.maxLevel - 1) //Quad is close to the max level
-            {
-                Color thisVertexColor = quad.mesh.colors[0];
-                Vector3 thisColor = new Vector3(thisVertexColor.r, thisVertexColor.g, thisVertexColor.b);
-                colorTotal += thisColor;
-                totalConfirmed++;
-            }
-        }
-        public override void OnPostSetup()  //I think this happens after the planet is built but i can't be sure - This method should fire after the planet is built
-        {
-            Vector3 avgColor = colorTotal / totalConfirmed;
-            Color output = new Color(avgColor.x, avgColor.y, avgColor.z);
         }
     }
     [KSPAddon(KSPAddon.Startup.Instantly, false)]
