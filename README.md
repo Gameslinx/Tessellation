@@ -41,6 +41,8 @@ Parallax will be releasing for Beyond Home soon. I look forward to you all being
 
 ## Installation
 - Download the correct version of Parallax for your KSP version
+- Download and install the correct version of Kopernicus for your KSP version
 - Drag and drop the "Parallax" folder into GameData
+- If you are using the stock planets, also download the "Parallax_StockTextures" folder and drag that into GameData
 - Adjust any settings you need to in the config (Parallax/Config/ParallaxGlobal.cfg)
 - Launch the game, and make sure your terrain quality is set to high
