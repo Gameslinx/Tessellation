@@ -35,9 +35,7 @@ As for system requirements, the trailer was recorded using the following specs -
 * RTX 2080 Super
 * 32GB DDR4
 
-Keep in mind that the trailer was also recorded at 4k. I don't have any other benchmarks for performance yet, but if you are running the game at 1080p you can expect similar performance with more modest specs.
-
-Parallax will be releasing for Beyond Home soon. I look forward to you all being able to experience it!
+Keep in mind that the trailer was also recorded at 4k.
 
 ## Installation
 - Download the correct version of Parallax for your KSP version
