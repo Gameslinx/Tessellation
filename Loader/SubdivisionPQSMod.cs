@@ -149,7 +149,10 @@ namespace PQSModExpansion
         public override void OnQuadBuilt(PQ quad)
         {
             //SUBDIVISION MOD
+            if (FlightGlobals.currentMainBody == null) {
 
+                return;
+            }
             try
             {
                 if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
@@ -308,6 +311,9 @@ namespace PQSModExpansion
             }
             else
             {
+                if (FlightGlobals.currentMainBody == null) {
+                    return;
+                }
                 if (data.vertHeight > maxHeight)
                 {
                     maxHeight = data.vertHeight;
@@ -328,13 +334,11 @@ namespace PQSModExpansion
 
                 quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
             }
-            
             //This method should run before OnQuadBuilt
-
         }
+
         public void ConvertLatLon(Vector2d latLon)
         {
-            
         }
     }
     [RequireConfigType(ConfigType.Node)]
