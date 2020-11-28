@@ -21,11 +21,6 @@ using ParallaxShader;
 [assembly: KSPAssemblyDependency("Parallax", 1, 0)]
 namespace PQSModExpansion
 {
-
-    public static class QuadMeshDictionary
-    {
-        public static Dictionary<string, GameObject> subdividedQuadList = new Dictionary<string, GameObject>();
-    }
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ClearDictionary2 : MonoBehaviour
     {
@@ -115,7 +110,7 @@ namespace PQSModExpansion
                     //newMaterials[1] = GetGrassMaterial();
                     //newQuadMeshRenderer.materials = newMaterials;
                     newQuadMeshRenderer.enabled = true;
-                    
+
                     quadMeshRenderer.material = transparent;
                     quadMeshRenderer.material.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "BeyondHome/Terrain/DDS/BlankAlpha"));
 
@@ -154,7 +149,10 @@ namespace PQSModExpansion
         public override void OnQuadBuilt(PQ quad)
         {
             //SUBDIVISION MOD
+            if (FlightGlobals.currentMainBody == null) {
 
+                return;
+            }
             try
             {
                 if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
@@ -227,7 +225,6 @@ namespace PQSModExpansion
                     //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_SurfaceTexture", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LoadTexture(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SurfaceTextureHigh));
                     //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_BumpMap", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LoadTexture(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.BumpMapHigh));
                 }
-                
                 if (lowPoint < lowStart && highPoint > highStart)
                 {
                     //LOW-MID-HIGH
@@ -274,6 +271,7 @@ namespace PQSModExpansion
             }
 
         }
+
         public override void OnQuadDestroy(PQ quad)
         {
             if (quad.gameObject.GetComponent<QuadMeshes>() != null)
@@ -291,8 +289,8 @@ namespace PQSModExpansion
                 Destroy(quad.gameObject.GetComponent<QuadMeshes>());    //Quad is not maxLevel anymore, remove the damn thing
 
             }
-            
         }
+
         public Vector3 maxVertexPosition;
         public Vector3 minVertexPosition;
         public double maxHeight = -10000000;
@@ -302,44 +300,45 @@ namespace PQSModExpansion
         public override void OnVertexBuildHeight(PQS.VertexBuildData data)
         {
             double time = Time.realtimeSinceStartup;
-                double time2 = Time.realtimeSinceStartup;
-                if (data.buildQuad == null)
-                {
+            double time2 = Time.realtimeSinceStartup;
+            if (data.buildQuad == null)
+            {
+                return;
+            }
+            if (currentBuildQuad != data.buildQuad)
+            {
+                currentBuildQuad = data.buildQuad;
+            }
+            else
+            {
+                if (FlightGlobals.currentMainBody == null) {
                     return;
                 }
-                if (currentBuildQuad != data.buildQuad)
+                if (data.vertHeight > maxHeight)
                 {
-                    currentBuildQuad = data.buildQuad;
+                    maxHeight = data.vertHeight;
+                    maxVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
                 }
-                else
+                if (data.vertHeight < minHeight)
                 {
-                    if (data.vertHeight > maxHeight)
-                    {
-                        maxHeight = data.vertHeight;
-                        maxVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
-                    }
-                    if (data.vertHeight < minHeight)
-                    {
-                        minHeight = data.vertHeight;
-                        minVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
-                    }
-                    //float slope = abs(dot(normalize(o.world_vertex - _PlanetOrigin), normalize(o.normalDir)));
-                    //slope = pow(slope, _SteepPower);
-                    float slope = Math.Abs(Vector3.Dot(Vector3.Normalize(maxVertexPosition - minVertexPosition), Vector3.Normalize(data.buildQuad.transform.position - FlightGlobals.currentMainBody.transform.position)));
-
-                    //Slope is now a value between 0 (Perpendicular to direction from terrain to planet centre) and 1 (Straight up fucking vertical)
-                    slope = (float)Math.Pow(slope, ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SteepPower);
-                    //Slope is now an approximation to the slope calculated in the shader
-
-                    quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
+                    minHeight = data.vertHeight;
+                    minVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
                 }
-            
+                //float slope = abs(dot(normalize(o.world_vertex - _PlanetOrigin), normalize(o.normalDir)));
+                //slope = pow(slope, _SteepPower);
+                float slope = Math.Abs(Vector3.Dot(Vector3.Normalize(maxVertexPosition - minVertexPosition), Vector3.Normalize(data.buildQuad.transform.position - FlightGlobals.currentMainBody.transform.position)));
+
+                //Slope is now a value between 0 (Perpendicular to direction from terrain to planet centre) and 1 (Straight up fucking vertical)
+                slope = (float)Math.Pow(slope, ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SteepPower);
+                //Slope is now an approximation to the slope calculated in the shader
+
+                quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
+            }
             //This method should run before OnQuadBuilt
-            
         }
+
         public void ConvertLatLon(Vector2d latLon)
         {
-            
         }
     }
     [RequireConfigType(ConfigType.Node)]
@@ -379,7 +378,7 @@ namespace PQSModExpansion
         public override void OnSetup()
         {
             this.requirements = PQS.ModiferRequirements.MeshColorChannel;
-            
+
         }
         public override void OnVertexBuild(PQS.VertexBuildData data)
         {
@@ -623,7 +622,7 @@ namespace PQSModExpansion
         /// This functions subdivides the mesh based on the level parameter
         /// Note that only the 4 and 9 subdivides are supported so only those divides
         /// are possible. [2,3,4,6,8,9,12,16,18,24,27,32,36,48,64, ...]
-        /// The function tried to approximate the desired level 
+        /// The function tried to approximate the desired level
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="level">Should be a number made up of (2^x * 3^y)
@@ -691,7 +690,7 @@ namespace PQSModExpansion
     {
         public override void OnQuadBuilt(PQ quad)
         {
-            
+
         }
         //public override void OnQuadDestroy(PQ quad)
         //{
@@ -884,7 +883,7 @@ namespace PQSModExpansion
             }
             foreach (CelestialBody body in FlightGlobals.Bodies)
             {
-                
+
                 if (body.GetComponent<PQS>() != null && body.GetComponent<PQS>().maxLevel < 8 && body.Radius > 50000)
                 {
                     body.pqsController.maxLevel = 10;

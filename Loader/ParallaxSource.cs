@@ -27,8 +27,7 @@ namespace ParallaxShader
             //ShaderLoader.LoadAssetBundle("Terrain/Shaders", "ParallaxOcclusion");
             //var assetBundle = AssetBundle.LoadFromFile(
             string filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Parallax");
-
-            if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
+            if (Application.platform == RuntimePlatform.LinuxPlayer || (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL")))
             {
                 filePath = (filePath + "-linux.unity3d");
             }
@@ -54,7 +53,7 @@ namespace ParallaxShader
                 foreach (Shader thisShader in theseShaders)
                 {
                     shaders.Add(thisShader.name, thisShader);
-                    Debug.Log("Loaded shader: " + thisShader.name);
+                    Debug.Log($"Loaded shader: {thisShader.name} {thisShader.isSupported}");
                 }
 
 
@@ -67,7 +66,7 @@ namespace ParallaxShader
 
 
             filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Grass");
-            
+
             if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
             {
                 filePath = (filePath + "-linux.unity3d");
@@ -96,9 +95,9 @@ namespace ParallaxShader
                     shaders.Add(thisShader.name, thisShader);
                     Debug.Log("Loaded shader: " + thisShader.name);
                 }
-            
-            
-            
+
+
+
             }
 
             filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/ParallaxScaled");
@@ -449,7 +448,7 @@ namespace ParallaxShader
             float num = FlightGlobals.getAltitudeAtPos(pos.position, FlightGlobals.currentMainBody);
             if (num < 0f)
             {
-                //Camera is underwater 
+                //Camera is underwater
             }
             num += 600f;
             RaycastHit heightFromTerrainHit;
@@ -590,9 +589,9 @@ namespace ParallaxShader
                     ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_SurfaceTextureUVs", floatUV);
                     ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_SurfaceTextureUVs", floatUV);
 
-                    
+
                 }
-                
+
 
 
             }
@@ -767,16 +766,16 @@ namespace ParallaxShader
             material.DisplacementOffset = ParseFloat(parallaxBody, "displacementOffset");
             material.NormalSpecularInfluence = ParseFloat(parallaxBody, "normalSpecularInfluence");
             material.HasEmission = ParseBoolNumber(parallaxBody, "hasEmission");
-            
+
             string color = ParseString(parallaxBody, "tintColor"); //it pains me to write colour this way as a brit
             material.TintColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
-            
+
             color = ParseString(parallaxBody, "emissionColor");
             if (color != null)
             {
                 material.EmissionColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
             }
-            
+
 
             return material;
 
@@ -938,7 +937,7 @@ namespace ParallaxShader
             get { return parallaxBodyMaterial; }
             set { parallaxBodyMaterial = value; }
         }
-        
+
         public void CreateMaterial()
         {
             Material[] materials = parallaxBodyMaterial.CreateMaterial();
@@ -1280,7 +1279,7 @@ namespace ParallaxShader
             parallaxMaterial.SetFloat("_displacement_offset", displacementOffset);
             parallaxMaterial.SetFloat("_NormalSpecularInfluence", normalSpecularInfluence);
             parallaxMaterial.SetFloat("_HasEmission", hasEmission);
-            
+
             parallaxMaterial.SetColor("_EmissionColor", emissionColor);
             if (useReflections)
             {
