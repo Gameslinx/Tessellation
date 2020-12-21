@@ -21,6 +21,11 @@ using ParallaxShader;
 [assembly: KSPAssemblyDependency("Parallax", 1, 0)]
 namespace PQSModExpansion
 {
+
+    public static class QuadMeshDictionary
+    {
+        public static Dictionary<string, GameObject> subdividedQuadList = new Dictionary<string, GameObject>();
+    }
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ClearDictionary2 : MonoBehaviour
     {
@@ -45,6 +50,7 @@ namespace PQSModExpansion
         public bool subdivided = false;
         public PQ quad;
         public GameObject newQuad;
+        public GameObject collisionQuad;
         public int subdivisionLevel = 1;
         Material transparent = new Material(Shader.Find("Unlit/Transparent"));
         private float distance = 0;
@@ -80,28 +86,48 @@ namespace PQSModExpansion
                     newQuad.name = quad.name + "FAKE";
                     newQuad.transform.position = quad.gameObject.transform.position;
                     newQuad.transform.rotation = quad.gameObject.transform.rotation;
-
                     newQuad.transform.parent = quad.gameObject.transform;
-
                     newQuad.transform.localPosition = Vector3.zero;
                     newQuad.transform.localRotation = Quaternion.identity;
                     newQuad.transform.localScale = Vector3.one;
                     newQuad.transform.parent = quad.gameObject.transform;
+                    //newQuad.layer = 29; //Unused by KSP
+
+                    collisionQuad = new GameObject();   //Raycast for collisions are done on this layer
+                    collisionQuad.name = quad.name + "FAKE COLLIDER";
+                    collisionQuad.transform.position = quad.gameObject.transform.position;
+                    collisionQuad.transform.rotation = quad.gameObject.transform.rotation;
+                    collisionQuad.transform.parent = quad.gameObject.transform;
+                    collisionQuad.transform.localPosition = Vector3.zero;
+                    collisionQuad.transform.localRotation = Quaternion.identity;
+                    collisionQuad.transform.localScale = Vector3.one;
+                    collisionQuad.transform.parent = quad.gameObject.transform;
+                    collisionQuad.layer = 29;
+                    Debug.Log("1");
+                    
+                    Physics.IgnoreLayerCollision(0, 14);
+                    Debug.Log("1");
 
                     trueMaterial = quad.GetComponent<MeshRenderer>().sharedMaterial;    //reference to sharedMaterial
 
                     Mesh mesh = Instantiate(quadMeshFilter.sharedMesh);
                     MeshHelper.Subdivide(mesh, subdivisionLevel);
-
+                    Debug.Log("1");
                     newQuad.AddComponent<MeshFilter>();
                     var newQuadMeshFilter = newQuad.GetComponent<MeshFilter>();
-
+                    collisionQuad.AddComponent<MeshFilter>();
+                    collisionQuad.GetComponent<MeshFilter>().sharedMesh = mesh;
+                    Debug.Log("1");
+                    collisionQuad.AddComponent<MeshRenderer>();
+                    collisionQuad.GetComponent<MeshRenderer>().enabled = false;
+                    Debug.Log("1");
                     newQuadMeshFilter.sharedMesh = mesh;
                     newQuad.AddComponent<MeshRenderer>();
                     var newQuadMeshRenderer = newQuad.GetComponent<MeshRenderer>();
                     //Material[] newMaterials = new Material[1];
-
-
+                    collisionQuad.AddComponent<MeshCollider>();
+                    collisionQuad.GetComponent<MeshCollider>().sharedMesh = mesh;
+                    Debug.Log("1");
                     //newQuadMeshRenderer.materials = new Material[2];
                     //newQuadMeshRenderer.materials[0] = FlightGlobals.currentMainBody.pqsController.surfaceMaterial;
                     //newQuadMeshRenderer.materials[1] = GetGrassMaterial();
@@ -110,9 +136,9 @@ namespace PQSModExpansion
                     //newMaterials[1] = GetGrassMaterial();
                     //newQuadMeshRenderer.materials = newMaterials;
                     newQuadMeshRenderer.enabled = true;
-
+                    
                     quadMeshRenderer.material = transparent;
-                    quadMeshRenderer.material.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "BeyondHome/Terrain/DDS/BlankAlpha"));
+                    quadMeshRenderer.material.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax/BlankAlpha"));
 
                     QuadMeshDictionary.subdividedQuadList.Add(newQuad.name, newQuad);
 
@@ -126,9 +152,11 @@ namespace PQSModExpansion
                         QuadMeshDictionary.subdividedQuadList.Remove(newQuadName);
                         quad.GetComponent<QuadMeshes>().subdivided = false;
                         quad.GetComponent<MeshRenderer>().sharedMaterial = trueMaterial;  //Don't make it transparent anymore
+                        Debug.Log("2");
+                        Destroy(collisionQuad);
+                        Debug.Log("2");
                     }
                 }
-                Debug.Log("Distance (Vessel): " + distance);
             }
 
         }
@@ -149,24 +177,33 @@ namespace PQSModExpansion
         public override void OnQuadBuilt(PQ quad)
         {
             //SUBDIVISION MOD
-            if (FlightGlobals.currentMainBody == null) {
-
-                return;
+            if (quad is null || quad.mesh == null)
+            {
+                Debug.Log("Quad is null and has been caught. Distance to vessel is: ");
+                try
+                {
+                    Debug.Log(quad.transform.position - FlightGlobals.ActiveVessel.transform.position);
+                }
+                catch
+                {
+                    Debug.Log("Unable to get distance to vessel");
+                }
             }
             try
             {
                 if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
                 {
+                    Debug.Log("Mask: " + LayerMask.GetMask());
                     quad.gameObject.AddComponent<QuadMeshes>();
                     quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
-                    quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = subdivisionLevel;
+                    quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * ParallaxSettings.tessMult);
                     quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
                     quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
                 }
             }
             catch (Exception e)
             {
-                Debug.Log("Something went wrong with a quad! " + e.ToString());
+                Debug.Log("[Parallax] Subdivision Error:\n" + e.ToString());
             }
 
             //ADAPTIVE PARALLAX
@@ -225,6 +262,7 @@ namespace PQSModExpansion
                     //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_SurfaceTexture", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LoadTexture(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SurfaceTextureHigh));
                     //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_BumpMap", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LoadTexture(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.BumpMapHigh));
                 }
+                
                 if (lowPoint < lowStart && highPoint > highStart)
                 {
                     //LOW-MID-HIGH
@@ -265,13 +303,12 @@ namespace PQSModExpansion
                 }
 
             }
-            catch
+            catch (Exception e)
             {
-                Debug.Log("Something went wrong with a quad! (AdaptiveParallax)");
+                Debug.Log("[Parallax] Subdivision Error (Adaptive Parallax):\n" + e.ToString());
             }
 
         }
-
         public override void OnQuadDestroy(PQ quad)
         {
             if (quad.gameObject.GetComponent<QuadMeshes>() != null)
@@ -284,13 +321,12 @@ namespace PQSModExpansion
                 }
                 catch
                 {
-                    Debug.Log("Unable to remove from dictionary");
                 }
                 Destroy(quad.gameObject.GetComponent<QuadMeshes>());    //Quad is not maxLevel anymore, remove the damn thing
 
             }
+            
         }
-
         public Vector3 maxVertexPosition;
         public Vector3 minVertexPosition;
         public double maxHeight = -10000000;
@@ -299,46 +335,50 @@ namespace PQSModExpansion
         public double quadLocalMaxSlope = -1;
         public override void OnVertexBuildHeight(PQS.VertexBuildData data)
         {
-            double time = Time.realtimeSinceStartup;
-            double time2 = Time.realtimeSinceStartup;
-            if (data.buildQuad == null)
+            try
             {
-                return;
-            }
-            if (currentBuildQuad != data.buildQuad)
-            {
-                currentBuildQuad = data.buildQuad;
-            }
-            else
-            {
-                if (FlightGlobals.currentMainBody == null) {
+                if (data.buildQuad == null)
+                {
                     return;
                 }
-                if (data.vertHeight > maxHeight)
+                if (currentBuildQuad != data.buildQuad)
                 {
-                    maxHeight = data.vertHeight;
-                    maxVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
+                    currentBuildQuad = data.buildQuad;
                 }
-                if (data.vertHeight < minHeight)
+                else
                 {
-                    minHeight = data.vertHeight;
-                    minVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
+                    if (data.vertHeight > maxHeight)
+                    {
+                        maxHeight = data.vertHeight;
+                        maxVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
+                    }
+                    if (data.vertHeight < minHeight)
+                    {
+                        minHeight = data.vertHeight;
+                        minVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
+                    }
+                    //float slope = abs(dot(normalize(o.world_vertex - _PlanetOrigin), normalize(o.normalDir)));
+                    //slope = pow(slope, _SteepPower);
+                    float slope = Math.Abs(Vector3.Dot(Vector3.Normalize(maxVertexPosition - minVertexPosition), Vector3.Normalize(data.buildQuad.transform.position - FlightGlobals.currentMainBody.transform.position)));
+
+                    //Slope is now a value between 0 (Perpendicular to direction from terrain to planet centre) and 1 (Straight up fucking vertical)
+                    slope = (float)Math.Pow(slope, ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SteepPower);
+                    //Slope is now an approximation to the slope calculated in the shader
+
+                    quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
                 }
-                //float slope = abs(dot(normalize(o.world_vertex - _PlanetOrigin), normalize(o.normalDir)));
-                //slope = pow(slope, _SteepPower);
-                float slope = Math.Abs(Vector3.Dot(Vector3.Normalize(maxVertexPosition - minVertexPosition), Vector3.Normalize(data.buildQuad.transform.position - FlightGlobals.currentMainBody.transform.position)));
-
-                //Slope is now a value between 0 (Perpendicular to direction from terrain to planet centre) and 1 (Straight up fucking vertical)
-                slope = (float)Math.Pow(slope, ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.SteepPower);
-                //Slope is now an approximation to the slope calculated in the shader
-
-                quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
             }
-            //This method should run before OnQuadBuilt
-        }
+            catch
+            {
 
+            }
+            
+            //This method should run before OnQuadBuilt
+            
+        }
         public void ConvertLatLon(Vector2d latLon)
         {
+            
         }
     }
     [RequireConfigType(ConfigType.Node)]
@@ -370,7 +410,7 @@ namespace PQSModExpansion
         }
 
     }
-
+    
 
     public class PQSMod_AlphaColorMap : PQSMod
     {
@@ -378,7 +418,7 @@ namespace PQSModExpansion
         public override void OnSetup()
         {
             this.requirements = PQS.ModiferRequirements.MeshColorChannel;
-
+            
         }
         public override void OnVertexBuild(PQS.VertexBuildData data)
         {
@@ -433,6 +473,7 @@ namespace PQSModExpansion
         static List<Vector2> uv;
         static List<Vector2> uv2;
         static List<Vector2> uv3;
+        static List<Vector4> tangents;
 
         static List<int> indices;
         static Dictionary<uint, int> newVectices;
@@ -441,6 +482,7 @@ namespace PQSModExpansion
         {
             vertices = new List<Vector3>(mesh.vertices);
             normals = new List<Vector3>(mesh.normals);
+            tangents = new List<Vector4>(mesh.tangents);
             colors = new List<Color>(mesh.colors);
             uv = new List<Vector2>(mesh.uv);
             uv2 = new List<Vector2>(mesh.uv2);
@@ -456,6 +498,7 @@ namespace PQSModExpansion
             uv2 = null;
             uv3 = null;
             indices = null;
+            tangents = null;
         }
 
         #region Subdivide4 (2x2)
@@ -474,6 +517,8 @@ namespace PQSModExpansion
             vertices.Add((vertices[i1] + vertices[i2]) * 0.5f);
             if (normals.Count > 0)
                 normals.Add((normals[i1] + normals[i2]).normalized);
+            if (tangents.Count > 0)
+                tangents.Add((tangents[i1] + tangents[i2]).normalized);
             if (colors.Count > 0)
                 colors.Add((colors[i1] + colors[i2]) * 0.5f);
             if (uv.Count > 0)
@@ -484,6 +529,55 @@ namespace PQSModExpansion
                 uv3.Add((uv3[i1] + uv3[i2]) * 0.5f);
 
             return newIndex;
+        }
+        public static void RecalculateUVs(Mesh mesh)
+        {
+
+            //mesh.RecalculateBounds();
+            //float width = mesh.bounds.size.x;
+            //float length = mesh.bounds.size.z;
+            //Debug.Log(width);
+            //Debug.Log(length);
+            //Vector3[] verts = mesh.vertices;
+            //Vector2[] uvs = new Vector2[mesh.vertices.Length];
+            ////Vector2 leftMost = mesh.
+            //float lowX = 11111;
+            //float highX = -11111;
+            //float lowY = 11111;
+            //float highY = -11111;
+            //
+            //for (int i = 0; i < verts.Length; i++)
+            //{
+            //    float actualX = verts[i].x + width / 2;
+            //    float actualY = verts[i].z + length / 2;
+            //    uvs[i] = new Vector2(1 - (actualX / width), 1 - (actualY / length));
+            //    //Debug.Log(uvs[i]);
+            //    if (verts[i].z < lowY)
+            //    {
+            //        lowY = verts[i].z;
+            //    }
+            //    if (verts[i].z > highY)
+            //    {
+            //        highY = verts[i].z;
+            //    }
+            //    if (verts[i].x < lowX)
+            //    {
+            //        lowX = verts[i].x;
+            //    }
+            //    if (verts[i].x > highX)
+            //    {
+            //        highX = verts[i].x;
+            //    }
+            //}
+            //Debug.Log(lowX + ", " + highX + " | " + lowY + ", " + highY);
+            mesh.uv = UVHolder.uv;
+            //mesh.RecalculateNormals();
+            //mesh.RecalculateTangents();
+            //Debug.Log("This quad has " + mesh.vertexCount + " vertices");
+            //for (int i = 0; i < mesh.vertexCount; i++)
+            //{
+            //    Debug.Log(mesh.vertices[i].ToString("F5") + "\t   |   " + mesh.uv[i].ToString("F5"));
+            //}
         }
 
 
@@ -524,6 +618,8 @@ namespace PQSModExpansion
                 mesh.uv2 = uv2.ToArray();
             if (uv3.Count > 0)
                 mesh.uv3 = uv3.ToArray();
+            if (tangents.Count > 0)
+                mesh.tangents = tangents.ToArray();
 
             mesh.triangles = indices.ToArray();
 
@@ -550,6 +646,8 @@ namespace PQSModExpansion
             vertices.Add((vertices[i1] + vertices[i2] + vertices[i3]) / 3.0f);
             if (normals.Count > 0)
                 normals.Add((normals[i1] + normals[i2] + normals[i3]).normalized);
+            if (tangents.Count > 0)
+                tangents.Add((tangents[i1] + tangents[i2] + tangents[i3]).normalized);
             if (colors.Count > 0)
                 colors.Add((colors[i1] + colors[i2] + colors[i3]) / 3.0f);
             if (uv.Count > 0)
@@ -610,6 +708,8 @@ namespace PQSModExpansion
                 mesh.uv2 = uv2.ToArray();
             if (uv3.Count > 0)
                 mesh.uv3 = uv3.ToArray();
+            if (tangents.Count > 0)
+                mesh.tangents = tangents.ToArray();
 
             mesh.triangles = indices.ToArray();
 
@@ -622,7 +722,7 @@ namespace PQSModExpansion
         /// This functions subdivides the mesh based on the level parameter
         /// Note that only the 4 and 9 subdivides are supported so only those divides
         /// are possible. [2,3,4,6,8,9,12,16,18,24,27,32,36,48,64, ...]
-        /// The function tried to approximate the desired level
+        /// The function tried to approximate the desired level 
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="level">Should be a number made up of (2^x * 3^y)
@@ -630,6 +730,7 @@ namespace PQSModExpansion
         /// </param>
         public static void Subdivide(Mesh mesh, int level)
         {
+            RecalculateUVs(mesh);
             if (level < 2)
                 return;
             while (level > 1)
@@ -651,6 +752,26 @@ namespace PQSModExpansion
                 if (level > 3)
                     level++;
             }
+            //
+
+
+        }
+    }
+    [KSPAddon(KSPAddon.Startup.Instantly, false)]
+    public class UVHolder : MonoBehaviour
+    {
+        public static Vector2[] uv = new Vector2[225];
+        public void Start()
+        {
+            Debug.Log("[Parallax] Generating quad UVs: ");
+            for (int i = 0; i < 225; i++)
+            {
+                int row = i / 15;
+                int across = i % 15;
+                uv[i] = new Vector2((float)across / 14, (float)row / 14);
+                Debug.Log(" - Parallax Quad UV: " + uv[i].ToString("F3"));
+            }
+            Debug.Log("[Parallax] Finished generating quad UVs!");
         }
     }
     [KSPAddon(KSPAddon.Startup.Instantly, false)]
@@ -690,7 +811,7 @@ namespace PQSModExpansion
     {
         public override void OnQuadBuilt(PQ quad)
         {
-
+            
         }
         //public override void OnQuadDestroy(PQ quad)
         //{
@@ -883,11 +1004,30 @@ namespace PQSModExpansion
             }
             foreach (CelestialBody body in FlightGlobals.Bodies)
             {
-
+                
                 if (body.GetComponent<PQS>() != null && body.GetComponent<PQS>().maxLevel < 8 && body.Radius > 50000)
                 {
                     body.pqsController.maxLevel = 10;
                     Debug.Log("Max Level too low! Automatically increased " + body.name + "'s maxLevel to 10");
+                }
+            }
+        }
+    }
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class FixAll : MonoBehaviour
+    {
+        public void Update()
+        {
+            bool key = Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.Alpha6);
+            if (key)
+            {
+                foreach (Part part in FlightGlobals.ActiveVessel.parts)
+                {
+                    if (part.Modules[0] is ModuleWheelBase)
+                    {
+                        Debug.Log("Found a wheel");
+                        part.PartRepair();
+                    }
                 }
             }
         }
