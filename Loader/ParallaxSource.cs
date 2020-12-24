@@ -2237,19 +2237,10 @@ namespace ParallaxShader
         }
         public void ValidatePath(string path, string name)
         {
-            string actualPath = "";
-            if (Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 16, 16) + "GameData/" + path;
-            }
-            else if (Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 12, 12) + "GameData/" + path;
-            }
-            else
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 16, 16) + "GameData/" + path;
-            }
+            string actualPath = Application.dataPath;
+            int lastDash = actualPath.LastIndexOf('/');
+            actualPath = actualPath.Remove(lastDash + 1) + "GameData/" + path;
+            
             Log("Validating " + actualPath);
             bool fileExists = File.Exists(actualPath);
             if (fileExists)
