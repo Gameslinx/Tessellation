@@ -39,17 +39,9 @@ namespace ParallaxCollision
         }
         public void Update()
         {
-            if (Input.GetMouseButtonDown(0))
+            if (ParallaxSettings.collide == false)
             {
-                Debug.Log("Mouse down!");
-                RaycastHit hit;
-                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                if (Physics.Raycast(ray, out hit, 100.0f, (1 << 27)))
-                {
-                    Debug.Log(hit.collider.gameObject.name);
-                    
-                    Debug.Log("You selected the " + hit.transform.name); // ensure you picked right object
-                }
+                return;
             }
             bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha7);
             if (key)
@@ -76,7 +68,6 @@ namespace ParallaxCollision
             }
             else
             {
-                Debug.Log("Not hitting the terrain");
                 terrainNormal = planetNormal;
             }
         }
@@ -139,6 +130,7 @@ namespace ParallaxCollision
     public class PhysicsValidator : MonoBehaviour
     {
         public static Dictionary<GameObject, bool> planes = new Dictionary<GameObject, bool>();
+        public static int planeCount = 0;
         public void Update()
         {
             //foreach (KeyValuePair<GameObject, bool> plane in planes)
@@ -159,40 +151,72 @@ namespace ParallaxCollision
     {
 
         public static List<Transform> transforms = new List<Transform>();
+        
         public override void OnLoadVessel()
         {
+            if (ParallaxSettings.collide == false)
+            {
+                return;
+            }
             foreach (Part p in vessel.parts)
             {
-                if ((p.Modules.Contains<ModuleWheelBase>() || p.Modules.Contains<ParallaxWheelPhysicsComponent>()) && p.gameObject.GetComponent<ParallaxPhysics>() == null)
+                if (vessel.parts.Count == 1)
                 {
-                    Debug.Log("Adding physics module now");
+                    if (vessel.parts[0].isKerbalEVA() == true)
+                    {
+                        Debug.Log("This vessel is a Kerbal");
+                        p.gameObject.AddComponent<ParallaxPhysics>();
+                        var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
+                        physicsComponent.transform.parent = p.gameObject.transform;
+                        physicsComponent.p = p;
+                        physicsComponent.origin = p.gameObject.transform.position;
+                        physicsComponent.wheelPivot = physicsComponent;
+                    }
+                }
+                if ((p.Modules.Contains<ModuleWheelBase>() || p.Modules.Contains<ParallaxWheelPhysicsComponent>()
+                  || p.Modules.Contains("KSPWheelBase") || p.Modules.Contains<ModuleGroundSciencePart>() || p.Modules.Contains<ModuleGroundPart>()
+                  || p.Modules.Contains<ModuleGroundExperiment>() || p.Modules.Contains<ModuleGroundCommsPart>() || p.Modules.Contains<ModulePhysicMaterial>()
+                  ) && p.gameObject.GetComponent<ParallaxPhysics>() == null)
+                {
+                    if (p.Modules.Contains("KSPWheelBase"))
+                    {
+                        Debug.Log("Modded wheel detected - KSPWheelBase component");
+                    }
                     p.gameObject.AddComponent<ParallaxPhysics>();
                     
                     var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
                     physicsComponent.p = p;
                     foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
                     {
+                        if (c.GetType().Name is "KSPWheelBase")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
                         if (c.name == "WheelCollider")
                         {
                             physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
                             physicsComponent.wheelPivot = c;
-                            Debug.Log("Found collider");
                         }
                         else if (c.name == "foot")
                         {
                             physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
                             physicsComponent.wheelPivot = c;
-                            Debug.Log("Found foot");
                         }
                         else if (c.name == "leg_collider")
                         {
-                            Debug.Log("Found base but someone at squad doesn't know what the fuck case sensitive means");
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
+                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
+                        {
                             physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
                             physicsComponent.wheelPivot = c;
                         }
                         else
                         {
-                            Debug.Log("Unable to find WheelCollider or foot");
+                            //Can't find the component
                         }
                     }
                 }
@@ -205,7 +229,6 @@ namespace ParallaxCollision
                     foreach (Transform d in p.gameObject.GetComponents(typeof(Transform)))
                     {
                         transforms.Add(d);
-                        Debug.Log(d.name + " | main");
                     }
                 }
                 if (p.Modules.Contains<ModuleWheelDeployment>())
@@ -224,14 +247,14 @@ namespace ParallaxCollision
                 }
             }
         }
-        public void DisableComponentOnGearRaise()
-        {
-            Debug.Log("Done something");
 
-        }
 
         public override void OnUnloadVessel()
         {
+            if (ParallaxSettings.collide == false)
+            {
+                return;
+            }
             foreach (Part p in vessel.parts)
             {
                 if (p.Modules.Contains<ModuleWheelBase>() || p.Modules.Contains<ParallaxWheelPhysicsComponent>())
@@ -252,19 +275,7 @@ namespace ParallaxCollision
         List<Transform> transforms = new List<Transform>();
         GameObject plane;
         public LayerMask ignore;
-        private Ray rayPosY;
-        private Ray rayNegY;
-        private Ray rayPosX;
-        private Ray rayNegX;
-        private Ray rayPosZ;
-        private Ray rayNegZ;
         private Ray approximateRay;
-        private RaycastHit hitPosY;
-        private RaycastHit hitNegY;
-        private RaycastHit hitPosX;
-        private RaycastHit hitNegX;
-        private RaycastHit hitPosZ;
-        private RaycastHit hitNegZ;
         private RaycastHit hitApproximateRay;
         Vector3 currVel = Vector3.zero;
         Vector3 samplePoint;
@@ -279,12 +290,6 @@ namespace ParallaxCollision
         float lastDisplacement = 10000;
         Vector3 camDisplacement;
         float _Displacement_Scale = 0;
-        Vector3 refVel1 = Vector3.zero;
-        Vector3 refVel2 = Vector3.zero;
-        Vector3 smoothDampRotation = Vector3.zero;
-        Vector3 normalDir = Vector3.zero;
-        float minDistance = 10;
-        Vector3 planeVelocity = Vector3.zero;
         float blendLowStart;
         float blendLowEnd;
         float blendHighStart;
@@ -304,9 +309,60 @@ namespace ParallaxCollision
         public Component wheelDeploy;
         public bool wheelsHaveBeenRetracted = false;
         public bool wheelsHaveBeenInWarp = false;
+        bool craftOvertipped = false;
         public Part p;
+        //public Collider DetermineCollider()
+        //{
+        //    if (p != null)
+        //    {
+        //        return p.collider;
+        //    }
+        //    else
+        //    {
+        //        Debug.Log("Part is null");
+        //        return null;
+        //        
+        //    }
+        //    //if (p.gameObject.GetComponent<Collider>() != null)
+        //    //{
+        //    //    return p.gameObject.GetComponent<Collider>();
+        //    //}
+        //    //if (p.gameObject.GetComponent<MeshCollider>() != null)
+        //    //{
+        //    //    return p.gameObject.GetComponent<MeshCollider>();
+        //    //}
+        //    //if (p.gameObject.GetComponent<SphereCollider>() != null)
+        //    //{
+        //    //    return p.gameObject.GetComponent<SphereCollider>();
+        //    //}
+        //    //return null;
+        //}
+        //public void OnCollisionEnter(Collision collision)   //This object: WHEEL. Colliding object: PLANE
+        //{
+        //    Debug.Log("Collision!");
+        //    if (collision.gameObject.name != plane.name && collision.gameObject.name.StartsWith("ParallaxPlane-"))
+        //    {
+        //        Debug.Log("Ignoring");
+        //        Collider c = DetermineCollider();
+        //        if (c != null)
+        //        {
+        //            Physics.IgnoreCollision(collision.collider, c);
+        //        }
+        //        else
+        //        {
+        //            Debug.Log("c is null");
+        //        }
+        //        
+        //        
+        //    }
+        //    Debug.Log("Finished colliding - ignored");
+        //}
         void Start()
         {
+            if (FlightGlobals.currentMainBody == FlightGlobals.GetBodyByName("Minmus") && ParallaxSettings.flatMinmus == true)
+            {
+                return;
+            }
             Debug.Log("Starting physics!");
             //float dist = gameObject.GetColliderBounds().size.y; //We need to make the plane start below the wheel
             plane = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -316,25 +372,26 @@ namespace ParallaxCollision
             plane.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
             plane.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
             plane.transform.localPosition = Vector3.zero;
-            plane.transform.position = gameObject.transform.position; 
-            plane.GetComponent<MeshRenderer>().enabled = true;
+            plane.transform.position = new Vector3(1000, 1000, 1000);// gameObject.transform.position;
+            plane.GetComponent<MeshRenderer>().enabled = false;
             plane.GetComponent<Collider>().isTrigger = false;
             plane.GetComponent<Collider>().enabled = false;
             plane.tag = FlightGlobals.currentMainBody.BiomeMap.GetAtt(FlightGlobals.ActiveVessel.latitude * UtilMath.Deg2Rad, FlightGlobals.ActiveVessel.longitude * UtilMath.Deg2Rad).name;
-            Debug.Log("TAG: " + plane.tag); //Comes back untagged because biome name tag does not exist
+            plane.name = "ParallaxPlane-" + PhysicsValidator.planeCount.ToString();
+            PhysicsValidator.planeCount++;
             //Vector3 meshbounds = gameObject.GetComponent<MeshFilter>().mesh.bounds.size;
             //bounds = Mathf.Max(meshbounds.x, meshbounds.y, meshbounds.z);
             //plane.transform.localScale = new Vector3(bounds / 4, 0.01f, bounds / 4);
             PhysicsValidator.planes.Add(plane, false);
-            
 
-            
+
+
+
         }
         public void RestartWheels(Part p) //Add the component back to wheels once the component has been deleted
         {
             foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
             {
-                Debug.Log("This component: " + c.name);
                 if (c.name == "wheel")
                 {
                     origin = PhysicsStarter.GetPos(c.transform);
@@ -355,12 +412,22 @@ namespace ParallaxCollision
                     origin = PhysicsStarter.GetPos(c.transform);
                     wheelPivot = c;
                 }
+                else if ( c.GetType().Name == "KSPWheelBase")
+                {
+                    origin = PhysicsStarter.GetPos(c.transform);
+                    wheelPivot = c;
+                }
+                else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
+                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
+                {
+                    origin = PhysicsStarter.GetPos(c.transform);
+                    wheelPivot = c;
+                }
                 else
                 {
-                    Debug.Log("Unable to find WheelCollider or foot");
                 }
             }
-            Debug.Log("Restarted wheels");
+            Debug.Log("[Parallax Collisions] Restarted wheels");
         }
         public void RestartWheelsAfterTimeWarp(Part p)
         {
@@ -378,62 +445,116 @@ namespace ParallaxCollision
         //    return dampingFrames;
         //}
         // Physics update is 50 times per second
-        void FixedUpdate()
+        public void DisablePlane()
         {
+            if (plane != null)
+            {
+                plane.GetComponent<Collider>().enabled = false;
+            }
+        }
+        public void EnablePlane()
+        {
+            if (plane != null)
+            {
+                plane.GetComponent<Collider>().enabled = true;
+            }
+        }
+        void Update()
+        {
+            
+            if (FlightGlobals.currentMainBody == FlightGlobals.GetBodyByName("Minmus") && ParallaxSettings.flatMinmus == true)
+            {
+                DisablePlane();
+                return;
+            }
+            CheckIfEnabled();
             if (wheelDeploy != null)
             {
-                if ((wheelDeploy as ModuleWheelDeployment).position < 1)
+                if ((wheelDeploy as ModuleWheelDeployment).deployedPosition == 1)
                 {
-                    wheelsHaveBeenRetracted = true;
-                    return;
+                    if ((wheelDeploy as ModuleWheelDeployment).Position < 1)
+                    {
+                        wheelsHaveBeenRetracted = true;
+                        DisablePlane();
+                        return;
+                    }
+                }
+                else if ((wheelDeploy as ModuleWheelDeployment).deployedPosition == 0)
+                {
+                    if ((wheelDeploy as ModuleWheelDeployment).Position > 0)
+                    {
+                        wheelsHaveBeenRetracted = true;
+                        DisablePlane();
+                        return;
+                    }
                 }
                 if (wheelsHaveBeenRetracted == true)
                 {
                     RestartWheels(p);
+                    Debug.Log("Restarting after retract");
                     dampingFrames = 0;
                     wheelsHaveBeenRetracted = false;
                 }
             }
+            
             if (wheelsHaveBeenRetracted == true)
             {
+                DisablePlane();
                 return;
             }
-            Debug.Log("WARPMODE: " + TimeWarp.WarpMode);
+            
             if (TimeWarp.CurrentRate > 1 && TimeWarp.WarpMode == TimeWarp.Modes.HIGH)
             {
-                Debug.Log("Time warping - In high warp!");
                 wheelsHaveBeenInWarp = true;
+                DisablePlane();
                 return;
             }
+            
             if ((wheelsHaveBeenInWarp == true && TimeWarp.CurrentRate == 1))
             {
                 RestartWheels(p);
                 dampingFrames = dampingFrames - 10;
-                Debug.Log("Wheels restarted from 1!");
-                Debug.Log(TimeWarp.CurrentRate + " is the warp rate!");
                 wheelsHaveBeenInWarp = false;
+                DisablePlane();
                 return;
             }
             
             if (ParallaxOnDemandLoader.finishedMainLoad == false)
             {
+                DisablePlane();
                 return;
             }
-            if (FlightGlobals.ActiveVessel.packed == true)  //Vessel is time warping so we don't need to do anything here
+            
+            if (p.vessel.packed == true)  //Vessel is time warping so we don't need to do anything here
             {
+                DisablePlane();
                 packed = true;
                 started = true;
                 return;
             }
+            
             if (packed == true) //Vessel has finished time warping and needs re-initializing
             {
+                DisablePlane();
                 packed = false;
-                Debug.Log("Restarting after unpack...");
+                Debug.Log("[Parallax Physics] Restarting after unpack...");
                 Destroy(plane);
                 Start();
             }
-            Debug.Log("Past checks");
-            plane.layer = 0;    //Layer has to be set to 0 to avoid raycast on layer 15
+            
+            //plane.layer = 0;    //Layer has to be set to 0 to avoid raycast on layer 15
+            if (p == null)
+            {
+                DisablePlane();
+                return;
+            }
+            
+            if (wheelPivot == null)
+            {
+                DisablePlane();
+                return;
+            }
+            
             if ((thisBody != FlightGlobals.currentMainBody.name) || started == false)    //Body change, reassign textures
             {
                 if (ParallaxShaderLoader.parallaxBodies.ContainsKey(FlightGlobals.currentMainBody.name) == false)
@@ -461,30 +582,10 @@ namespace ParallaxCollision
                 thisBody = FlightGlobals.currentMainBody.name;
                 RestartWheels(p);
             }
-            Debug.Log("Past checks");
+            
             origin = PhysicsStarter.GetPos(wheelPivot.transform);
-            Debug.Log("Made it past getpos");
-            rayNegY.origin = origin;
-            rayNegY.direction = new Vector3(0, -1, 0);
-
-            rayPosY.origin = origin;
-            rayPosY.direction = new Vector3(0, 1, 0);
-
-            rayPosX.origin = origin;
-            rayPosX.direction = new Vector3(1, 0, 0);
-
-            rayNegX.origin = origin;
-            rayNegX.direction = new Vector3(-1, 0, 0);
-
-            rayPosZ.origin = origin;
-            rayPosZ.direction = new Vector3(0, 0, 1);
-
-            rayNegZ.origin = origin;
-            rayNegZ.direction = new Vector3(0, 0, -1);
-            minDistance = 10;
-            Vector3 mask = new Vector3(0, 0, 0);
-            Debug.Log("Past checks");
-            if (FlightGlobals.ActiveVessel.srf_velocity.magnitude < 0.025f) //Vessel is "landed"
+            
+            if (p.vessel.srf_velocity.magnitude < 0.025f && dampingFrames >= 150) //Vessel is "landed"
             {
                 plane.layer = 15;
                 started = true;
@@ -494,44 +595,7 @@ namespace ParallaxCollision
             {
                 plane.layer = 15;
             }
-            Debug.Log("Past checks");
-            //if (UnityEngine.Physics.Raycast(rayNegY, out hitNegY, 3f, layerMask) && hitNegY.distance < minDistance)
-            //{
-            //    samplePoint = hitNegY.point;
-            //    sampleNormal = hitNegY.normal;
-            //    minDistance = hitNegY.distance;
-            //}
-            //if (UnityEngine.Physics.Raycast(rayPosY, out hitPosY, 3f, layerMask) && hitPosY.distance < minDistance)
-            //{
-            //    samplePoint = hitPosY.point;
-            //    sampleNormal = hitPosY.normal;
-            //    minDistance = hitPosY.distance;
-            //}
-            //if (UnityEngine.Physics.Raycast(rayNegX, out hitNegX, 3f, layerMask) && hitNegX.distance < minDistance)
-            //{
-            //    samplePoint = hitNegX.point;
-            //    sampleNormal = hitNegX.normal;
-            //    minDistance = hitNegX.distance;
-            //}
-            //if (UnityEngine.Physics.Raycast(rayPosX, out hitPosX, 3f, layerMask) && hitPosX.distance < minDistance)
-            //{
-            //    samplePoint = hitPosX.point;
-            //    sampleNormal = hitPosX.normal;
-            //    minDistance = hitPosX.distance;
-            //}
-            //if (UnityEngine.Physics.Raycast(rayNegZ, out hitNegZ, 3f, layerMask) && hitNegZ.distance < minDistance)
-            //{
-            //    samplePoint = hitNegZ.point;
-            //    sampleNormal = hitNegZ.normal;
-            //    minDistance = hitNegZ.distance;
-            //}
-            //if (UnityEngine.Physics.Raycast(rayPosZ, out hitPosZ, 3f, layerMask) && hitPosZ.distance < minDistance)
-            //{
-            //    samplePoint = hitPosZ.point;
-            //    sampleNormal = hitPosZ.normal;
-            //    minDistance = hitPosZ.distance;
-            //}
-            Debug.Log("Past checks");
+            
             approximateRay.origin = origin;
             approximateRay.direction = -PhysicsStarter.terrainNormal;
             if (UnityEngine.Physics.Raycast(approximateRay, out hitApproximateRay, 5f, layerMask))
@@ -544,25 +608,35 @@ namespace ParallaxCollision
                 started = true;
                 return;
             }
-            Debug.Log("Past checks");
             float displacement = GetDisplacement(new Vector2(wheelPivot.transform.position.x, wheelPivot.transform.position.y), tex, _ST);
+            //float mass = (float)p.vessel.totalMass;
+            //float massInfluence = (mass * (float)FlightGlobals.currentMainBody.GeeASL * 9.8f); //Weight in Newtons
+            //massInfluence = (1f - Mathf.Clamp((massInfluence - 186f) / (9800), 0, 1)); //~1000 tons and displacement doesn't matter much. Starts influencing after a 20 ton ship and depends on gravity
+            //displacement *= massInfluence;
+
+            float craftUpsideDownNess = Vector3.Dot(PhysicsStarter.terrainNormal, p.transform.up);  //Value of 1 - Wheel is properly oriented. Value of -1 - Wheel is upside-fuckin-down mate
+            if (craftUpsideDownNess <= 0.4f && !p.isKerbalEVA())
+            {
+                //We got 1.3 to play about with
+                //Will use 0.3 of it to lower the plane to the ground
+                //craftUpsideDownNess = Mathf.Clamp(craftUpsideDownNess, 0, 0.3f) / 0.3f;   //0 to 1
+                //displacement *= craftUpsideDownNess;    //Lower plane to the ground when the wheel is tilting too much. Probs played too many FPS games smh
+                //dampingFrames = (int)((float)dampingFrames * craftUpsideDownNess);
+                dampingFrames = 0;
+                //craftOvertipped = true;
+                displacement = -50;
+                //displacement
+            }
+
             if (lastDisplacement == 10000)
             {
                 lastDisplacement = displacement;    //First contact with the ground
             }
-            Debug.Log("Past checks");
+            
             Vector3 forward = Vector3.Normalize(gameObject.GetComponent<Rigidbody>().velocity);
             Vector3 tangent = Vector3.Cross(forward, sampleNormal); //Vector to rotate plane around
             Vector3 disp = new Vector3((displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.x, (displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.y, (displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.z);
-            //if (dampingFrames == 0)
-            //{
-            //    float reverseDisplacementFromMesh = gameObject.GetComponent<MeshFilter>().mesh.bounds.size.y;
-            //    Vector3 trueRevDisp = new Vector3(reverseDisplacementFromMesh * sampleNormal.x, reverseDisplacementFromMesh * sampleNormal.y, reverseDisplacementFromMesh * sampleNormal.z);
-            //    if (Vector3.Distance(samplePoint + disp, gameObject.transform.position - trueRevDisp) <= 0.1f)
-            //    {
-            //        dampingFrames = 0; //Skip damping, the vessel is already landed properly on the planes
-            //    }
-            //}
+            
             if (dampingFrames <= 150)
             {
                 dampingFrames++;
@@ -592,16 +666,30 @@ namespace ParallaxCollision
                 }
                 return;
             }
-            
-            plane.transform.position = Vector3.SmoothDamp(plane.transform.position, samplePoint + disp, ref currVel, 0.01f);
-            
+
+            plane.transform.position = samplePoint + disp;
+
             float rotationPercentage = 1 - ((lastDisplacement * _Displacement_Scale - _Displacement_Offset) / (displacement * _Displacement_Scale - _Displacement_Offset));
             lastDisplacement = displacement;
             plane.transform.Rotate(tangent, rotationPercentage * 180);
-            plane.GetComponent<Collider>().enabled = true;
+            //plane.GetComponent<Collider>().enabled = true;
+            EnablePlane();
             PhysicsValidator.planes[plane] = true;
             started = true;
-
+            
+        }
+        //public void Update()
+        //{
+        //    CheckIfEnabled();
+        //}
+        public void CheckIfEnabled()
+        {
+            bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha3);
+            if (key)
+            {
+                plane.GetComponent<MeshRenderer>().enabled = !plane.GetComponent<MeshRenderer>().enabled;
+               
+            }
         }
         float GetDisplacement(Vector2 uv, Texture2D tex, Vector2 ScaleTransform)
         {
@@ -615,15 +703,6 @@ namespace ParallaxCollision
         Vector2 Clamp(Vector2 sampleuV)
         {
             return new Vector2(sampleuV.x % 1, sampleuV.y % 1);
-        }
-        void OnCollisionEnter(Collision other)
-        {
-
-            //if (other.tag == "PhysicsPlane")
-            //{
-            //    Debug.Log("Colliding!!!");
-            //}
-
         }
         Vector3 GetNormal(Color[] data, float width)
         {
@@ -664,16 +743,16 @@ namespace ParallaxCollision
                                               new Vector3(2, 0, 1);
             // determine median axis (in x;  yz are following axis)
             Vector3 me = (new Vector3(3, 3, 3)) - mi - ma;
-            int UVx = (int)((samplePoint[(int)ma.y] * _ST.x - floatUV[(int)ma.y]) * (tex.width / 1) );
-            int UVy = (int)((samplePoint[(int)ma.z] * _ST.y - floatUV[(int)ma.z]) * (tex.height / 1) );
-            int UVMex = (int)((samplePoint[(int)me.y] * _ST.x - floatUV[(int)me.y]) * (tex.width / 1) );
-            int UVMey = (int)((samplePoint[(int)me.z] * _ST.y - floatUV[(int)me.z]) * (tex.width / 1) );
+            float UVx = (float)((samplePoint[(int)ma.y] * _ST.x - floatUV[(int)ma.y]) );
+            float UVy = (float)((samplePoint[(int)ma.z] * _ST.y - floatUV[(int)ma.z]) );
+            float UVMex = (float)((samplePoint[(int)me.y] * _ST.x - floatUV[(int)me.y]) );
+            float UVMey = (float)((samplePoint[(int)me.z] * _ST.y - floatUV[(int)me.z]) );
             Color x = Color.black;
             Color y = Color.black;
             if (tex.isReadable)
             {
-                x = tex.GetPixel(UVx, UVy, 0);
-                y = tex.GetPixel(UVMex, UVMey, 0);
+                x = tex.GetPixelBilinear(UVx, UVy, 0);
+                y = tex.GetPixelBilinear(UVMex, UVMey, 0);
             }
             else { Debug.Log("<color=#ffffff>Displacement is not readable!"); }
             
@@ -717,69 +796,19 @@ namespace ParallaxCollision
         }
         float heightBlendLow(Vector3 worldPos)
         {
-            float terrainHeight = Vector3.Distance(worldPos, planetOrigin) - planetRadius;
-
+            float terrainHeight = (float)FlightGlobals.getAltitudeAtPos(worldPos);//Vector3.Distance(worldPos, planetOrigin) - planetRadius;
+            
             float blendLow = Mathf.Clamp((terrainHeight - blendLowEnd) / (blendLowStart - blendLowEnd), 0, 1);
             return blendLow;
         }
         float heightBlendHigh(Vector3 worldPos)
         {
-            float terrainHeight = Vector3.Distance(worldPos, planetOrigin) - planetRadius;
+            float terrainHeight = (float)FlightGlobals.getAltitudeAtPos(worldPos);
 
             float blendHigh = Mathf.Clamp((terrainHeight - blendHighStart) / (blendHighEnd - blendHighStart), 0, 1);
             return blendHigh;
         }
-        Vector3 SampleBiplanarTextureCPUNormal(Texture2D tex, Vector2 _ST)
-        {
-            Vector3 n = new Vector3(Math.Abs(sampleNormal.x), Math.Abs(sampleNormal.y), Math.Abs(sampleNormal.z));
-
-            // determine major axis (in x; yz are following axis)
-            Vector3 ma = (n.x > n.y && n.x > n.z) ? new Vector3(0, 1, 2) :
-                       (n.y > n.z) ? new Vector3(1, 2, 0) :
-                                              new Vector3(2, 0, 1);
-            // determine minor axis (in x; yz are following axis)
-            Vector3 mi = (n.x < n.y && n.x < n.z) ? new Vector3(0, 1, 2) :
-                       (n.y < n.z) ? new Vector3(1, 2, 0) :
-                                              new Vector3(2, 0, 1);
-            // determine median axis (in x;  yz are following axis)
-            Vector3 me = (new Vector3(3, 3, 3)) - mi - ma;
-
-            Color x = tex.GetPixel((int)(samplePoint[(int)ma.y] * tex.width * _ST.x), (int)(samplePoint[(int)ma.z] * tex.height * _ST.y));
-            Color y = tex.GetPixel((int)(samplePoint[(int)me.y] * tex.width * _ST.x), (int)(samplePoint[(int)me.z] * tex.height * _ST.y));
-            Color z = tex.GetPixel((int)(samplePoint[(int)ma.y] * tex.width * _ST.x), (int)(samplePoint[(int)ma.z] * tex.height * _ST.y));
-            Color w1 = tex.GetPixel((int)(samplePoint[(int)me.y] * tex.width * _ST.x), (int)(samplePoint[(int)me.z] * tex.height * _ST.y));
-
-            //float4 x = tex2D(sam, float2(p[biplanarCoords[0].y], p[biplanarCoords[0].z]) * (scale / UVDistortion), float2(dpdx[biplanarCoords[0].y], dpdx[biplanarCoords[0].z]) * (scale / UVDistortion), float2(dpdy[biplanarCoords[0].y], dpdy[biplanarCoords[0].z]) * (scale / UVDistortion));
-            //float4 y = tex2D(sam, float2(p[biplanarCoords[2].y], p[biplanarCoords[2].z]) * (scale / UVDistortion), float2(dpdx[biplanarCoords[2].y], dpdx[biplanarCoords[2].z]) * (scale / UVDistortion), float2(dpdy[biplanarCoords[2].y], dpdy[biplanarCoords[2].z]) * (scale / UVDistortion));
-            //
-            //float4 z = tex2D(sam, float2(p[biplanarCoords[0].y], p[biplanarCoords[0].z]) * (scale / nextUVDist), float2(dpdx[biplanarCoords[0].y], dpdx[biplanarCoords[0].z]) * (scale / nextUVDist), float2(dpdy[biplanarCoords[0].y], dpdy[biplanarCoords[0].z]) * (scale / nextUVDist));
-            //float4 w1 = tex2D(sam, float2(p[biplanarCoords[2].y], p[biplanarCoords[2].z]) * (scale / nextUVDist), float2(dpdx[biplanarCoords[2].y], dpdx[biplanarCoords[2].z]) * (scale / nextUVDist), float2(dpdy[biplanarCoords[2].y], dpdy[biplanarCoords[2].z]) * (scale / nextUVDist));
-
-            //x = Mathf.Lerp(x, z, percentage);
-            //y = Mathf.Lerp(y, w1, percentage);
-
-            // blend factors
-            Vector2 w = new Vector2(n[(int)ma.x], n[(int)me.x]);
-            // make local support
-            w = (w - new Vector2(0.5773f, 0.5773f)) / new Vector2((1.0f - 0.5773f), (1.0f - 0.5773f));
-            w = new Vector2(Mathf.Clamp(w.x, 0, 1), Mathf.Clamp(w.y, 0, 1));
-            // shape transition
-            w = new Vector2(Mathf.Pow(w.x, (float)(1 / 8.0)), Mathf.Pow(w.y, (float)(1 / 8.0)));
-            //Replace the 1 above with Strength
-            // blend and return
-            Vector4 finalCol = (x * w.x + y * w.y) / (w.x + w.y);
-            finalCol.w = 1;
-            return finalCol;
-
-            float finalColLow = finalCol.x;
-            float finalColMid = finalCol.y;
-            float finalColHigh = finalCol.z;
-            float finalColSteep = finalCol.w;
-
-            float displacement = LerpSurfaceColor(finalColLow, finalColMid, finalColHigh, finalColSteep, 0.5f, 0, 1, 0);
-
-            //return displacement;
-        }
+        
         float LerpSurfaceColor(float low, float mid, float high, float steep, float midPoint, float slope, float blendLow, float blendHigh)
         {
             float col;

@@ -27,7 +27,7 @@ namespace ParallaxShader
             string filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Parallax");
             if (Application.platform == RuntimePlatform.LinuxPlayer || (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL")))
             {
-                filePath = (filePath + "-linux.unity3d");
+                filePath = (filePath + "-OpenGL-linux.unity3d");
             }
             else if (Application.platform == RuntimePlatform.WindowsPlayer)
             {
@@ -35,14 +35,14 @@ namespace ParallaxShader
             }
             if (Application.platform == RuntimePlatform.OSXPlayer)
             {
-                filePath = (filePath + "-macosx.unity3d");
+                filePath = (filePath + "-OpenGL-macosx.unity3d");
             }
             var assetBundle = AssetBundle.LoadFromFile(filePath);
             Debug.Log("Loaded bundle");
             if (assetBundle == null)
             {
                 Debug.Log("Failed to load bundle");
-                Debug.Log(filePath);
+                Debug.Log("Path: " + filePath);
             }
             else
             {
@@ -63,75 +63,75 @@ namespace ParallaxShader
 
 
 
-            filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Grass");
-            
-            if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
-            {
-                filePath = (filePath + "-linux.unity3d");
-            }
-            else if (Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                filePath = (filePath + "-windows.unity3d");
-            }
-            if (Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                filePath = (filePath + "-macosx.unity3d");
-            }
-            var assetBundle2 = AssetBundle.LoadFromFile(filePath);
-            Debug.Log("Loaded bundle");
-            if (assetBundle2 == null)
-            {
-                Debug.Log("Failed to load bundle");
-                Debug.Log(filePath);
-            }
-            else
-            {
-                Shader[] theseShaders = assetBundle2.LoadAllAssets<Shader>();
-                Debug.Log("Loaded all shaders");
-                foreach (Shader thisShader in theseShaders)
-                {
-                    shaders.Add(thisShader.name, thisShader);
-                    Debug.Log("Loaded shader: " + thisShader.name);
-                }
-            
-            
-            
-            }
-
-            filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/ParallaxScaled");
-
-            if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
-            {
-                filePath = (filePath + "-linux.unity3d");
-            }
-            else if (Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                filePath = (filePath + "-windows.unity3d");
-            }
-            if (Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                filePath = (filePath + "-macosx.unity3d");
-            }
-            var assetBundle3 = AssetBundle.LoadFromFile(filePath);
-            Debug.Log("Loaded bundle");
-            if (assetBundle3 == null)
-            {
-                Debug.Log("Failed to load bundle");
-                Debug.Log(filePath);
-            }
-            else
-            {
-                Shader[] theseShaders = assetBundle3.LoadAllAssets<Shader>();
-                Debug.Log("Loaded all shaders");
-                foreach (Shader thisShader in theseShaders)
-                {
-                    shaders.Add(thisShader.name, thisShader);
-                    Debug.Log("Loaded shader: " + thisShader.name);
-                }
-
-
-
-            }
+            //filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Grass");
+            //
+            //if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
+            //{
+            //    filePath = (filePath + "-linux.unity3d");
+            //}
+            //else if (Application.platform == RuntimePlatform.WindowsPlayer)
+            //{
+            //    filePath = (filePath + "-windows.unity3d");
+            //}
+            //if (Application.platform == RuntimePlatform.OSXPlayer)
+            //{
+            //    filePath = (filePath + "-macosx.unity3d");
+            //}
+            //var assetBundle2 = AssetBundle.LoadFromFile(filePath);
+            //Debug.Log("Loaded bundle");
+            //if (assetBundle2 == null)
+            //{
+            //    Debug.Log("Failed to load bundle");
+            //    Debug.Log(filePath);
+            //}
+            //else
+            //{
+            //    Shader[] theseShaders = assetBundle2.LoadAllAssets<Shader>();
+            //    Debug.Log("Loaded all shaders");
+            //    foreach (Shader thisShader in theseShaders)
+            //    {
+            //        shaders.Add(thisShader.name, thisShader);
+            //        Debug.Log("Loaded shader: " + thisShader.name);
+            //    }
+            //
+            //
+            //
+            //}
+            //
+            //filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/ParallaxScaled");
+            //
+            //if (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL"))
+            //{
+            //    filePath = (filePath + "-linux.unity3d");
+            //}
+            //else if (Application.platform == RuntimePlatform.WindowsPlayer)
+            //{
+            //    filePath = (filePath + "-windows.unity3d");
+            //}
+            //if (Application.platform == RuntimePlatform.OSXPlayer)
+            //{
+            //    filePath = (filePath + "-macosx.unity3d");
+            //}
+            //var assetBundle3 = AssetBundle.LoadFromFile(filePath);
+            //Debug.Log("Loaded bundle");
+            //if (assetBundle3 == null)
+            //{
+            //    Debug.Log("Failed to load bundle");
+            //    Debug.Log(filePath);
+            //}
+            //else
+            //{
+            //    Shader[] theseShaders = assetBundle3.LoadAllAssets<Shader>();
+            //    Debug.Log("Loaded all shaders");
+            //    foreach (Shader thisShader in theseShaders)
+            //    {
+            //        shaders.Add(thisShader.name, thisShader);
+            //        Debug.Log("Loaded shader: " + thisShader.name);
+            //    }
+            //
+            //
+            //
+            //}
         }
         public static Shader GetShader(string name)
         {
@@ -156,6 +156,8 @@ namespace ParallaxShader
         public static bool tessellateShadows = true;
         public static bool trueLighting = false;
         public static float tessMult = 1;
+        public static bool collide = true;
+        public static bool flatMinmus = false;
         public void Start()
         {
             AssignVariables();
@@ -177,6 +179,7 @@ namespace ParallaxShader
             ConfigNode tessellationSettings = config.config.nodes.GetNode("TessellationSettings");
             ConfigNode reflectionSettings = config.config.nodes.GetNode("ReflectionSettings");
             ConfigNode lightingSettings = config.config.nodes.GetNode("LightingSettings");
+            ConfigNode collisionSettings = config.config.nodes.GetNode("CollisionSettings");
             tessellationEdgeLength = float.Parse(tessellationSettings.GetValue("edgeLength"));
             tessellationRange = float.Parse(tessellationSettings.GetValue("range"));
             tessellationMax = float.Parse(tessellationSettings.GetValue("maxTessellation"));
@@ -275,9 +278,23 @@ namespace ParallaxShader
             {
                 tessMult = 1.5f;
             }
-            if (tessQualityString == "insane")
+            string collisionString = collisionSettings.GetValue("collide").ToLower();
+            string flatMinmusString = collisionSettings.GetValue("minmusFlatsAreActuallyFlatBecauseYouDontKnowHowToBuildPlanesThatCantHandleProperTerrain").ToLower();
+            if (collisionString == "false")
             {
-                tessMult = 2f;
+                collide = false;
+            }
+            else
+            {
+                collide = true;
+            }
+            if (flatMinmusString == "false")
+            {
+                flatMinmus = false;
+            }
+            else
+            {
+                flatMinmus = true;
             }
         }
         public void LogVariables()
@@ -360,21 +377,21 @@ namespace ParallaxShader
         public void Start()
         {
             body = FlightGlobals.currentMainBody;
-            pqsMaterial = Instantiate(body.pqsController.surfaceMaterial);
-
-            foreach (ReflectionProbe probe in FindObjectsOfType(typeof(ReflectionProbe)))
-            {
-                Debug.Log(probe.name + " is an active reflection probe");
-            }
+            //pqsMaterial = Instantiate(body.pqsController.surfaceMaterial);
+            
+            //foreach (ReflectionProbe probe in FindObjectsOfType(typeof(ReflectionProbe)))
+            //{
+            //    Debug.Log(probe.name + " is an active reflection probe");
+            //}
         }
         public void Update()
         {
 
-            if (FlightGlobals.currentMainBody != body)
-            {
-                body.pqsController.surfaceMaterial = pqsMaterial;
-                Start();
-            }
+            //if (FlightGlobals.currentMainBody != body)
+            //{
+            //    body.pqsController.surfaceMaterial = pqsMaterial;
+            //    Start();
+            //}
 
             //float fadeStart = 60000;//FlightGlobals.currentMainBody.GetComponent<ScaledSpaceFader>().fadeStart;
             //float fadeEnd = 100000;//FlightGlobals.currentMainBody.GetComponent<ScaledSpaceFader>().fadeEnd;
@@ -571,35 +588,10 @@ namespace ParallaxShader
 
             }
 
-            if (lastBody != body)
+
+            if (FlightGlobals.ActiveVessel != null && HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
-                foreach (PQSMod mod in body.GetComponentsInChildren<PQSMod>())
-                {
-                    if (mod is PQSMod_CelestialBodyTransform)
-                    {
-                        fader = (PQSMod_CelestialBodyTransform)mod;
-                    }
-                }
-
-                float fadeStart = fader.planetFade.fadeStart;
-                float fadeEnd = fader.planetFade.fadeEnd;
-
-                body.pqsController.surfaceMaterial.SetFloat("_FadeStart", fadeStart);
-                body.pqsController.lowQualitySurfaceMaterial.SetFloat("_FadeStart", fadeStart);
-                body.pqsController.mediumQualitySurfaceMaterial.SetFloat("_FadeStart", fadeStart);
-                body.pqsController.highQualitySurfaceMaterial.SetFloat("_FadeStart", fadeStart);
-                body.pqsController.ultraQualitySurfaceMaterial.SetFloat("_FadeStart", fadeStart);
-
-                body.pqsController.surfaceMaterial.SetFloat("_FadeEnd", fadeEnd);
-                body.pqsController.lowQualitySurfaceMaterial.SetFloat("_FadeEnd", fadeEnd);
-                body.pqsController.mediumQualitySurfaceMaterial.SetFloat("_FadeEnd", fadeEnd);
-                body.pqsController.highQualitySurfaceMaterial.SetFloat("_FadeEnd", fadeEnd);
-                body.pqsController.ultraQualitySurfaceMaterial.SetFloat("_FadeEnd", fadeEnd);
-            }
-
-            if (FlightGlobals.ActiveVessel != null)
-            {
-                if (HighLogic.LoadedScene == GameScenes.FLIGHT && ParallaxShaderLoader.parallaxBodies.ContainsKey(body.name))
+                if (ParallaxShaderLoader.parallaxBodies.ContainsKey(body.name))
                 {
 
                     Vector3d accuratePlanetPosition = FlightGlobals.currentMainBody.position;   //Double precision planet origin
@@ -724,7 +716,7 @@ namespace ParallaxShader
                     ParallaxBody thisBody = new ParallaxBody();
                     thisBody.Body = bodyName;
                     thisBody.ParallaxBodyMaterial = CreateParallaxBodyMaterial(parallaxBody, bodyName);
-
+                    
                     Log(" - Assigned parallax body material");
 
                     try
@@ -739,6 +731,7 @@ namespace ParallaxShader
                         parallaxBodies[bodyName] = thisBody;
                         Log(" - Overwriting current body");
                     }
+                   //DebugAllProperties(parallaxBody, thisBody);
                     Log("////////////////////////////////////////////////\n");
                 }
 
@@ -755,6 +748,7 @@ namespace ParallaxShader
                 Log("////////////////" + body.Key + "////////////////");
                 Log("////////////////////////////////////////////////\n");
                 body.Value.CreateMaterial();
+                
                 Log(" - Created material successfully");
                 body.Value.Apply();
                 Debug.Log(" - Applied config nodes");
@@ -812,11 +806,6 @@ namespace ParallaxShader
             material.DetailScaleSteepLow = ParseFloat(parallaxBody, "detailScaleSteepLow");
             material.DetailScaleSteepMid = ParseFloat(parallaxBody, "detailScaleSteepMid");
             material.DetailScaleSteepHigh = ParseFloat(parallaxBody, "detailScaleSteepHigh");
-            material.DetailResolution = (int)ParseFloat(parallaxBody, "detailResolution");
-            material.PhysicsTexLow = ParseString(parallaxBody, "physicsTexLow");
-            material.PhysicsTexMid = ParseString(parallaxBody, "physicsTexMid");
-            material.PhysicsTexHigh = ParseString(parallaxBody, "physicsTexHigh");
-            material.PhysicsTexSteep = ParseString(parallaxBody, "physicsTexSteep");
             material.PhysicsTexDisplacement = ParseString(parallaxBody, "physicsTexDisplacement");
             material.ReversedNormal = ParseBoolNumber(parallaxBody, "useReversedNormals");
             material.DetailSteepPower = ParseFloat(parallaxBody, "detailSteepPower");
@@ -828,7 +817,6 @@ namespace ParallaxShader
             {
                 material.EmissionColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
             }
-            
 
             return material;
 
@@ -1130,35 +1118,10 @@ namespace ParallaxShader
             get { return reversedNormal; }
             set { reversedNormal = value; }
         }
-        public string PhysicsTexLow
-        {
-            get { return physicsTexLow; }
-            set { physicsTexLow = value; }
-        }
-        public string PhysicsTexMid
-        {
-            get { return physicsTexMid; }
-            set { physicsTexMid = value; }
-        }
-        public string PhysicsTexHigh
-        {
-            get { return physicsTexHigh; }
-            set { physicsTexHigh = value; }
-        }
-        public string PhysicsTexSteep
-        {
-            get { return physicsTexSteep; }
-            set { physicsTexSteep = value; }
-        }
         public string PhysicsTexDisplacement
         {
             get { return physicsTexDisplacement; }
             set { physicsTexDisplacement = value; }
-        }
-        public int DetailResolution
-        {
-            get { return detailResolution; }
-            set { detailResolution = value; }
         }
         public float DetailScaleSteepLow
         {
@@ -2271,10 +2234,6 @@ namespace ParallaxShader
             ValidatePath(body.ParallaxBodyMaterial.DetailNormalSteepHigh, "_DetailSteepNormalHigh");
 
             ValidatePath(body.ParallaxBodyMaterial.PhysicsTexDisplacement, "_PhysicsTexDisplacement");
-            ValidatePath(body.ParallaxBodyMaterial.PhysicsTexLow, "_PhysicsTexLow");
-            ValidatePath(body.ParallaxBodyMaterial.PhysicsTexMid, "_PhysicsTexMid");
-            ValidatePath(body.ParallaxBodyMaterial.PhysicsTexHigh, "_PhysicsTexHigh");
-            ValidatePath(body.ParallaxBodyMaterial.PhysicsTexSteep, "_PhysicsTexSteep");
         }
         public void ValidatePath(string path, string name)
         {
@@ -2317,34 +2276,11 @@ namespace ParallaxShader
                 Texture2D textureRef = activeTextures[path.Key];
 
                 byte[] bytes = System.IO.File.ReadAllBytes(path.Value);
-                if (path.Key == "_PhysicsTexDisplacement" || path.Key == "_PhysicsTexLow" || path.Key == "_PhysicsTexMid" || path.Key == "_PhysicsTexHigh" || path.Key == "_PhysicsTexSteep")
+                if (path.Key == "_PhysicsTexDisplacement")
                 {
                     textureRef = LoadDDSTexture(bytes, path.Key + " | " + path.Value);
-                    if (path.Key == "_PhysicsTexDisplacement")
-                    {
-                        PhysicsTexHolder.displacementTex = textureRef;
-                        activeTextures[path.Key] = textureRef;
-                    }
-                    if (path.Key == "_PhysicsTexLow")
-                    {
-                        PhysicsTexHolder.physicsTexLow = textureRef;
-                        activeTextures[path.Key] = textureRef;
-                    }
-                    if (path.Key == "_PhysicsTexMid")
-                    {
-                        PhysicsTexHolder.physicsTexMid = textureRef;
-                        activeTextures[path.Key] = textureRef;
-                    }
-                    if (path.Key == "_PhysicsTexHigh")
-                    {
-                        PhysicsTexHolder.physicsTexHigh = textureRef;
-                        activeTextures[path.Key] = textureRef;
-                    }
-                    if (path.Key == "_PhysicsTexSteep")
-                    {
-                        PhysicsTexHolder.physicsTexSteep = textureRef;
-                        activeTextures[path.Key] = textureRef;
-                    }
+                    PhysicsTexHolder.displacementTex = textureRef;
+                    activeTextures[path.Key] = textureRef;
                     Debug.Log("Loaded all physics textures");
                 }
                 else
@@ -2596,365 +2532,365 @@ namespace ParallaxShader
         }
     }
 
-    [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
-    public class ScaledParallaxLoader : MonoBehaviour
-    {
-        private GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        public void Start()
-        {
-            ScaledParallaxBodies.scaledParallaxBodies = new Dictionary<string, ScaledParallaxBody>();
-            GetConfigNodes();
-            ActivateConfigNodes();
-            Debug.Log("Finished scaled parallax");
-            
-            
-            //var planetMeshFilter = fakePlanet.GetComponent<MeshFilter>();//FlightGlobals.GetBodyByName("Gilly").scaledBody.GetComponent<MeshFilter>();
-            //var planetMeshRenderer = fakePlanet.GetComponent<MeshRenderer>();//FlightGlobals.GetBodyByName("Gilly").scaledBody.GetComponent<MeshRenderer>();
-            //Destroy(fakePlanet.GetComponent<MeshCollider>());
-            //Material a = new Material(ParallaxLoader.GetShader("Custom/ParallaxScaled"));
-            //a.SetTexture("_ColorMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Color"));
-            //a.SetTexture("_NormalMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Normal"));
-            //a.SetTexture("_HeightMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Height"));
-            //a.SetTextureScale("_ColorMap", new Vector2(1, 1));
-            //a.SetFloat("_PlanetRadius", 1);
-            //a.SetFloat("_displacement_scale", 0.07f);
-            //a.SetFloat("_TessellationRange", 10000f);
-            //a.SetFloat("_TessellationMax", 64);
-            //a.SetFloat("_SteepPower", 0.001f);
-            //a.SetFloat("_Metallic", 0.01f);
-            //a.SetFloat("_TessellationEdgeLength", 8f);
-            //a.SetFloat("_PlanetOpacity", 1);
-            //a.SetFloat("_FresnelExponent", 23.6f);
-            //a.SetFloat("_TransitionWidth", 0.5f);
-            //a.SetTexture("_FogTexture", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Fog"));
-            //fakePlanet.SetActive(true);
-            //planetMeshRenderer.enabled = true;
-            //planetMeshRenderer.material = a;
-            //planetMeshRenderer.sharedMaterial = a;
-            //fakePlanet.layer = 10;
-            //fakePlanet.transform.parent = FlightGlobals.GetHomeBody().scaledBody.transform;
-            //fakePlanet.transform.localPosition = new Vector3(0, 0, 0);
-            //
-            //fakePlanet.transform.localScale = new Vector3(3000, 3000, 3000);
-            //Debug.Log("Material set");
-        }
-        public void GetConfigNodes()
-        {
-            UrlDir.UrlConfig[] nodeArray = GameDatabase.Instance.GetConfigs("ScaledParallax");
-            for (int i = 0; i < nodeArray.Length; i++)
-            {
-                for (int b = 0; b < nodeArray[i].config.nodes.Count; b++)
-                {
-                    ConfigNode parallax = nodeArray[i].config;
-                    string bodyName = parallax.nodes[b].GetValue("name");
-                    Log("////////////////////////////////////////////////");
-                    Log("////////////////" + bodyName + "////////////////");
-                    Log("////////////////////////////////////////////////\n");
-                    GameObject fakePlanet = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scaled/KSPPlanet");
-                    fakePlanet.AddComponent<MeshRenderer>();
-                    fakePlanet.SetActive(true);
-                    if (fakePlanet == null)
-                    {
-                        Debug.Log("It's null you idot");
-                    }
-                    Destroy(fakePlanet.GetComponent<MeshCollider>());
-                    //fakePlanet.GetComponent<MeshFilter>().sharedMesh = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scaled/KSPPlanet").GetComponent<MeshFilter>().mesh;
-                    ConfigNode parallaxBody = parallax.nodes[b].GetNode("Textures");
-                    if (parallaxBody == null)
-                    {
-                        Log(" - !!!Parallax Body is null! Cancelling load!!!"); //Essentially, you fucked up
-                        return;
-                    }
-                    Log(" - Retrieved body node");
-                    ScaledParallaxBody thisBody = new ScaledParallaxBody();
-                    fakePlanet.transform.parent = FlightGlobals.GetBodyByName(bodyName).scaledBody.transform;
-                    fakePlanet.transform.localPosition = new Vector3(0, 0, 0);
-                    fakePlanet.transform.Rotate(0, 90, 0);
-                    float scaledSpaceFactor = (float)FlightGlobals.GetBodyByName(bodyName).Radius / 1000;
-                    fakePlanet.transform.localScale = new Vector3((float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor), (float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor), (float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor)) ;
-                    
-                    fakePlanet.layer = 10;  //So it's visible in scaled space, the jammy bastard
-                    
-                    thisBody.scaledBody = fakePlanet;
-                    thisBody.bodyName = bodyName;
-                    thisBody.scaledMaterial = CreateScaledBodyMaterial(parallaxBody, bodyName);
-                    FlightGlobals.GetBodyByName(bodyName).scaledBody.GetComponent<MeshFilter>().sharedMesh = Instantiate(primitive.GetComponent<MeshFilter>().mesh);
-
-                    Log(" - Assigned parallax body material");
-
-                    try
-                    {
-                        ScaledParallaxBodies.scaledParallaxBodies.Add(bodyName, thisBody); //Add to the list of parallax bodies
-                        Log(" - Added " + bodyName + "'s parallax config successfully");
-                        Log(ScaledParallaxBodies.scaledParallaxBodies[bodyName].bodyName);
-                    }
-                    catch (Exception e)
-                    {
-                        Log(" - Duplicate body detected!\n" + " - " + e.ToString());
-                        ScaledParallaxBodies.scaledParallaxBodies[bodyName] = thisBody;
-                        Log(" - Overwriting current body");
-                    }
-                    Log("////////////////////////////////////////////////\n");
-                }
-
-            }
-        }
-        public ScaledParallaxBodyMaterial CreateScaledBodyMaterial(ConfigNode scaledBody, string name)
-        {
-            ScaledParallaxBodyMaterial material = new ScaledParallaxBodyMaterial();
-
-            material.bodyName = name;
-            material.colorMap = ParseString(scaledBody, "colorMap");
-            material.normalMap = ParseString(scaledBody, "normalMap");
-            material.heightMap = ParseString(scaledBody, "heightMap");
-            material.fogRamp = ParseString(scaledBody, "fogRamp");
-            material.steepTex = ParseString(scaledBody, "steepTex");
-            material.steepNormal = ParseString(scaledBody, "steepNormal");
-
-            material.tessellationEdgeLength = 5; //Constants for now
-            material.tessellationRange = 10000; //Hella risky, yo
-            material.tessellationMax = 64;
-
-            material.displacementOffset = 0f;
-            material.displacementScale = ParseFloat(scaledBody, "displacementScale");
-            material.metallic = ParseFloat(scaledBody, "metallic");
-            material.normalSpecularInfluence = ParseFloat(scaledBody, "normalSpecularInfluence");
-            bool hasEmission = ParseBool(scaledBody, "hasEmission");
-            if (hasEmission == true)
-            {
-                material.hasEmission = 1;
-            }
-            else
-            {
-                material.hasEmission = 0;
-            }
-            
-
-            material.fresnelExponent = ParseFloat(scaledBody, "fresnelExponent");
-            material.fresnelWidth = ParseFloat(scaledBody, "fresnelWidth");
-
-            string color = ParseString(scaledBody, "metallicTint"); //it pains me to write colour this way as a brit
-            material.metallicTint = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
-            //Might as well reuse the same variable
-            color = ParseString(scaledBody, "emissionColor");
-            if (color != null)
-            {
-                material.emissionColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
-            }
-            return material;
-        }
-        
-        public void ActivateConfigNodes()
-        {
-
-            foreach (KeyValuePair<string, ScaledParallaxBody> body in ScaledParallaxBodies.scaledParallaxBodies)
-            {
-                Log("////////////////////////////////////////////////");
-                Log("////////////////" + body.Key + "////////////////");
-                Log("////////////////////////////////////////////////\n");
-                body.Value.scaledMaterial.GenerateMaterial(body.Value.scaledMaterial);
-                Log(" - Created material successfully");
-
-
-            }
-        }
-        public string ParseString(ConfigNode node, string input)
-        {
-            string output = node.GetValue(input);
-            if (output == null)
-            {
-                Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to NULL");
-                return "NULL";
-            }
-            else { return output; }
-        }
-        public float ParseFloat(ConfigNode node, string input)
-        {
-            string output = node.GetValue(input);
-            float realOutput = 0;
-            if (output == null)
-            {
-                Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to 0");
-                return 0;
-            }
-            else
-            {
-                try
-                {
-                    realOutput = float.Parse(output);
-                }
-                catch
-                {
-                    Log("InvalidTypeException: " + node.name + " was defined, could not be converted to a float, and has been automatically set to 0");
-                    return 0;
-                }
-            }
-            return realOutput;
-        }
-        public bool ParseBool(ConfigNode node, string input)
-        {
-            string output = node.GetValue(input).ToLower();
-            bool realOutput = false;
-            if (output == null)
-            {
-                Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to FALSE");
-                return false;
-            }
-            else
-            {
-                try
-                {
-                    realOutput = bool.Parse(output);
-                }
-                catch
-                {
-                    Log("InvalidTypeException: " + node.name + " was defined, could not be converted to a float, and has been automatically set to FALSE");
-                    return false;
-                }
-            }
-            return realOutput;
-        }
-        public void Log(string message)
-        {
-            Debug.Log("[ParallaxScaled] " + message);
-        }
-        
-    }
-    public class ScaledParallaxBody
-    {
-        public string bodyName;
-        public ScaledParallaxBodyMaterial scaledMaterial;
-        public GameObject scaledBody;
-    }
-    public class ScaledParallaxBodyMaterial
-    {
-        public Material material;
-        public string bodyName;
-
-        public string colorMap; //Textures
-        public string normalMap;
-        public string heightMap;
-        public string fogRamp; 
-        public string steepTex; //Really couldn't be bothered to use get-sets here. Might remedy in the future, idk
-        public string steepNormal;
-        
-        public float tessellationMax;   //Quality settings
-        public float tessellationEdgeLength;
-        public float tessellationRange;
-        public float displacementScale;
-        public float displacementOffset = -0.5f;
-
-        public float metallic;  //PBR settings
-        public Color metallicTint;
-        public Color emissionColor;
-        public float hasEmission;
-        public float normalSpecularInfluence;
-            
-        public float fresnelExponent;   //Atmosphere settings
-        public float fresnelWidth;
-        
-        public ScaledParallaxBody GetScaledParallaxBody(string bodyName)
-        {
-            return ScaledParallaxBodies.scaledParallaxBodies[bodyName];
-        }
-        public void GenerateMaterial(ScaledParallaxBodyMaterial scaledBody)
-        {
-            Material scaledMaterial = new Material(ParallaxLoader.GetShader("Custom/ParallaxScaled"));
-            scaledMaterial.SetTexture("_ColorMap", LoadTexture(scaledBody.colorMap));
-            scaledMaterial.SetTexture("_NormalMap", LoadTexture(scaledBody.normalMap));
-            scaledMaterial.SetTexture("_HeightMap", LoadTexture(scaledBody.heightMap));
-            scaledMaterial.SetTexture("_FogTexture", LoadTexture(scaledBody.fogRamp));
-            scaledMaterial.SetTexture("_SteepMap", LoadTexture(scaledBody.steepTex));
-            scaledMaterial.SetTexture("_SteepNormal", LoadTexture(scaledBody.steepNormal));
-
-            scaledMaterial.SetFloat("_TessellationEdgeLength", scaledBody.tessellationEdgeLength);
-            scaledMaterial.SetFloat("_TessellationMax", scaledBody.tessellationMax);
-            scaledMaterial.SetFloat("_TessellationRange", scaledBody.tessellationRange);
-            scaledMaterial.SetFloat("_displacement_offset", scaledBody.displacementOffset);
-            scaledMaterial.SetFloat("_displacement_scale", scaledBody.displacementScale);
-            scaledMaterial.SetFloat("_Metallic", scaledBody.metallic);
-            scaledMaterial.SetColor("_MetallicTint", scaledBody.metallicTint);
-            scaledMaterial.SetFloat("_TessellationEdgeLength", scaledBody.tessellationEdgeLength);
-            scaledMaterial.SetFloat("_HasEmission", scaledBody.hasEmission);
-            scaledMaterial.SetFloat("_FresnelExponent", scaledBody.fresnelExponent);
-            scaledMaterial.SetFloat("_FresnelWidth", scaledBody.fresnelWidth);
-            scaledMaterial.SetColor("_EmissionColor", scaledBody.emissionColor);
-            scaledMaterial.SetFloat("_PlanetRadius", 1);
-            scaledMaterial.SetFloat("_SteepPower", 0.0001f);
-
-            scaledBody.material = scaledMaterial;
-            scaledBody.GetScaledParallaxBody(scaledBody.bodyName).scaledBody.GetComponent<MeshRenderer>().material = scaledBody.material;
-            scaledBody.GetScaledParallaxBody(scaledBody.bodyName).scaledBody.GetComponent<MeshRenderer>().sharedMaterial = scaledBody.material;
-        }
-        public Texture LoadTexture(string name)
-        {
-            try
-            {
-                return Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == name);
-            }
-            catch
-            {
-                Debug.Log("The texture, '" + name + "', could not be found");
-                return Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "TessellationBlank");
-            }
-        }
-    }
-    public class ScaledParallaxBodies
-    {
-        public static Dictionary<string, ScaledParallaxBody> scaledParallaxBodies;
-    }
-    [KSPAddon(KSPAddon.Startup.TrackingStation, false)]
-    public class EnableTrackingShadows : MonoBehaviour
-    {
-        public void Start()
-        {
-            //QualitySettings.shadowDistance = 100000;
-            //QualitySettings.shadowCascades = 4;
-            //QualitySettings.shadowProjection = ShadowProjection.StableFit;
-            //QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
-            //QualitySettings.shadows = ShadowQuality.All;
-            //Light light = GameObject.Find("Scaledspace SunLight").GetComponent<Light>();
-            //if (light == null)
-            //{
-            //    Debug.Log("Light doesn't exist");
-            //}
-            //light.shadows = LightShadows.Soft;
-            //light.shadowStrength = 1;
-            //light.shadowBias = 0.05f;
-            //light.shadowNormalBias = 0.4f;
-            //light.shadowNearPlane = 0.2f;
-            //light.lightShadowCasterMode = LightShadowCasterMode.Everything;
-            //Debug.Log("Enabled shadows, probably. Idk");
-
-        }
-    }
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class HyperEditGUI : MonoBehaviour
-    {
-        public void Update()
-        {
-            double liquidFuel = 0;
-            double maxLF = 0;
-            foreach (Part part in FlightGlobals.ActiveVessel.parts)
-            {
-                if (part.partInfo.category == PartCategories.FuelTank)
-                {
-                    liquidFuel += part.Resources[0].amount;
-                    maxLF += part.Resources[0].maxAmount;
-                }
-            }
-            double percentage = (liquidFuel / maxLF);
-            //ScaledParallaxBodies.scaledParallaxBodies[FlightGlobals.currentMainBody.name].scaledMaterial.material.SetFloat("_displacement_scale", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetFloat("_DetailOffset", (float)percentage);
-
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetFloat("_DetailOffset", (float)percentage);
-            ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetFloat("_DetailOffset", (float)percentage);
-        }
-    }
+    //[KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
+    //public class ScaledParallaxLoader : MonoBehaviour
+    //{
+    //    private GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+    //    public void Start()
+    //    {
+    //        ScaledParallaxBodies.scaledParallaxBodies = new Dictionary<string, ScaledParallaxBody>();
+    //        GetConfigNodes();
+    //        ActivateConfigNodes();
+    //        Debug.Log("Finished scaled parallax");
+    //        
+    //        
+    //        //var planetMeshFilter = fakePlanet.GetComponent<MeshFilter>();//FlightGlobals.GetBodyByName("Gilly").scaledBody.GetComponent<MeshFilter>();
+    //        //var planetMeshRenderer = fakePlanet.GetComponent<MeshRenderer>();//FlightGlobals.GetBodyByName("Gilly").scaledBody.GetComponent<MeshRenderer>();
+    //        //Destroy(fakePlanet.GetComponent<MeshCollider>());
+    //        //Material a = new Material(ParallaxLoader.GetShader("Custom/ParallaxScaled"));
+    //        //a.SetTexture("_ColorMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Color"));
+    //        //a.SetTexture("_NormalMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Normal"));
+    //        //a.SetTexture("_HeightMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Height"));
+    //        //a.SetTextureScale("_ColorMap", new Vector2(1, 1));
+    //        //a.SetFloat("_PlanetRadius", 1);
+    //        //a.SetFloat("_displacement_scale", 0.07f);
+    //        //a.SetFloat("_TessellationRange", 10000f);
+    //        //a.SetFloat("_TessellationMax", 64);
+    //        //a.SetFloat("_SteepPower", 0.001f);
+    //        //a.SetFloat("_Metallic", 0.01f);
+    //        //a.SetFloat("_TessellationEdgeLength", 8f);
+    //        //a.SetFloat("_PlanetOpacity", 1);
+    //        //a.SetFloat("_FresnelExponent", 23.6f);
+    //        //a.SetFloat("_TransitionWidth", 0.5f);
+    //        //a.SetTexture("_FogTexture", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scaled/Duna_Fog"));
+    //        //fakePlanet.SetActive(true);
+    //        //planetMeshRenderer.enabled = true;
+    //        //planetMeshRenderer.material = a;
+    //        //planetMeshRenderer.sharedMaterial = a;
+    //        //fakePlanet.layer = 10;
+    //        //fakePlanet.transform.parent = FlightGlobals.GetHomeBody().scaledBody.transform;
+    //        //fakePlanet.transform.localPosition = new Vector3(0, 0, 0);
+    //        //
+    //        //fakePlanet.transform.localScale = new Vector3(3000, 3000, 3000);
+    //        //Debug.Log("Material set");
+    //    }
+    //    public void GetConfigNodes()
+    //    {
+    //        UrlDir.UrlConfig[] nodeArray = GameDatabase.Instance.GetConfigs("ScaledParallax");
+    //        for (int i = 0; i < nodeArray.Length; i++)
+    //        {
+    //            for (int b = 0; b < nodeArray[i].config.nodes.Count; b++)
+    //            {
+    //                ConfigNode parallax = nodeArray[i].config;
+    //                string bodyName = parallax.nodes[b].GetValue("name");
+    //                Log("////////////////////////////////////////////////");
+    //                Log("////////////////" + bodyName + "////////////////");
+    //                Log("////////////////////////////////////////////////\n");
+    //                GameObject fakePlanet = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scaled/KSPPlanet");
+    //                fakePlanet.AddComponent<MeshRenderer>();
+    //                fakePlanet.SetActive(true);
+    //                if (fakePlanet == null)
+    //                {
+    //                    Debug.Log("It's null you idot");
+    //                }
+    //                Destroy(fakePlanet.GetComponent<MeshCollider>());
+    //                //fakePlanet.GetComponent<MeshFilter>().sharedMesh = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scaled/KSPPlanet").GetComponent<MeshFilter>().mesh;
+    //                ConfigNode parallaxBody = parallax.nodes[b].GetNode("Textures");
+    //                if (parallaxBody == null)
+    //                {
+    //                    Log(" - !!!Parallax Body is null! Cancelling load!!!"); //Essentially, you fucked up
+    //                    return;
+    //                }
+    //                Log(" - Retrieved body node");
+    //                ScaledParallaxBody thisBody = new ScaledParallaxBody();
+    //                fakePlanet.transform.parent = FlightGlobals.GetBodyByName(bodyName).scaledBody.transform;
+    //                fakePlanet.transform.localPosition = new Vector3(0, 0, 0);
+    //                fakePlanet.transform.Rotate(0, 90, 0);
+    //                float scaledSpaceFactor = (float)FlightGlobals.GetBodyByName(bodyName).Radius / 1000;
+    //                fakePlanet.transform.localScale = new Vector3((float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor), (float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor), (float)(FlightGlobals.GetBodyByName(bodyName).Radius / scaledSpaceFactor)) ;
+    //                
+    //                fakePlanet.layer = 10;  //So it's visible in scaled space, the jammy bastard
+    //                
+    //                thisBody.scaledBody = fakePlanet;
+    //                thisBody.bodyName = bodyName;
+    //                thisBody.scaledMaterial = CreateScaledBodyMaterial(parallaxBody, bodyName);
+    //                FlightGlobals.GetBodyByName(bodyName).scaledBody.GetComponent<MeshFilter>().sharedMesh = Instantiate(primitive.GetComponent<MeshFilter>().mesh);
+    //
+    //                Log(" - Assigned parallax body material");
+    //
+    //                try
+    //                {
+    //                    ScaledParallaxBodies.scaledParallaxBodies.Add(bodyName, thisBody); //Add to the list of parallax bodies
+    //                    Log(" - Added " + bodyName + "'s parallax config successfully");
+    //                    Log(ScaledParallaxBodies.scaledParallaxBodies[bodyName].bodyName);
+    //                }
+    //                catch (Exception e)
+    //                {
+    //                    Log(" - Duplicate body detected!\n" + " - " + e.ToString());
+    //                    ScaledParallaxBodies.scaledParallaxBodies[bodyName] = thisBody;
+    //                    Log(" - Overwriting current body");
+    //                }
+    //                Log("////////////////////////////////////////////////\n");
+    //            }
+    //
+    //        }
+    //    }
+    //    public ScaledParallaxBodyMaterial CreateScaledBodyMaterial(ConfigNode scaledBody, string name)
+    //    {
+    //        ScaledParallaxBodyMaterial material = new ScaledParallaxBodyMaterial();
+    //
+    //        material.bodyName = name;
+    //        material.colorMap = ParseString(scaledBody, "colorMap");
+    //        material.normalMap = ParseString(scaledBody, "normalMap");
+    //        material.heightMap = ParseString(scaledBody, "heightMap");
+    //        material.fogRamp = ParseString(scaledBody, "fogRamp");
+    //        material.steepTex = ParseString(scaledBody, "steepTex");
+    //        material.steepNormal = ParseString(scaledBody, "steepNormal");
+    //
+    //        material.tessellationEdgeLength = 5; //Constants for now
+    //        material.tessellationRange = 10000; //Hella risky, yo
+    //        material.tessellationMax = 64;
+    //
+    //        material.displacementOffset = 0f;
+    //        material.displacementScale = ParseFloat(scaledBody, "displacementScale");
+    //        material.metallic = ParseFloat(scaledBody, "metallic");
+    //        material.normalSpecularInfluence = ParseFloat(scaledBody, "normalSpecularInfluence");
+    //        bool hasEmission = ParseBool(scaledBody, "hasEmission");
+    //        if (hasEmission == true)
+    //        {
+    //            material.hasEmission = 1;
+    //        }
+    //        else
+    //        {
+    //            material.hasEmission = 0;
+    //        }
+    //        
+    //
+    //        material.fresnelExponent = ParseFloat(scaledBody, "fresnelExponent");
+    //        material.fresnelWidth = ParseFloat(scaledBody, "fresnelWidth");
+    //
+    //        string color = ParseString(scaledBody, "metallicTint"); //it pains me to write colour this way as a brit
+    //        material.metallicTint = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
+    //        //Might as well reuse the same variable
+    //        color = ParseString(scaledBody, "emissionColor");
+    //        if (color != null)
+    //        {
+    //            material.emissionColor = new Color(float.Parse(color.Split(',')[0]), float.Parse(color.Split(',')[1]), float.Parse(color.Split(',')[2]));
+    //        }
+    //        return material;
+    //    }
+    //    
+    //    public void ActivateConfigNodes()
+    //    {
+    //
+    //        foreach (KeyValuePair<string, ScaledParallaxBody> body in ScaledParallaxBodies.scaledParallaxBodies)
+    //        {
+    //            Log("////////////////////////////////////////////////");
+    //            Log("////////////////" + body.Key + "////////////////");
+    //            Log("////////////////////////////////////////////////\n");
+    //            body.Value.scaledMaterial.GenerateMaterial(body.Value.scaledMaterial);
+    //            Log(" - Created material successfully");
+    //
+    //
+    //        }
+    //    }
+    //    public string ParseString(ConfigNode node, string input)
+    //    {
+    //        string output = node.GetValue(input);
+    //        if (output == null)
+    //        {
+    //            Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to NULL");
+    //            return "NULL";
+    //        }
+    //        else { return output; }
+    //    }
+    //    public float ParseFloat(ConfigNode node, string input)
+    //    {
+    //        string output = node.GetValue(input);
+    //        float realOutput = 0;
+    //        if (output == null)
+    //        {
+    //            Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to 0");
+    //            return 0;
+    //        }
+    //        else
+    //        {
+    //            try
+    //            {
+    //                realOutput = float.Parse(output);
+    //            }
+    //            catch
+    //            {
+    //                Log("InvalidTypeException: " + node.name + " was defined, could not be converted to a float, and has been automatically set to 0");
+    //                return 0;
+    //            }
+    //        }
+    //        return realOutput;
+    //    }
+    //    public bool ParseBool(ConfigNode node, string input)
+    //    {
+    //        string output = node.GetValue(input).ToLower();
+    //        bool realOutput = false;
+    //        if (output == null)
+    //        {
+    //            Log("NullReferenceException: " + node.name + " was not defined in the config and has been automatically set to FALSE");
+    //            return false;
+    //        }
+    //        else
+    //        {
+    //            try
+    //            {
+    //                realOutput = bool.Parse(output);
+    //            }
+    //            catch
+    //            {
+    //                Log("InvalidTypeException: " + node.name + " was defined, could not be converted to a float, and has been automatically set to FALSE");
+    //                return false;
+    //            }
+    //        }
+    //        return realOutput;
+    //    }
+    //    public void Log(string message)
+    //    {
+    //        Debug.Log("[ParallaxScaled] " + message);
+    //    }
+    //    
+    //}
+    //public class ScaledParallaxBody
+    //{
+    //    public string bodyName;
+    //    public ScaledParallaxBodyMaterial scaledMaterial;
+    //    public GameObject scaledBody;
+    //}
+    //public class ScaledParallaxBodyMaterial
+    //{
+    //    public Material material;
+    //    public string bodyName;
+    //
+    //    public string colorMap; //Textures
+    //    public string normalMap;
+    //    public string heightMap;
+    //    public string fogRamp; 
+    //    public string steepTex; //Really couldn't be bothered to use get-sets here. Might remedy in the future, idk
+    //    public string steepNormal;
+    //    
+    //    public float tessellationMax;   //Quality settings
+    //    public float tessellationEdgeLength;
+    //    public float tessellationRange;
+    //    public float displacementScale;
+    //    public float displacementOffset = -0.5f;
+    //
+    //    public float metallic;  //PBR settings
+    //    public Color metallicTint;
+    //    public Color emissionColor;
+    //    public float hasEmission;
+    //    public float normalSpecularInfluence;
+    //        
+    //    public float fresnelExponent;   //Atmosphere settings
+    //    public float fresnelWidth;
+    //    
+    //    public ScaledParallaxBody GetScaledParallaxBody(string bodyName)
+    //    {
+    //        return ScaledParallaxBodies.scaledParallaxBodies[bodyName];
+    //    }
+    //    public void GenerateMaterial(ScaledParallaxBodyMaterial scaledBody)
+    //    {
+    //        Material scaledMaterial = new Material(ParallaxLoader.GetShader("Custom/ParallaxScaled"));
+    //        scaledMaterial.SetTexture("_ColorMap", LoadTexture(scaledBody.colorMap));
+    //        scaledMaterial.SetTexture("_NormalMap", LoadTexture(scaledBody.normalMap));
+    //        scaledMaterial.SetTexture("_HeightMap", LoadTexture(scaledBody.heightMap));
+    //        scaledMaterial.SetTexture("_FogTexture", LoadTexture(scaledBody.fogRamp));
+    //        scaledMaterial.SetTexture("_SteepMap", LoadTexture(scaledBody.steepTex));
+    //        scaledMaterial.SetTexture("_SteepNormal", LoadTexture(scaledBody.steepNormal));
+    //
+    //        scaledMaterial.SetFloat("_TessellationEdgeLength", scaledBody.tessellationEdgeLength);
+    //        scaledMaterial.SetFloat("_TessellationMax", scaledBody.tessellationMax);
+    //        scaledMaterial.SetFloat("_TessellationRange", scaledBody.tessellationRange);
+    //        scaledMaterial.SetFloat("_displacement_offset", scaledBody.displacementOffset);
+    //        scaledMaterial.SetFloat("_displacement_scale", scaledBody.displacementScale);
+    //        scaledMaterial.SetFloat("_Metallic", scaledBody.metallic);
+    //        scaledMaterial.SetColor("_MetallicTint", scaledBody.metallicTint);
+    //        scaledMaterial.SetFloat("_TessellationEdgeLength", scaledBody.tessellationEdgeLength);
+    //        scaledMaterial.SetFloat("_HasEmission", scaledBody.hasEmission);
+    //        scaledMaterial.SetFloat("_FresnelExponent", scaledBody.fresnelExponent);
+    //        scaledMaterial.SetFloat("_FresnelWidth", scaledBody.fresnelWidth);
+    //        scaledMaterial.SetColor("_EmissionColor", scaledBody.emissionColor);
+    //        scaledMaterial.SetFloat("_PlanetRadius", 1);
+    //        scaledMaterial.SetFloat("_SteepPower", 0.0001f);
+    //
+    //        scaledBody.material = scaledMaterial;
+    //        scaledBody.GetScaledParallaxBody(scaledBody.bodyName).scaledBody.GetComponent<MeshRenderer>().material = scaledBody.material;
+    //        scaledBody.GetScaledParallaxBody(scaledBody.bodyName).scaledBody.GetComponent<MeshRenderer>().sharedMaterial = scaledBody.material;
+    //    }
+    //    public Texture LoadTexture(string name)
+    //    {
+    //        try
+    //        {
+    //            return Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == name);
+    //        }
+    //        catch
+    //        {
+    //            Debug.Log("The texture, '" + name + "', could not be found");
+    //            return Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "TessellationBlank");
+    //        }
+    //    }
+    //}
+    //public class ScaledParallaxBodies
+    //{
+    //    public static Dictionary<string, ScaledParallaxBody> scaledParallaxBodies;
+    //}
+    //[KSPAddon(KSPAddon.Startup.TrackingStation, false)]
+    //public class EnableTrackingShadows : MonoBehaviour
+    //{
+    //    public void Start()
+    //    {
+    //        //QualitySettings.shadowDistance = 100000;
+    //        //QualitySettings.shadowCascades = 4;
+    //        //QualitySettings.shadowProjection = ShadowProjection.StableFit;
+    //        //QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+    //        //QualitySettings.shadows = ShadowQuality.All;
+    //        //Light light = GameObject.Find("Scaledspace SunLight").GetComponent<Light>();
+    //        //if (light == null)
+    //        //{
+    //        //    Debug.Log("Light doesn't exist");
+    //        //}
+    //        //light.shadows = LightShadows.Soft;
+    //        //light.shadowStrength = 1;
+    //        //light.shadowBias = 0.05f;
+    //        //light.shadowNormalBias = 0.4f;
+    //        //light.shadowNearPlane = 0.2f;
+    //        //light.lightShadowCasterMode = LightShadowCasterMode.Everything;
+    //        //Debug.Log("Enabled shadows, probably. Idk");
+    //
+    //    }
+    //}
+    //[KSPAddon(KSPAddon.Startup.Flight, false)]
+    //public class HyperEditGUI : MonoBehaviour
+    //{
+    //    public void Update()
+    //    {
+    //        double liquidFuel = 0;
+    //        double maxLF = 0;
+    //        foreach (Part part in FlightGlobals.ActiveVessel.parts)
+    //        {
+    //            if (part.partInfo.category == PartCategories.FuelTank)
+    //            {
+    //                liquidFuel += part.Resources[0].amount;
+    //                maxLF += part.Resources[0].maxAmount;
+    //            }
+    //        }
+    //        double percentage = (liquidFuel / maxLF);
+    //        //ScaledParallaxBodies.scaledParallaxBodies[FlightGlobals.currentMainBody.name].scaledMaterial.material.SetFloat("_displacement_scale", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetFloat("_DetailOffset", (float)percentage);
+    //
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetFloat("_DetailOffset", (float)percentage);
+    //        ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetFloat("_DetailOffset", (float)percentage);
+    //    }
+    //}
 }
