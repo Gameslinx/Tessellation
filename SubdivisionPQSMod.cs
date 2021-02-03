@@ -70,7 +70,9 @@ namespace PQSModExpansion
             {
 
                 distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
-                int distLimit = (int)(120 + (FlightGlobals.currentMainBody.Radius / 450000) * 800);
+                PSystemBody Kerbin = Utility.FindBody(PSystemManager.Instance.systemPrefab.rootBody, "Kerbin");
+                double homeWorldRadiusRescaleFactor = (Kerbin.celestialBody.Radius / 600000);
+                int distLimit = (int)(120 + (FlightGlobals.currentMainBody.Radius / (450000 * (int)homeWorldRadiusRescaleFactor)) * 800);
                 if (overrideDistLimit)
                 {
                     distLimit = customDistLimit;
@@ -145,7 +147,7 @@ namespace PQSModExpansion
                     QuadMeshDictionary.subdividedQuadList.Add(newQuad.name, newQuad);
 
                 }
-                else if (distance >= 1200 && subdivided == true)
+                else if (distance >= distLimit && subdivided == true)
                 {
                     string newQuadName = quad.name + "FAKE";
                     if (QuadMeshDictionary.subdividedQuadList.ContainsKey(newQuadName))
