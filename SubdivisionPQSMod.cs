@@ -54,7 +54,7 @@ namespace PQSModExpansion
         public GameObject newQuad;
         public GameObject collisionQuad;
         public int subdivisionLevel = 1;
-        Material transparent = new Material(Shader.Find("Unlit/Transparent"));
+        Material transparent = null;
         private float distance = 0;
         public bool overrideDistLimit = false;
         public int customDistLimit = 1000;
@@ -62,6 +62,7 @@ namespace PQSModExpansion
 
         public void Start()
         {
+            transparent = new Material(Shader.Find("Unlit/Transparent"));
             InvokeRepeating("CheckSubdivision", 1f, 1f);
         }
         public void CheckSubdivision()
@@ -72,7 +73,7 @@ namespace PQSModExpansion
                 distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
                 PSystemBody Kerbin = Utility.FindBody(PSystemManager.Instance.systemPrefab.rootBody, "Kerbin");
                 double homeWorldRadiusRescaleFactor = (Kerbin.celestialBody.Radius / 600000);
-                int distLimit = (int)(120 + (FlightGlobals.currentMainBody.Radius / (450000 * (int)homeWorldRadiusRescaleFactor)) * 800);
+                int distLimit = (int)(120 + (FlightGlobals.currentMainBody.Radius / (450000 * homeWorldRadiusRescaleFactor)) * 800);
                 if (overrideDistLimit)
                 {
                     distLimit = customDistLimit;
@@ -192,15 +193,15 @@ namespace PQSModExpansion
         public bool overrideDistLimit = false;
         public int customDistLimit = 1000;
         public static bool needed = false;
-        Material fuckery = new Material(Shader.Find("Standard"));
+        //Material fuckery = new Material(Shader.Find("Standard"));
         public override void OnVertexBuild(PQS.VertexBuildData data)
         {
-            //Vector3 normal = Vector3.Normalize(LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, 0) - FlightGlobals.currentMainBody.transform.position);
+            /*//Vector3 normal = Vector3.Normalize(LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, 0) - FlightGlobals.currentMainBody.transform.position);
             try
             {
-                //data.vertHeight = (FlightGlobals.currentMainBody.Radius * 2) + 120 - data.vertHeight;
+                data.vertHeight = (FlightGlobals.currentMainBody.Radius * 2) + 120 - data.vertHeight;
             }
-            catch { }
+            catch { }*/
         }
         public override void OnQuadBuilt(PQ quad)
         {
@@ -835,21 +836,34 @@ namespace PQSModExpansion
     [KSPAddon(KSPAddon.Startup.Instantly, false)]
     public class MaterialHolder : MonoBehaviour
     {
-        public static Material standardUNKNOWN = new Material(Shader.Find("Standard"));
+        public static Material standardUNKNOWN = null;
 
-        public static Material standardLOW = new Material(Shader.Find("Standard"));
-        public static Material standardMID = new Material(Shader.Find("Standard"));
-        public static Material standardHIGH = new Material(Shader.Find("Standard"));
+        public static Material standardLOW = null;
+        public static Material standardMID = null;
+        public static Material standardHIGH = null;
 
-        public static Material standardLOWMID = new Material(Shader.Find("Standard"));
-        public static Material standardMIDHIGH = new Material(Shader.Find("Standard"));
-        public static Material standardLOWMIDHIGH = new Material(Shader.Find("Standard"));
+        public static Material standardLOWMID = null;
+        public static Material standardMIDHIGH = null;
+        public static Material standardLOWMIDHIGH = null;
 
-        public static Material standardSTEEPLOW = new Material(Shader.Find("Standard"));
-        public static Material standardSTEEPMID = new Material(Shader.Find("Standard"));
-        public static Material standardSTEEPHIGH = new Material(Shader.Find("Standard"));
+        public static Material standardSTEEPLOW = null;
+        public static Material standardSTEEPMID = null;
+        public static Material standardSTEEPHIGH = null;
         public void Start()
         {
+            standardUNKNOWN = new Material(Shader.Find("Standard"));
+
+            standardLOW = new Material(Shader.Find("Standard"));
+            standardMID = new Material(Shader.Find("Standard"));
+            standardHIGH = new Material(Shader.Find("Standard"));
+
+            standardLOWMID = new Material(Shader.Find("Standard"));
+            standardMIDHIGH = new Material(Shader.Find("Standard"));
+            standardLOWMIDHIGH = new Material(Shader.Find("Standard"));
+
+            standardSTEEPLOW = new Material(Shader.Find("Standard"));
+            standardSTEEPMID = new Material(Shader.Find("Standard"));
+            standardSTEEPHIGH = new Material(Shader.Find("Standard"));
             standardLOW.SetColor("_Color", new Color(0.9f, 0.7f, 0.7f));
             standardMID.SetColor("_Color", new Color(0.7f, 0.9f, 0.7f));
             standardHIGH.SetColor("_Color", new Color(0.7f, 0.7f, 0.9f));
@@ -1118,6 +1132,3 @@ namespace PQSModExpansion
         }
     }
 }
-
-
-
