@@ -235,7 +235,7 @@ namespace PQSModExpansion
             //
             //}
             //SUBDIVISION MOD
-            if (quad is null || quad.mesh == null)
+            if (quad == null || quad.mesh == null)
             {
                 Debug.Log("Quad is null and has been caught. Distance to vessel is: ");
                 try
@@ -247,26 +247,19 @@ namespace PQSModExpansion
                     Debug.Log("Unable to get distance to vessel");
                 }
             }
-            try
+            else if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
-                if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
-                {
-                    Debug.Log("Mask: " + LayerMask.GetMask());
-                    quad.gameObject.AddComponent<QuadMeshes>();
-                    quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
-                    quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * ParallaxSettings.tessMult);
-                    quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
-                    quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.Log("[Parallax] Subdivision Error:\n" + e.ToString());
+                Debug.Log("Mask: " + LayerMask.GetMask());
+                quad.gameObject.AddComponent<QuadMeshes>();
+                quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
+                quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * ParallaxSettings.tessMult);
+                quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
+                quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
             }
 
             //ADAPTIVE PARALLAX
 
-            try
+            if (quad)
             {
                 double highPoint = 0;
                 double lowPoint = 0;
@@ -360,10 +353,6 @@ namespace PQSModExpansion
                     }
                 }
 
-            }
-            catch (Exception e)
-            {
-                Debug.Log("[Parallax] Subdivision Error (Adaptive Parallax):\n" + e.ToString());
             }
 
         }
@@ -509,7 +498,7 @@ namespace PQSModExpansion
     {
         public void Start()
         {
-            GrassMaterial.grassMaterial = new Material(ParallaxLoader.GetShader("Custom/Grass"));
+            /*GrassMaterial.grassMaterial = new Material(ParallaxLoader.GetShader("Custom/Grass"));
             GrassMaterial.grassMaterial.SetColor("_TopColor", new Color(0.8396226f, 0.5663492f, 0.7778036f));
             GrassMaterial.grassMaterial.SetColor("_BottomColor", new Color(0.245283f, 0.03818085f, 0.182885f));
             GrassMaterial.grassMaterial.SetFloat("_BladeWidth", 10);
@@ -521,7 +510,7 @@ namespace PQSModExpansion
             GrassMaterial.grassMaterial.SetFloat("_BlendRotationRandom", 0);
             GrassMaterial.grassMaterial.SetFloat("_WindStrength", 1);
             GrassMaterial.grassMaterial.SetFloat("_TranslucentGain", 0.315f);
-            GrassMaterial.grassMaterial.SetFloat("_TessellationEdgeLength", 6.6f);
+            GrassMaterial.grassMaterial.SetFloat("_TessellationEdgeLength", 6.6f);*/
         }
     }
     public static class MeshHelper
@@ -1103,8 +1092,9 @@ namespace PQSModExpansion
         }
         public void ChangeSpaceCenterColor()
         {
-            Debug.Log("Home planet detected as " + FlightGlobals.GetHomeBody().displayName);
-            if (FlightGlobals.GetHomeBody().displayName == "Kerbin^N")
+            CelestialBody homebody = Utility.FindBody(PSystemManager.Instance.systemPrefab.rootBody, "Kerbin").celestialBody;
+            Debug.Log("Home planet detected as " + homebody.displayName);
+            if (homebody.displayName == "Kerbin^N")
             {
                 CelestialBody kerbin = FlightGlobals.GetHomeBody();
                 PQSCity ksc = kerbin.pqsController.GetComponentsInChildren<PQSCity>(true).First(m => m.name == "KSC");
