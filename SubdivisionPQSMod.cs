@@ -235,32 +235,32 @@ namespace PQSModExpansion
             //
             //}
             //SUBDIVISION MOD
-            if (quad == null || quad.mesh == null)
+            if ((quad) && (FlightGlobals.currentMainBody))
             {
-                Debug.Log("Quad is null and has been caught. Distance to vessel is: ");
-                try
+                if (quad.mesh == null)
                 {
-                    Debug.Log(quad.transform.position - FlightGlobals.ActiveVessel.transform.position);
+                    Debug.Log("Quad is null and has been caught. Distance to vessel is: ");
+                    try
+                    {
+                        Debug.Log(quad.transform.position - FlightGlobals.ActiveVessel.transform.position);
+                    }
+                    catch
+                    {
+                        Debug.Log("Unable to get distance to vessel");
+                    }
                 }
-                catch
+                if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
                 {
-                    Debug.Log("Unable to get distance to vessel");
+                    Debug.Log("Mask: " + LayerMask.GetMask());
+                    quad.gameObject.AddComponent<QuadMeshes>();
+                    quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
+                    quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * ParallaxSettings.tessMult);
+                    quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
+                    quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
                 }
-            }
-            else if (quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
-            {
-                Debug.Log("Mask: " + LayerMask.GetMask());
-                quad.gameObject.AddComponent<QuadMeshes>();
-                quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
-                quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * ParallaxSettings.tessMult);
-                quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
-                quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
-            }
 
-            //ADAPTIVE PARALLAX
+                //ADAPTIVE PARALLAX
 
-            if (quad)
-            {
                 double highPoint = 0;
                 double lowPoint = 0;
 
@@ -352,9 +352,7 @@ namespace PQSModExpansion
                         //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_BumpMap", ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LoadTexture(ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.BumpMapHigh));
                     }
                 }
-
             }
-
         }
         public override void OnQuadDestroy(PQ quad)
         {
@@ -371,9 +369,7 @@ namespace PQSModExpansion
                 {
                 }
                 Destroy(quad.gameObject.GetComponent<QuadMeshes>());    //Quad is not maxLevel anymore, remove the damn thing
-
             }
-
         }
         public Vector3 maxVertexPosition;
         public Vector3 minVertexPosition;
