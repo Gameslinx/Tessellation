@@ -602,10 +602,12 @@ namespace ParallaxCollision
             {
                 samplePoint = hitApproximateRay.point;
                 sampleNormal = hitApproximateRay.normal;
+                EnablePlane();
             }
             else
             {
                 started = true;
+                DisablePlane();
                 return;
             }
             float displacement = GetDisplacement(new Vector2(wheelPivot.transform.position.x, wheelPivot.transform.position.y), tex, _ST);
