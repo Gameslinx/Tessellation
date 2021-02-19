@@ -154,7 +154,7 @@ namespace ParallaxShader
         public static bool tessellate = true;
         public static bool tessellateLighting = true;
         public static bool tessellateShadows = true;
-        public static bool trueLighting = false;
+        public static string trueLighting = "false";
         public static float tessMult = 1;
         public static bool collide = true;
         public static bool flatMinmus = false;
@@ -255,11 +255,15 @@ namespace ParallaxShader
             string trueLightingString = lightingSettings.GetValue("trueLighting").ToLower();
             if (trueLightingString == "true")
             {
-                trueLighting = true;
+                trueLighting = "true";
             }
-            else
+            else if (trueLightingString == "false")
             {
-                trueLighting = false;
+                trueLighting = "false";
+            }
+            else //Use adaptive true lighting
+            {
+                trueLighting = "adaptive";
             }
             string tessQualityString = tessellationSettings.GetValue("tessellationQuality").ToLower();
             if (tessQualityString == "low")
@@ -557,33 +561,33 @@ namespace ParallaxShader
                 body.pqsController.highQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
                 body.pqsController.ultraQualitySurfaceMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
 
-                body.pqsController.lowQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-                body.pqsController.mediumQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-                body.pqsController.surfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-                body.pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
-                body.pqsController.ultraQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                //body.pqsController.lowQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                //body.pqsController.mediumQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                //body.pqsController.surfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                //body.pqsController.highQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                //body.pqsController.ultraQualitySurfaceMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
 
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterial.SetVector("_LightPos", (Vector3)body.transform.position);
 
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetVector("_LightPos", (Vector3)(body.transform.position));
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetVector("_LightPos", (Vector3)body.transform.position);
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetVector("_LightPos", (Vector3)body.transform.position);
 
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetVector("_LightPos", (Vector3)body.transform.position);
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEMID.SetVector("_LightPos", (Vector3)body.transform.position);
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetVector("_LightPos", (Vector3)body.transform.position);
 
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLELOW.SetVector("_LightPos", (Vector3)body.transform.position);
                 ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_PlanetOrigin", (Vector3)body.transform.position);
-                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_LightPos", (Vector3)(FlightGlobals.Bodies[0].transform.position));
+                ParallaxShaderLoader.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetVector("_LightPos", (Vector3)body.transform.position);
 
 
             }
@@ -2060,7 +2064,7 @@ namespace ParallaxShader
                 parallaxMaterialDOUBLEHIGH.EnableKeyword("HQ_SHADOWS_OFF");
                 parallaxMaterialDOUBLEHIGH.DisableKeyword("HQ_SHADOWS_ON");
             }
-            if (ParallaxSettings.trueLighting == true)
+            if (ParallaxSettings.trueLighting == "true")
             {
                 parallaxMaterial.EnableKeyword("ATTENUATIONOVERRIDE_ON");
                 parallaxMaterial.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
@@ -2086,28 +2090,60 @@ namespace ParallaxShader
             }
             else
             {
-                parallaxMaterial.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterial.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                //Off or Adaptive will disable true lighting by default
+                if (FlightGlobals.GetBodyByName(planetName).atmosphere == true && ParallaxSettings.trueLighting == "adaptive")
+                {
+                    Debug.Log("[Parallax] Adaptive Lighting is enabled - this planet has an atmosphere");
+                    parallaxMaterial.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterial.DisableKeyword("ATTENUATIONOVERRIDE_ON");
 
-                parallaxMaterialSINGLESTEEPLOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLESTEEPLOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
-                parallaxMaterialSINGLESTEEPMID.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLESTEEPMID.DisableKeyword("ATTENUATIONOVERRIDE_ON");
-                parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPLOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLESTEEPLOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPMID.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLESTEEPMID.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
 
-                parallaxMaterialSINGLELOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLELOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
-                parallaxMaterialSINGLEMID.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLEMID.DisableKeyword("ATTENUATIONOVERRIDE_ON");
-                parallaxMaterialSINGLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialSINGLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLELOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLELOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLEMID.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLEMID.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
 
 
-                parallaxMaterialDOUBLELOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialDOUBLELOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
-                parallaxMaterialDOUBLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
-                parallaxMaterialDOUBLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialDOUBLELOW.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialDOUBLELOW.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialDOUBLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialDOUBLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_ON");
+                }
+                else
+                {
+                    
+
+
+                    parallaxMaterial.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterial.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+
+                    parallaxMaterialSINGLESTEEPLOW.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPLOW.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLESTEEPMID.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPMID.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLESTEEPHIGH.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLESTEEPHIGH.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+
+                    parallaxMaterialSINGLELOW.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLELOW.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLEMID.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLEMID.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialSINGLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialSINGLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+
+                    parallaxMaterialDOUBLELOW.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialDOUBLELOW.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                    parallaxMaterialDOUBLEHIGH.EnableKeyword("ATTENUATIONOVERRIDE_ON");
+                    parallaxMaterialDOUBLEHIGH.DisableKeyword("ATTENUATIONOVERRIDE_OFF");
+                }
             }
         }
 
@@ -2153,11 +2189,23 @@ namespace ParallaxShader
         public void Start()
         {
             Log("Starting Parallax On-Demand loader");
+            Sun.Instance.sunLight.shadowStrength = 1;
+        }
+        public void LateUpdate()
+        {
+            if (ParallaxShaderLoader.parallaxBodies.ContainsKey(FlightGlobals.currentMainBody.name))
+            {
+                Sun.Instance.sunLight.shadowStrength = 1;
+            }
+            
         }
         public void Update()
         {
-
-
+            //foreach (Light l in GameObject.FindObjectsOfType<Light>())
+            //{
+            //    Debug.Log(l.name + ": " + l.shadowStrength);
+            //}
+            
             timeElapsed = Time.realtimeSinceStartup;
             currentBody = FlightGlobals.currentMainBody;
             bool key = Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.Alpha2);
@@ -2238,18 +2286,11 @@ namespace ParallaxShader
         public void ValidatePath(string path, string name)
         {
             string actualPath = "";
-            if (Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 16, 16) + "GameData/" + path;
-            }
-            else if (Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 12, 12) + "GameData/" + path;
-            }
-            else
-            {
-                actualPath = Application.dataPath.Remove(Application.dataPath.Length - 16, 16) + "GameData/" + path;
-            }
+            
+            actualPath = Application.dataPath;
+            int lastDash = actualPath.LastIndexOf('/');
+            actualPath = actualPath.Remove(lastDash + 1) + "GameData/" + path;
+            //string actualPath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Parallax");
             Log("Validating " + actualPath);
             bool fileExists = File.Exists(actualPath);
             if (fileExists)
@@ -2265,7 +2306,14 @@ namespace ParallaxShader
         }
         public void AttemptTextureLoad(string planetName)
         {
-            ParallaxBody thisBody = ParallaxShaderLoader.parallaxBodies[planetName];
+            Debug.Log("1");
+            ParallaxBody thisBody = ParallaxShaderLoader.parallaxBodies[planetName]; ;
+            if (thisBody == null)
+            {
+                Debug.Log("Body is null");
+                return;
+            }
+            Debug.Log("1");
             //ParallaxShaderLoader.parallaxBodies[planetName].detailTexturesLower = new Texture2DArray(thisBody.ParallaxBodyMaterial.DetailResolution, thisBody.ParallaxBodyMaterial.DetailResolution, 8, TextureFormat.RGBA32, true);
             //ParallaxShaderLoader.parallaxBodies[planetName].detailTexturesUpper = new Texture2DArray(thisBody.ParallaxBodyMaterial.DetailResolution, thisBody.ParallaxBodyMaterial.DetailResolution, 8, TextureFormat.RGBA32, true);
             //Holds 8 detail textures
@@ -2274,21 +2322,24 @@ namespace ParallaxShader
             {
                 activeTextures.Add(path.Key, Texture2D.blackTexture);
                 Texture2D textureRef = activeTextures[path.Key];
-
+                Debug.Log("2");
                 byte[] bytes = System.IO.File.ReadAllBytes(path.Value);
+                Debug.Log("2");
                 if (path.Key == "_PhysicsTexDisplacement")
                 {
                     textureRef = LoadDDSTexture(bytes, path.Key + " | " + path.Value);
+                    Debug.Log("2.1");
                     PhysicsTexHolder.displacementTex = textureRef;
                     activeTextures[path.Key] = textureRef;
                     Debug.Log("Loaded all physics textures");
                 }
                 else
                 {
+                    Debug.Log("2.2");
                     textureRef = LoadDDSTexture(bytes, path.Key + " | " + path.Value);
-
+                    Debug.Log("2.2");
                     activeTextures[path.Key] = textureRef;
-
+                    Debug.Log("2.2");
                     //FlightGlobals.currentMainBody.pqsController.surfaceMaterial.SetTexture(path.Key, textureRef);
                     thisBody.ParallaxBodyMaterial.ParallaxMaterial.SetTexture(path.Key, textureRef);
                     thisBody.ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture(path.Key, textureRef);
@@ -2299,7 +2350,7 @@ namespace ParallaxShader
                     thisBody.ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPLOW.SetTexture(path.Key, textureRef);
                     thisBody.ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPMID.SetTexture(path.Key, textureRef);
                     thisBody.ParallaxBodyMaterial.ParallaxMaterialSINGLESTEEPHIGH.SetTexture(path.Key, textureRef);
-
+                    Debug.Log("2.2");
                     if (path.Key == "_SurfaceTexture")
                     {
                         thisBody.ParallaxBodyMaterial.ParallaxMaterialSINGLELOW.SetTexture("_SurfaceTexture", textureRef);
@@ -2426,7 +2477,9 @@ namespace ParallaxShader
                         thisBody.ParallaxBodyMaterial.ParallaxMaterialSINGLEHIGH.SetTexture("_DetailSteepNormal", textureRef);
                         thisBody.ParallaxBodyMaterial.ParallaxMaterialDOUBLEHIGH.SetTexture("_DetailSteepHigherNormal", textureRef);
                     }
+                    Debug.Log("2.2");
                     Debug.Log("Set texture: " + path.Key + " // " + textureRef.name);
+                    Debug.Log("2.2");
                     //.pqsController.surfaceMaterial.SetTexture(path.Key, textureRef);
                 }
             }

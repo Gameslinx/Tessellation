@@ -8,6 +8,8 @@ using ParallaxShader;
 using ModuleWheels;
 using System.CodeDom;
 using System.Security.Cryptography;
+using System.Collections;
+using VehiclePhysics;
 
 namespace ParallaxCollision
 {
@@ -35,7 +37,7 @@ namespace ParallaxCollision
             Camera.current.cullingMask = Camera.current.cullingMask | (1 << 29);    //See the subdivided terrain - Make layer 29 visible (unused by ksp)
             Camera.main.cullingMask = Camera.main.cullingMask | (1 << 29);
             Sun.Instance.sunLight.cullingMask = Sun.Instance.sunLight.cullingMask | (1 << 29);
-            
+
         }
         public void Update()
         {
@@ -52,7 +54,7 @@ namespace ParallaxCollision
                     if (p.GetComponent<ParallaxPhysics>() != null)
                     {
                         Debug.Log("Part has parallax physics - restarting!");
-                        p.GetComponent<ParallaxPhysics>().RestartWheels(p.GetComponent<ParallaxPhysics>().p);
+                        //p.GetComponent<ParallaxPhysics>().RestartWheels(p.GetComponent<ParallaxPhysics>().p);
                     }
                 }
             }
@@ -151,101 +153,12 @@ namespace ParallaxCollision
     {
 
         public static List<Transform> transforms = new List<Transform>();
+
         
         public override void OnLoadVessel()
         {
-            if (ParallaxSettings.collide == false)
-            {
-                return;
-            }
-            foreach (Part p in vessel.parts)
-            {
-                if (vessel.parts.Count == 1)
-                {
-                    if (vessel.parts[0].isKerbalEVA() == true)
-                    {
-                        Debug.Log("This vessel is a Kerbal");
-                        p.gameObject.AddComponent<ParallaxPhysics>();
-                        var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
-                        physicsComponent.transform.parent = p.gameObject.transform;
-                        physicsComponent.p = p;
-                        physicsComponent.origin = p.gameObject.transform.position;
-                        physicsComponent.wheelPivot = physicsComponent;
-                    }
-                }
-                if ((p.Modules.Contains<ModuleWheelBase>() || p.Modules.Contains<ParallaxWheelPhysicsComponent>()
-                  || p.Modules.Contains("KSPWheelBase") || p.Modules.Contains<ModuleGroundSciencePart>() || p.Modules.Contains<ModuleGroundPart>()
-                  || p.Modules.Contains<ModuleGroundExperiment>() || p.Modules.Contains<ModuleGroundCommsPart>() || p.Modules.Contains<ModulePhysicMaterial>()
-                  ) && p.gameObject.GetComponent<ParallaxPhysics>() == null)
-                {
-                    if (p.Modules.Contains("KSPWheelBase"))
-                    {
-                        Debug.Log("Modded wheel detected - KSPWheelBase component");
-                    }
-                    p.gameObject.AddComponent<ParallaxPhysics>();
-                    
-                    var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
-                    physicsComponent.p = p;
-                    foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
-                    {
-                        if (c.GetType().Name is "KSPWheelBase")
-                        {
-                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
-                            physicsComponent.wheelPivot = c;
-                        }
-                        if (c.name == "WheelCollider")
-                        {
-                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
-                            physicsComponent.wheelPivot = c;
-                        }
-                        else if (c.name == "foot")
-                        {
-                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
-                            physicsComponent.wheelPivot = c;
-                        }
-                        else if (c.name == "leg_collider")
-                        {
-                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
-                            physicsComponent.wheelPivot = c;
-                        }
-                        else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
-                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
-                        {
-                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
-                            physicsComponent.wheelPivot = c;
-                        }
-                        else
-                        {
-                            //Can't find the component
-                        }
-                    }
-                }
-                if (p.gameObject.name == "miniLandingLeg")
-                {
-                    foreach (Transform d in p.gameObject.GetComponentsInChildren(typeof(Transform)))
-                    {
-                        transforms.Add(d);
-                    }
-                    foreach (Transform d in p.gameObject.GetComponents(typeof(Transform)))
-                    {
-                        transforms.Add(d);
-                    }
-                }
-                if (p.Modules.Contains<ModuleWheelDeployment>())
-                {
-                    p.gameObject.GetComponent<ParallaxPhysics>().wheelDeploy = p.Modules.GetModule<ModuleWheelDeployment>();
-                    if (p.Modules.GetModule<ModuleWheelDeployment>().position < 1)
-                    {
-                        p.gameObject.GetComponent<ParallaxPhysics>().wheelsHaveBeenRetracted = true;
-                        Debug.Log("A wheel is retracted, not starting collisions");
-                    }
-                    //Debug.Log("ModuleWheelDeployment exists here");
-                    //ModuleWheelDeployment mwd = p.Modules.GetModule<ModuleWheelDeployment>();
-                    //mwd.on_deploy.OnEvent += DisableComponentOnGearRaise;
-
-                    //Do shit here that actually works
-                }
-            }
+            Debug.Log("[Parallax Physics] New vessel located: " + vessel.name);
+            CustomEvents.StartWheels(vessel);
         }
 
 
@@ -388,47 +301,11 @@ namespace ParallaxCollision
 
 
         }
-        public void RestartWheels(Part p) //Add the component back to wheels once the component has been deleted
+        public static void RestartWheels(Part p) //Add the component back to wheels once the component has been deleted
         {
-            foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
-            {
-                if (c.name == "wheel")
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                if (c.name == "WheelCollider")
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                else if (c.name == "foot")
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                else if (c.name == "leg_collider")
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                else if ( c.GetType().Name == "KSPWheelBase")
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
-                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
-                {
-                    origin = PhysicsStarter.GetPos(c.transform);
-                    wheelPivot = c;
-                }
-                else
-                {
-                }
-            }
-            Debug.Log("[Parallax Collisions] Restarted wheels");
+            CustomEvents.RestartSingleWheelAfterWarp(p);
         }
+        
         public void RestartWheelsAfterTimeWarp(Part p)
         {
 
@@ -461,70 +338,33 @@ namespace ParallaxCollision
         }
         void Update()
         {
-            
+
             if (FlightGlobals.currentMainBody == FlightGlobals.GetBodyByName("Minmus") && ParallaxSettings.flatMinmus == true)
             {
                 DisablePlane();
                 return;
             }
             CheckIfEnabled();
-            if (wheelDeploy != null)
-            {
-                if ((wheelDeploy as ModuleWheelDeployment).deployedPosition == 1)
-                {
-                    if ((wheelDeploy as ModuleWheelDeployment).Position < 1)
-                    {
-                        wheelsHaveBeenRetracted = true;
-                        DisablePlane();
-                        return;
-                    }
-                }
-                else if ((wheelDeploy as ModuleWheelDeployment).deployedPosition == 0)
-                {
-                    if ((wheelDeploy as ModuleWheelDeployment).Position > 0)
-                    {
-                        wheelsHaveBeenRetracted = true;
-                        DisablePlane();
-                        return;
-                    }
-                }
-                if (wheelsHaveBeenRetracted == true)
-                {
-                    RestartWheels(p);
-                    Debug.Log("Restarting after retract");
-                    dampingFrames = 0;
-                    wheelsHaveBeenRetracted = false;
-                }
-            }
-            
-            if (wheelsHaveBeenRetracted == true)
-            {
-                DisablePlane();
-                return;
-            }
-            
+
             if (TimeWarp.CurrentRate > 1 && TimeWarp.WarpMode == TimeWarp.Modes.HIGH)
             {
                 wheelsHaveBeenInWarp = true;
                 DisablePlane();
                 return;
             }
-            
             if ((wheelsHaveBeenInWarp == true && TimeWarp.CurrentRate == 1))
             {
+                wheelsHaveBeenInWarp = false;
                 RestartWheels(p);
                 dampingFrames = dampingFrames - 10;
-                wheelsHaveBeenInWarp = false;
                 DisablePlane();
                 return;
             }
-            
             if (ParallaxOnDemandLoader.finishedMainLoad == false)
             {
                 DisablePlane();
                 return;
             }
-            
             if (p.vessel.packed == true)  //Vessel is time warping so we don't need to do anything here
             {
                 DisablePlane();
@@ -532,7 +372,6 @@ namespace ParallaxCollision
                 started = true;
                 return;
             }
-            
             if (packed == true) //Vessel has finished time warping and needs re-initializing
             {
                 DisablePlane();
@@ -541,20 +380,17 @@ namespace ParallaxCollision
                 Destroy(plane);
                 Start();
             }
-            
             //plane.layer = 0;    //Layer has to be set to 0 to avoid raycast on layer 15
             if (p == null)
             {
                 DisablePlane();
                 return;
             }
-            
             if (wheelPivot == null)
             {
                 DisablePlane();
                 return;
             }
-            
             if ((thisBody != FlightGlobals.currentMainBody.name) || started == false)    //Body change, reassign textures
             {
                 if (ParallaxShaderLoader.parallaxBodies.ContainsKey(FlightGlobals.currentMainBody.name) == false)
@@ -582,9 +418,7 @@ namespace ParallaxCollision
                 thisBody = FlightGlobals.currentMainBody.name;
                 RestartWheels(p);
             }
-            
             origin = PhysicsStarter.GetPos(wheelPivot.transform);
-            
             if (p.vessel.srf_velocity.magnitude < 0.025f && dampingFrames >= 150) //Vessel is "landed"
             {
                 plane.layer = 15;
@@ -595,17 +429,18 @@ namespace ParallaxCollision
             {
                 plane.layer = 15;
             }
-            
             approximateRay.origin = origin;
             approximateRay.direction = -PhysicsStarter.terrainNormal;
             if (UnityEngine.Physics.Raycast(approximateRay, out hitApproximateRay, 5f, layerMask))
             {
                 samplePoint = hitApproximateRay.point;
                 sampleNormal = hitApproximateRay.normal;
+                EnablePlane();
             }
             else
             {
                 started = true;
+                DisablePlane();
                 return;
             }
             float displacement = GetDisplacement(new Vector2(wheelPivot.transform.position.x, wheelPivot.transform.position.y), tex, _ST);
@@ -632,11 +467,10 @@ namespace ParallaxCollision
             {
                 lastDisplacement = displacement;    //First contact with the ground
             }
-            
+
             Vector3 forward = Vector3.Normalize(gameObject.GetComponent<Rigidbody>().velocity);
             Vector3 tangent = Vector3.Cross(forward, sampleNormal); //Vector to rotate plane around
             Vector3 disp = new Vector3((displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.x, (displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.y, (displacement * _Displacement_Scale + _Displacement_Offset - 0.5f) * sampleNormal.z);
-            
             if (dampingFrames <= 150)
             {
                 dampingFrames++;
@@ -666,7 +500,6 @@ namespace ParallaxCollision
                 }
                 return;
             }
-
             plane.transform.position = samplePoint + disp;
 
             float rotationPercentage = 1 - ((lastDisplacement * _Displacement_Scale - _Displacement_Offset) / (displacement * _Displacement_Scale - _Displacement_Offset));
@@ -676,7 +509,6 @@ namespace ParallaxCollision
             EnablePlane();
             PhysicsValidator.planes[plane] = true;
             started = true;
-            
         }
         //public void Update()
         //{
@@ -688,7 +520,7 @@ namespace ParallaxCollision
             if (key)
             {
                 plane.GetComponent<MeshRenderer>().enabled = !plane.GetComponent<MeshRenderer>().enabled;
-               
+
             }
         }
         float GetDisplacement(Vector2 uv, Texture2D tex, Vector2 ScaleTransform)
@@ -743,10 +575,10 @@ namespace ParallaxCollision
                                               new Vector3(2, 0, 1);
             // determine median axis (in x;  yz are following axis)
             Vector3 me = (new Vector3(3, 3, 3)) - mi - ma;
-            float UVx = (float)((samplePoint[(int)ma.y] * _ST.x - floatUV[(int)ma.y]) );
-            float UVy = (float)((samplePoint[(int)ma.z] * _ST.y - floatUV[(int)ma.z]) );
-            float UVMex = (float)((samplePoint[(int)me.y] * _ST.x - floatUV[(int)me.y]) );
-            float UVMey = (float)((samplePoint[(int)me.z] * _ST.y - floatUV[(int)me.z]) );
+            float UVx = (float)((samplePoint[(int)ma.y] * _ST.x - floatUV[(int)ma.y]));
+            float UVy = (float)((samplePoint[(int)ma.z] * _ST.y - floatUV[(int)ma.z]));
+            float UVMex = (float)((samplePoint[(int)me.y] * _ST.x - floatUV[(int)me.y]));
+            float UVMey = (float)((samplePoint[(int)me.z] * _ST.y - floatUV[(int)me.z]));
             Color x = Color.black;
             Color y = Color.black;
             if (tex.isReadable)
@@ -755,7 +587,7 @@ namespace ParallaxCollision
                 y = tex.GetPixelBilinear(UVMex, UVMey, 0);
             }
             else { Debug.Log("<color=#ffffff>Displacement is not readable!"); }
-            
+
             Vector2 w = new Vector2(n[(int)ma.x], n[(int)me.x]);
             // make local support
             w = (w - new Vector2(0.5773f, 0.5773f)) / new Vector2((1.0f - 0.5773f), (1.0f - 0.5773f));
@@ -797,7 +629,7 @@ namespace ParallaxCollision
         float heightBlendLow(Vector3 worldPos)
         {
             float terrainHeight = (float)FlightGlobals.getAltitudeAtPos(worldPos);//Vector3.Distance(worldPos, planetOrigin) - planetRadius;
-            
+
             float blendLow = Mathf.Clamp((terrainHeight - blendLowEnd) / (blendLowStart - blendLowEnd), 0, 1);
             return blendLow;
         }
@@ -808,7 +640,7 @@ namespace ParallaxCollision
             float blendHigh = Mathf.Clamp((terrainHeight - blendHighStart) / (blendHighEnd - blendHighStart), 0, 1);
             return blendHigh;
         }
-        
+
         float LerpSurfaceColor(float low, float mid, float high, float steep, float midPoint, float slope, float blendLow, float blendHigh)
         {
             float col;
@@ -818,12 +650,267 @@ namespace ParallaxCollision
             }
             else
             {
-                
+
                 col = Mathf.Lerp(mid, high, blendHigh);
             }
             col = Mathf.Lerp(col, steep, 1 - slope);
             return col;
         }
     }
-    
+    public class PartEventsManager : VesselModule
+    {
+        private IEnumerator RegisterEvents(ModuleWheels.ModuleWheelDeployment mwd)
+        {
+            yield return new WaitUntil(() => mwd.fsm != null);
+            
+            
+            mwd.on_deployed.OnEvent += delegate { CustomEvents.OnWheelDeploy(mwd.part); };    //AFTER deployment sequence
+            mwd.on_retract.OnEvent += delegate { CustomEvents.OnWheelRetract(mwd.part); };    //BEFORE retraction sequence
+            
+            Debug.Log("Events registered");
+        }
+        public override void OnLoadVessel()
+        {
+            for (int i = 0; i < Vessel.Parts.Count; i++)
+            {
+                ModuleWheels.ModuleWheelDeployment mwd = Vessel.Parts[i].Modules.GetModule<ModuleWheels.ModuleWheelDeployment>();
+                if (mwd != null)
+                {
+                    //Register the event
+                    StartCoroutine(RegisterEvents(mwd));
+                }
+            }
+        }
+    }
+    //[KSPAddon(KSPAddon.Startup.Flight, false)]
+    //public class GlobalEventManager : MonoBehaviour
+    //{
+    //    void Start()
+    //    {
+    //        GameEvents.onVesselSOIChanged.Add()
+    //    }
+    //    public void 
+    //}
+    public class CustomEvents : MonoBehaviour
+    {
+        public static void OnWheelDeploy(Part p)
+        {
+            StartSingleWheel(p);
+            
+        }
+        public static void OnWheelRetract(Part p)
+        {
+            StopSingleWheel(p);
+        }
+        
+        
+        public static void StartWheels(Vessel vessel)
+        {
+            if (ParallaxSettings.collide == false)
+            {
+                return;
+            }
+            foreach (Part p in vessel.parts)
+            {
+                bool skipThisPart = false;
+                if (p.Modules.Contains<ModuleWheelDeployment>())
+                {
+                    ModuleWheelDeployment mwd = p.Modules.GetModule<ModuleWheelDeployment>();
+                    if (mwd.position != mwd.deployedPosition) //not deployed
+                    {
+                        skipThisPart = true;
+                        Debug.Log("Skipped " + p.name + " as it is retracted");
+                    }
+                       
+                }
+                if (vessel.parts.Count == 1)
+                {
+                    if (vessel.parts[0].isKerbalEVA() == true)
+                    {
+                        p.gameObject.AddComponent<ParallaxPhysics>();
+                        var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
+                        physicsComponent.transform.parent = p.gameObject.transform;
+                        physicsComponent.p = p;
+                        physicsComponent.origin = p.gameObject.transform.position;
+                        physicsComponent.wheelPivot = physicsComponent;
+                    }
+                }
+                if ((p.Modules.Contains<ModuleWheelBase>() || p.Modules.Contains<ParallaxWheelPhysicsComponent>()
+                  || p.Modules.Contains("KSPWheelBase") || p.Modules.Contains<ModuleGroundSciencePart>() || p.Modules.Contains<ModuleGroundPart>()
+                  || p.Modules.Contains<ModuleGroundExperiment>() || p.Modules.Contains<ModuleGroundCommsPart>() || p.Modules.Contains<ModulePhysicMaterial>()
+                  ) && p.gameObject.GetComponent<ParallaxPhysics>() == null && skipThisPart == false)
+                {
+                    if (p.Modules.Contains("KSPWheelBase"))
+                    {
+                        Debug.Log("Modded wheel detected - KSPWheelBase component");
+                    }
+                    p.gameObject.AddComponent<ParallaxPhysics>();
+
+                    var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
+                    physicsComponent.p = p;
+                    foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
+                    {
+                        if (c.name.ToLower() == "wheelpivot")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        if (c.name.ToLower() == "wheelcollider")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        if (c.name.ToLower() == "wheel")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else if (c.name.ToLower() == "foot")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else if (c.name.ToLower() == "leg_collider")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else if (c.GetType().Name.ToLower() == "kspwheelbase")
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
+                          || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
+                        {
+                            physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                            physicsComponent.wheelPivot = c;
+                        }
+                        else
+                        {
+                        }
+                    }
+                }
+            }
+            
+        }
+        public static void StartSingleWheel(Part p)
+        {
+            if (p.GetComponent<ParallaxPhysics>() != null)
+            {
+                Destroy(p.gameObject.GetComponent<ParallaxPhysics>());
+            }
+            p.gameObject.AddComponent<ParallaxPhysics>();
+            var physicsComponent = p.gameObject.GetComponent<ParallaxPhysics>();
+            physicsComponent.p = p;
+            foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
+            {
+                if (c.name.ToLower() == "wheelpivot")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                if (c.name.ToLower() == "wheelcollider")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                if (c.name.ToLower() == "wheel")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                else if (c.name.ToLower() == "foot")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                else if (c.name.ToLower() == "leg_collider")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                else if (c.GetType().Name.ToLower() == "kspwheelbase")
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
+                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
+                {
+                    physicsComponent.origin = PhysicsStarter.GetPos(c.transform);
+                    physicsComponent.wheelPivot = c;
+                }
+                else
+                {
+                }
+            }
+            if (p.Modules.Contains<ModuleWheelDeployment>())
+            {
+                p.gameObject.GetComponent<ParallaxPhysics>().wheelDeploy = p.Modules.GetModule<ModuleWheelDeployment>();
+                if (p.Modules.GetModule<ModuleWheelDeployment>().position < 1)
+                {
+                    p.gameObject.GetComponent<ParallaxPhysics>().wheelsHaveBeenRetracted = true;
+                    Debug.Log("A wheel is retracted, not starting collisions");
+                }
+            }
+            Debug.Log("[Parallax Collisions] Restarted wheels");
+        }
+        public static void RestartSingleWheelAfterWarp(Part p)
+        {
+            Debug.Log("Restarting the components for: " + p.name);
+            var comp = p.GetComponent<ParallaxPhysics>();
+            foreach (Component c in p.gameObject.GetComponentsInChildren(typeof(Component)))
+            {
+                if (c.name.ToLower() == "wheelpivot")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                if (c.name.ToLower() == "wheelcollider")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                if (c.name.ToLower() == "wheel")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                else if (c.name.ToLower() == "foot")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                else if (c.name.ToLower() == "leg_collider")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                else if (c.GetType().Name.ToLower() == "kspwheelbase")
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                else if (c is ModuleGroundSciencePart || c is ModuleGroundSciencePart || c is ModuleGroundPart
+                  || c is ModuleGroundExperiment || c is ModuleGroundCommsPart || c is ModulePhysicMaterial)
+                {
+                    comp.origin = PhysicsStarter.GetPos(c.transform);
+                    comp.wheelPivot = c;
+                }
+                else
+                {
+                }
+            }
+            Debug.Log("[Parallax Collisions] Restarted wheels");
+        }
+        public static void StopSingleWheel(Part p)
+        {
+            if (p.GetComponent<ParallaxPhysics>() != null)
+            {
+                p.gameObject.GetComponent<ParallaxPhysics>().DisablePlane();
+                Destroy(p.gameObject.GetComponent<ParallaxPhysics>());
+            }
+        }
+    }
 }
