@@ -80,12 +80,10 @@ namespace ParallaxInstallChecker
             if (meetsKopernicus == true)
             {
                 VisualLog("Parallax has met dependency: Kopernicus");
-                VisualLog(" - Please make sure this is Kopernicus Bleeding Edge");
             }
             else
             {
                 VisualLog("<color=#f0871f>Parallax has not met dependency: Kopernicus</color>");
-                VisualLog("<color=#f0871f>Make sure you use Kopernicus Bleeding Edge</color>");
             }
             if (meetsParallax == true)
             {
