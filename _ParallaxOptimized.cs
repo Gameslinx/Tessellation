@@ -48,44 +48,9 @@ namespace Parallax
                     Debug.Log("Loaded shader: " + thisShader.name);
                 }
             }
-
-
-
-            filePath = Path.Combine(KSPUtil.ApplicationRootPath + "GameData/" + "Parallax/Shaders/Wireframe");
-            if (Application.platform == RuntimePlatform.LinuxPlayer || (Application.platform == RuntimePlatform.WindowsPlayer && SystemInfo.graphicsDeviceVersion.StartsWith("OpenGL")))
-            {
-                filePath = (filePath + "-linux.unity3d");
-            }
-            else if (Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                filePath = (filePath + "-windows.unity3d");
-            }
-            if (Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                filePath = (filePath + "-macosx.unity3d");
-            }
-            var assetBundle2 = AssetBundle.LoadFromFile(filePath);
-            Debug.Log("Loaded bundle");
-            if (assetBundle2 == null)
-            {
-                Debug.Log("Failed to load bundle at");
-                Debug.Log("Path: " + filePath);
-            }
-            else
-            {
-                Shader[] theseShaders = assetBundle2.LoadAllAssets<Shader>();
-                Debug.Log("Loaded all shaders");
-                foreach (Shader thisShader in theseShaders)
-                {
-                    shaders.Add(thisShader.name, thisShader);
-                    Debug.Log("Loaded shader: " + thisShader.name);
-                }
-            }
-
         }
         public static Shader GetShader(string name)
         {
-            Debug.Log("Returning shader: " + shaders[name] + " // " + name + " // " + shaders[name].name);
             return shaders[name];
         }
     }
@@ -463,6 +428,8 @@ namespace Parallax
                     ParallaxBody body = new ParallaxBody(bodyName, GameSettings.TERRAIN_SHADER_QUALITY);
                     ParallaxBodies.parallaxBodies.Add(bodyName, body);
                     ConfigNode bodyNode = rootNode.nodes[b].GetNode("Textures");
+                    bool emission = bool.Parse(rootNode.nodes[b].GetValue("emissive"));
+                    body.hasEmission = emission;
                     ParseNewBody(bodyNode, bodyName);
                 }
             }
@@ -482,11 +449,42 @@ namespace Parallax
             body.doubleHigh.parallaxMaterial = new Material(ShaderHolder.GetShader(body.doubleHigh.shaderName));
             body.full.parallaxMaterial = new Material(ShaderHolder.GetShader(body.full.shaderName));
 
+            //Set global quality settings
+            bool ultra = false;
+            if (name.ToLower().Contains("ultra"))
+            {
+                ultra = true;
+            }
+
+            SetEmission(body.singleLow.parallaxMaterial, body.hasEmission);
+            SetEmission(body.singleMid.parallaxMaterial, body.hasEmission);
+            SetEmission(body.singleHigh.parallaxMaterial, body.hasEmission);
+
+            SetEmission(body.singleSteepLow.parallaxMaterial, body.hasEmission);
+            SetEmission(body.singleSteepMid.parallaxMaterial, body.hasEmission);
+            SetEmission(body.singleSteepHigh.parallaxMaterial, body.hasEmission);
+
+            SetEmission(body.doubleLow.parallaxMaterial, body.hasEmission);
+            SetEmission(body.doubleHigh.parallaxMaterial, body.hasEmission);
+            SetEmission(body.full.parallaxMaterial, body.hasEmission);
+
+            SetGlobalVars(body.singleLow.parallaxMaterial, ultra);
+            SetGlobalVars(body.singleMid.parallaxMaterial, ultra);
+            SetGlobalVars(body.singleHigh.parallaxMaterial, ultra);
+
+            SetGlobalVars(body.singleSteepLow.parallaxMaterial, ultra);
+            SetGlobalVars(body.singleSteepMid.parallaxMaterial, ultra);
+            SetGlobalVars(body.singleSteepHigh.parallaxMaterial, ultra);
+
+            SetGlobalVars(body.doubleLow.parallaxMaterial, ultra);
+            SetGlobalVars(body.doubleHigh.parallaxMaterial, ultra);
+            SetGlobalVars(body.full.parallaxMaterial, ultra);
+
             //Iterate through all materials
 
-            foreach(PropertyInfo property in body.GetType().GetProperties()) //get all shader properties
+            foreach (PropertyInfo property in body.GetType().GetProperties()) //get all shader properties
             {
-                ParallaxLog.SubLog("Parsing " + property.Name + property.GetValue(body));
+                ParallaxLog.Log("[Loader] " + body.bodyName + " - Parsing: " + property.Name);
                 if (property.PropertyType != typeof(ParallaxQualityLibrary.Parallax))
                 {
                     //Now start setting the variables
@@ -500,25 +498,20 @@ namespace Parallax
         }
         public void ConvertAndSetType(PropertyInfo property, object value, ParallaxBody body)
         {
-            Debug.Log("Property type: " + property.PropertyType);
             if (property.PropertyType == typeof(Vector2))
             {
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 body.GetType().GetProperty(property.Name).SetValue(body, (Vector2)value);
             }
             if (property.PropertyType == typeof(float))
             {
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 body.GetType().GetProperty(property.Name).SetValue(body, (float)value);
             }
             if (property.PropertyType == typeof(Color))
             {
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 body.GetType().GetProperty(property.Name).SetValue(body, (Color)value);
             }
             if (property.PropertyType == typeof(string))
             {
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 body.GetType().GetProperty(property.Name).SetValue(body, (string)value);
             }
         }
@@ -534,14 +527,55 @@ namespace Parallax
             {
                 return value;
             }
-            if (name == "_MetallicTint")
+            if (name == "_MetallicTint" || name == "_EmissionColor")
             {
                 string[] vectorComponents = value.Replace(" ", string.Empty).Split(',');
                 return new Color(float.Parse(vectorComponents[0]), float.Parse(vectorComponents[1]), float.Parse(vectorComponents[2]));
             }
             return float.Parse(value);
         }
-        
+        public void SetGlobalVars(Material mat, bool ultra)
+        {
+            if (ultra == true)
+            {
+                mat.SetFloat("_TessellationMax", ParallaxGlobal._TessellationMax);
+                mat.SetFloat("_TessellationRange", ParallaxGlobal._TessellationRange);
+                mat.SetFloat("_TessellationEdgeLength", ParallaxGlobal._TessellationEdgeLength);
+                if (ParallaxGlobal._TessellateLighting == true)
+                {
+                    mat.EnableKeyword("HQ_LIGHTS_ON");
+                    mat.DisableKeyword("HQ_LIGHTS_OFF");
+                }
+                else
+                {
+                    mat.DisableKeyword("HQ_LIGHTS_ON");
+                    mat.EnableKeyword("HQ_LIGHTS_OFF");
+                }
+            }
+            if (ParallaxGlobal._UseReflections == true)
+            {
+                mat.EnableKeyword("REFL_ON");
+                mat.DisableKeyword("REFL_OFF");
+            }
+            else
+            {
+                mat.DisableKeyword("REFL_ON");
+                mat.EnableKeyword("REFL_OFF");
+            }
+        }
+        public void SetEmission(Material mat, bool emission)
+        {
+            if (emission == true)
+            {
+                mat.EnableKeyword("EMISSION_ON");
+                mat.DisableKeyword("EMISSION_OFF");
+            }
+            else
+            {
+                mat.DisableKeyword("EMISSION_ON");
+                mat.EnableKeyword("EMISSION_OFF");
+            }
+        }
     }
     public class TextureLoader
     {
@@ -665,7 +699,7 @@ namespace Parallax
                 Vector3d accuratePlanetPosition = FlightGlobals.currentMainBody.position;   //Double precision planet origin
                 double surfaceTexture_ST = ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name]._SurfaceTextureScale;    //Scale of surface texture
                 Vector3d UV = accuratePlanetPosition * surfaceTexture_ST;
-                float cameraAltitude = GetHeightFromTerrain(Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").transform);
+                float cameraAltitude = GetHeightFromTerrain(Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform);
                 UV = new Vector3d(Clamp(UV.x, cameraAltitude), Clamp(UV.y, cameraAltitude), Clamp(UV.z, cameraAltitude));
                 Vector3 floatUV = new Vector3((float)UV.x, (float)UV.y, (float)UV.z);
 
@@ -733,18 +767,11 @@ namespace Parallax
                                 valueToReplaceWith = (physicalShader.specificVars[shaderVar]);
                             }
                             //Set shaderVar to valueToReplaceWith
-                            ParallaxLog.SubLog("Parsing shaderVar " + shaderVar + " which will be replaced with " + valueToReplaceWith);
                             //Debug.Log("Value is actually " + thisBody._SurfaceTexture);
-                            Debug.Log("Retreived value as: " + thisBody.GetType().GetProperty(valueToReplaceWith).GetValue(thisBody).ToString());
                             object storedVar = thisBody.GetType().GetProperty(valueToReplaceWith).GetValue(thisBody);
-                            ParallaxLog.SubLog("StoredVar: " + storedVar);
-                            Debug.Log("Shader instance name is " + shader.Name);
                             ParallaxQualityLibrary.Parallax thisShaderInstance = (ParallaxQualityLibrary.Parallax)thisBody.GetType().GetProperty(shader.Name).GetValue(thisBody);
-                            Debug.Log("Shader instance is " + thisShaderInstance);
                             Material shaderMat = (Material)thisShaderInstance.GetType().GetProperty("parallaxMaterial").GetValue(thisShaderInstance);
-                            Debug.Log("Shadermat: " + shaderMat);
                             Type propertyType = thisBody.GetType().GetProperty(shaderVar).GetType();
-                            Debug.Log(shaderVar + " is a " + propertyType);
                             ConvertAndSetMaterialType(shaderMat, storedVar, propertyType, shaderVar);
                             //Now set the values in the shader's material
                             //((ParallaxQualityLibrary.Parallax)shader.GetValue(thisBody)).parallaxMaterial
@@ -760,7 +787,7 @@ namespace Parallax
             {
                 if (body.bodyName != bodyName)
                 {
-                    Debug.Log("Unloading textures for " + body.bodyName);
+                    ParallaxLog.Log("Unloading textures for " + body.bodyName);
                     //Unload for everything except this planet
                     Destroy(body.singleLow.parallaxMaterial.GetTexture("_SurfaceTexture"));
                     Destroy(body.singleLow.parallaxMaterial.GetTexture("_BumpMap"));
@@ -826,17 +853,18 @@ namespace Parallax
                     Destroy(body.full.parallaxMaterial.GetTexture("_BumpMapSteep"));
                     Destroy(body.full.parallaxMaterial.GetTexture("_InfluenceMap"));
                     Destroy(body.full.parallaxMaterial.GetTexture("_DispTex"));
+
+                    ParallaxLog.SubLog("Completed texture unload");
                 }
             }
 
             
 
-            Debug.Log("Completed texture unload");
+            
 
         }
         public void ConvertAndSetMaterialType(Material shaderMat, object value, Type property, string name)
         {
-            Debug.Log("Property type: " + property);
             //if (value is Vector2)
             //{
             //    ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
@@ -846,21 +874,17 @@ namespace Parallax
             {
                 if (name.Contains("TextureScale"))
                 {
-                    ParallaxLog.SubLog("Setting texture scale " + name + " to " + (float)value);
                     if (shaderMat.shader.name.Contains("DOUBLEHIGH"))
                     {
-                        ParallaxLog.SubLog("Doublehigh detected");
                         name = "_SurfaceTextureMidScale";
                     }
                     shaderMat.SetTextureScale(name.Remove(name.Length - 5, 5), new Vector2((float)value, (float)value));
                     return;
                 }
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 shaderMat.SetFloat(name, (float)value);
             }
             if (value is Color)
             {
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
                 shaderMat.SetColor(name, (Color)value);
             }
             if (value is string)
@@ -869,20 +893,28 @@ namespace Parallax
                 {
                     //Texture is already loaded from a previous shader, we don't need to load it again!!!
                     shaderMat.SetTexture(name, activeTextures[(string)value]);
-                    Debug.Log("We're not loading a texture!!!!");
                     return;
                 }
-                Debug.Log("We're loading a texture!!!!");
-                ParallaxLog.SubLog("Setting " + property.Name + " to " + value);
+                ParallaxLog.Log("[OnDemand] Loading texture: " + (string)value);
                 activeTextures.Add((string)value, TextureLoader.LoadTexture((string)value));
                 shaderMat.SetTexture(name, activeTextures[(string)value]);
             }
         }
         public double Clamp(double input, float cameraAltitude)
         {
+            float CurrentZoomLevel = (int)Mathf.Log(cameraAltitude, 2);
+            if (cameraAltitude >= 256 || cameraAltitude == 0)
+            {
+                return input % 65536;
+            }
+            return input % 8192;
+            Debug.Log("ZoomLevel: " + CurrentZoomLevel);
+            Debug.Log("Altitude: " + cameraAltitude);
+            Debug.Log("Input % 2048 = " + input % 2048);
+            Debug.Log("Input % 65536 = " + input % 65536);
             if (cameraAltitude < 250 && cameraAltitude != 0)
             {
-                return input % 256;  //When close to the ground, 
+                return input % 128;  //When close to the ground, 
             }
             if (cameraAltitude == 0)  //Outside ray dir
             {
@@ -893,15 +925,15 @@ namespace Parallax
         public float GetHeightFromTerrain(Transform pos)    //Use fancy raycasting to achieve fancy things
         {
             float heightFromTerrain = 0;
-            Vector3 vector = FlightGlobals.getUpAxis(FlightGlobals.currentMainBody, pos.position);
-            float num = FlightGlobals.getAltitudeAtPos(pos.position, FlightGlobals.currentMainBody);
-            if (num < 0f)
-            {
-                //Camera is underwater 
-            }
-            num += 600f;
+            Vector3 vector = Vector3.Normalize(pos.position - FlightGlobals.currentMainBody.transform.position);
+            //float num = FlightGlobals.getAltitudeAtPos(pos.position, FlightGlobals.currentMainBody);
+            //if (num < 0f)
+            //{
+            //    //Camera is underwater 
+            //}
+            //num += 600f;
             RaycastHit heightFromTerrainHit;
-            if (Physics.Raycast(pos.position, -vector, out heightFromTerrainHit, num, 32768, QueryTriggerInteraction.Ignore))
+            if (Physics.Raycast(pos.position, -vector, out heightFromTerrainHit, 10000f, 32768, QueryTriggerInteraction.Ignore))
             {
                 heightFromTerrain = heightFromTerrainHit.distance;
                 //this.objectUnderVessel = heightFromTerrainHit.collider.gameObject;
@@ -921,15 +953,6 @@ namespace Parallax
         void OnPostRender()
         {
            // GL.wireframe = false;
-        }
-    }
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class StartWireframe : MonoBehaviour
-    {
-        public void Start()
-        {
-            Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.AddComponent<MakeWireframe>();
-            Debug.Log("Wireframe started");
         }
     }
 

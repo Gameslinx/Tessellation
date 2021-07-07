@@ -23,9 +23,11 @@ namespace AdvancedSubdivision
         public static int smallestIndex = 0;
         public static Vector3 centreWorldPos = Vector3.zero;
         public static GameObject[] subQuads = new GameObject[0];
+        public static string[] quadDirection = new string[0]; //Triangle winding order, because for some reason KSP uses two different orders. Disgusting
     }
     public class AdvancedSubdivision : MonoBehaviour
     {
+        public int subdivisionLevel = 32;
         public Vector3 lastCentre;
         public GameObject newQuad;
         public string situation = "main";
@@ -41,11 +43,13 @@ namespace AdvancedSubdivision
         int boundingWidth = 0;
         int boundingHeight = 0;
         public Mesh originalMesh;
+        string windingOrder = "clockwise";
+        bool meshIsOriginal = false;
         void OnDestroy()
         {
+            gameObject.GetComponent<MeshFilter>().mesh = Instantiate(originalMesh);
             Destroy(newQuad);
             Destroy(originalMesh);
-            Debug.Log("[AS] Destroyed newQuad");
         }
         void Start()
         {
@@ -68,15 +72,26 @@ namespace AdvancedSubdivision
             {
                 Destroy(newQuad.GetComponent<Collider>());
             }
-
+            //MeshHandler.Subdivide(gameObject.GetComponent<MeshFilter>().mesh, 14, 14);
             originalMesh = Instantiate(gameObject.GetComponent<MeshFilter>().mesh);
             //newQuad.GetComponent<MeshRenderer>().material.SetColor("_WireColor", new Color(0, 0, 1, 1));
             //newQuad.GetComponent<MeshRenderer>().material.SetColor("_Color", new Color(0.2f, 0.5f, 0.4f, 1));
+            windingOrder = AdvancedSubdivisionGlobal.quadDirection[0];
+
         }
-        void Update()
+        void FixedUpdate()
         {
+            //return;
+            //return;
             if (FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.velocityD.magnitude > 25f)
             {
+                newQuad.GetComponent<MeshRenderer>().enabled = false;
+                if (meshIsOriginal == false)
+                {
+                    gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
+                    meshIsOriginal = true;
+                }
+                UpdateSubQuads();
                 return;
             }
             Vector3 position = Vector3.zero;
@@ -89,58 +104,65 @@ namespace AdvancedSubdivision
             }
             else
             {
-                //if (gameObject.GetComponent<MeshFilter>().sharedMesh != originalMesh)
-                //{
-                //    gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
-                //}
-                //if (newQuad != null)
-                //{
-                //    Destroy(newQuad.GetComponent<MeshFilter>());
-                //}
+                newQuad.GetComponent<MeshRenderer>().enabled = false;
+                if (meshIsOriginal == false)
+                {
+                    gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
+                    meshIsOriginal = true;
+                }
+                UpdateSubQuads();
                 return;
             }
+            newQuad.GetComponent<MeshRenderer>().enabled = true;
             newQuad.transform.position = gameObject.transform.position;
-            //gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
-
-            Mesh mesh = Instantiate(originalMesh);//gameObject.GetComponent<MeshFilter>().sharedMesh;
+            Mesh mesh = Instantiate(originalMesh);
             Vector4[] square = GetSquare(mesh.vertices, hit.point);
             centre = (transform.TransformPoint(square[0]) + transform.TransformPoint(square[1]) + transform.TransformPoint(square[2]) + transform.TransformPoint(square[3])) / 4;
+            
             if (centre == lastCentre)
             {
+                Destroy(mesh);  //Can't be having memory leaks now can we
                 return;
             }
             else
             {
                 lastCentre = centre;
                 AdvancedSubdivisionGlobal.centreWorldPos = centre;
-                Destroy(mesh);
                 gameObject.GetComponent<MeshFilter>().sharedMesh = mesh;
             }
             boundingVertices = GetBoundingVertices((int)square[0].w, mesh);
 
-            
-
             int[] tris = originalMesh.triangles;
             int[] checkTriArray = new int[] { tris[0], tris[1], tris[2], tris[3], tris[4], tris[5] };   //First quad triangles
-
             CutoutTris(checkTriArray);
 
+            int originalQuadIndexLength = (int)Mathf.Sqrt(mesh.vertexCount);
             var newQuadMeshFilter = newQuad.GetComponent<MeshFilter>();
             Destroy(newQuad.GetComponent<MeshFilter>().sharedMesh);
             Mesh quadMesh = new Mesh();
             quadMesh.vertices = boundingVertices;
-            quadMesh.triangles = MeshHandler.CalculateTris(boundingWidth, boundingHeight, checkTriArray);
+            quadMesh.triangles = MeshHandler.CalculateTris(boundingWidth, boundingHeight, checkTriArray, windingOrder);
             quadMesh.uv = MeshHandler.CalculateUVs(boundingVertices.Length);
             quadMesh.normals = boundingNormals;
             quadMesh.colors = boundingColors;
-            MeshHelper.Subdivide(quadMesh, 64);
+            MeshHelper.Subdivide(quadMesh, subdivisionLevel);
             newQuadMeshFilter.sharedMesh = quadMesh;
+            meshIsOriginal = false;
+            UpdateSubQuads();
+        }
+        void UpdateSubQuads()
+        {
             for (int i = 0; i < AdvancedSubdivisionGlobal.subQuads.Length; i++)
             {
                 if (i != 0)
                 {
-                    AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().indicesToDelete = subQuadVertsToDelete;
-                    AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().ForceUpdate();
+                    if (AdvancedSubdivisionGlobal.subQuads[i] != null && AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>() != null)
+                    {
+                        AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().indicesToDelete = subQuadVertsToDelete;
+                        AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().windingOrder = AdvancedSubdivisionGlobal.quadDirection[i];
+                        AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().subdivisionLevel = subdivisionLevel;
+                        AdvancedSubdivisionGlobal.subQuads[i].GetComponent<SubQuad>().ForceUpdate();
+                    }
                 }
             }
         }
@@ -155,7 +177,7 @@ namespace AdvancedSubdivision
             meshPointInWorldSpace0 = normal0 * FlightGlobals.currentMainBody.Radius;
             meshPointInWorldSpace1 = normal1 * FlightGlobals.currentMainBody.Radius;
 
-            float distLimit = Vector3.Distance(meshPointInWorldSpace0, meshPointInWorldSpace1);
+            float distLimit = Vector3.Distance(meshPointInWorldSpace0, meshPointInWorldSpace1) * 1.33f; // *1.33f is just a tolerance
 
             Vector3 planetCraftPos = Vector3d.Normalize(FlightGlobals.ActiveVessel.GetWorldPos3D() - FlightGlobals.currentMainBody.position) * FlightGlobals.currentMainBody.Radius;
             //gameObject.GetComponent<MeshRenderer>().sharedMaterial.SetFloat("_Tolerance", distLimit);
@@ -175,7 +197,7 @@ namespace AdvancedSubdivision
             }
             if (indicesAndDistances.Count < 2)
             {
-                Debug.Log("Something's gone wack here lads");
+                Debug.Log("[Parallax Advanced Subdivision] Exception: I can't find enough nearby vertices :(");
             }
             indicesAndDistances = SortByDistance(indicesAndDistances);
             indices[0] = (int)indicesAndDistances[0].x;
@@ -186,8 +208,6 @@ namespace AdvancedSubdivision
                 indices[1] = indices[0];
                 indices[0] = temp;
             }
-
-
             //Apply conditions now
 
             Vector3 thirdPoint = Vector3.zero;
@@ -231,7 +251,26 @@ namespace AdvancedSubdivision
             }
 
 
+            if (indices[0] + 1 + indexLength == indices[1]) //Parallelogram quads
+            {
+                index3 = indices[0] + 1;
+                index4 = indices[0] + indexLength;
+                thirdPoint = verts[index3];
+                fourthPoint = verts[index4];
 
+                smallestIndex = indices[0];
+                alreadyCompleted = true;
+            }
+            if (indices[0] - 1 + indexLength == indices[1])
+            {
+                index3 = indices[0] - 1;
+                index4 = indices[0] + indexLength;
+                thirdPoint = verts[index3];
+                fourthPoint = verts[index4];
+
+                smallestIndex = indices[0] - 1;
+                alreadyCompleted = true;
+            }
 
             if (alreadyCompleted == false && verts[indices[0]] == verts[indices[1] - 1] && Distance(transform.TransformPoint(verts[indices[0] + indexLength]), worldCraftPos) <= Distance(transform.TransformPoint(verts[indices[0] - indexLength]), worldCraftPos))
             {
@@ -292,6 +331,7 @@ namespace AdvancedSubdivision
             subQuadVertsToDelete = SortByIndex(subQuadVertsToDelete);
 
             AdvancedSubdivisionGlobal.smallestIndex = smallestIndex;
+
             return new Vector4[] { posAndIndex1, posAndIndex2, posAndIndex3, posAndIndex4 };  //INDEX AND POSITIONS DO NOT MATCH!!! This is intended but don't forget!
         }
         public Vector3[] GetBoundingVertices(int leftMostIndex, Mesh mesh)
@@ -534,7 +574,7 @@ namespace AdvancedSubdivision
             int indexLength = (int)Mathf.Sqrt(mesh.vertices.Length) - 1;
             int[] newTris = new int[indexLength * indexLength * 2 * 3];   //Subtract the amount of triangles in the square we're removing
             int found = 0;
-            if (checkTriArray[2] == 1)
+            if (windingOrder == "anticlockwise")
             {
                 for (int y = 0; y < indexLength; y++)
                 {
@@ -567,7 +607,7 @@ namespace AdvancedSubdivision
                     }
                 }
             }
-            else if (checkTriArray[2] == 16)
+            else
             {
                 for (int y = 0; y < indexLength; y++)
                 {
@@ -600,10 +640,6 @@ namespace AdvancedSubdivision
                     }
                 }
             }
-            else
-            {
-                Debug.Log("Exception: Unable to detect triangle orientation");
-            }
             
             mesh.triangles = newTris;
             gameObject.GetComponent<MeshFilter>().mesh = mesh;
@@ -611,8 +647,9 @@ namespace AdvancedSubdivision
     }
     public class MeshHandler
     {
-        public static Mesh Subdivide(Mesh mesh, int quadWidth, int quadHeight)
+        public static Mesh Subdivide(Mesh mesh, int quadWidth, int quadHeight, string windingOrder)
         {
+            //Debug.Log("Subdividing main quad");
             Vector3[] verts = mesh.vertices;
             Vector3[] normals = mesh.normals;
             Color[] colors = mesh.colors;
@@ -655,24 +692,40 @@ namespace AdvancedSubdivision
                     }
                     if (x < quadWidth && y < quadHeight)
                     {
-                        newVert2 = (verts[originalIndex + originalIndexLength] + verts[originalIndex + originalIndexLength + 1]) / 2;
-                        newNormal2 = (normals[originalIndex + originalIndexLength] + normals[originalIndex + originalIndexLength + 1]) / 2;
-                        newColor2 = (colors[originalIndex + originalIndexLength] + colors[originalIndex + originalIndexLength + 1]) / 2;
-                        newVerts[topLeftMost + 1 + indexLength] = (newVert1 + newVert2) / 2;
-                        newNormals[topLeftMost + 1 + indexLength] = (newNormal1 + newNormal2) / 2;
-                        newColors[topLeftMost + 1 + indexLength] = (newColor1 + newColor2) / 2;
+                        if (windingOrder == "clockwise")
+                        {
+                            newVert2 = (verts[originalIndex] + verts[originalIndex + originalIndexLength + 1]) / 2;
+                            newVerts[topLeftMost + 1 + indexLength] = newVert2;
+
+                            newNormal2 = (normals[originalIndex] + normals[originalIndex + originalIndexLength + 1]) / 2;
+                            newNormals[topLeftMost + 1 + indexLength] = newNormal2;
+
+                            newColor2 = (colors[originalIndex] + colors[originalIndex + originalIndexLength + 1]) / 2;
+                            newColors[topLeftMost + 1 + indexLength] = newColor2;
+                        }
+                        else
+                        {
+                            newVert2 = (verts[originalIndex + 1] + verts[originalIndex + originalIndexLength]) / 2;
+                            newVerts[topLeftMost + 1 + indexLength] = newVert2;
+
+                            newNormal2 = (normals[originalIndex + 1] + normals[originalIndex + originalIndexLength]) / 2;
+                            newNormals[topLeftMost + 1 + indexLength] = newNormal2;
+
+                            newColor2 = (colors[originalIndex + 1] + colors[originalIndex + originalIndexLength]) / 2;
+                            newColors[topLeftMost + 1 + indexLength] = newColor2;
+                        }
                     }
 
                 }
             }
             int[] firstQuadTris = new int[] { mesh.triangles[0], mesh.triangles[1], mesh.triangles[2] };
             mesh.vertices = newVerts;
-            
-            mesh.triangles = CalculateTris(quadWidth * 2, quadHeight * 2, firstQuadTris);
+
+            mesh.triangles = CalculateTris(quadWidth * 2, quadHeight * 2, firstQuadTris, windingOrder);
             mesh.uv = CalculateUVs(newVerts.Length);
             mesh.normals = newNormals;
             mesh.colors = newColors;
-
+            
             
 
             return mesh;
@@ -689,27 +742,16 @@ namespace AdvancedSubdivision
             }
             return uvs;
         }
-        public static int[] CalculateTris(int quadWidth, int quadHeight, int[] firstQuadTris)
+       
+        public static int[] CalculateTris(int quadWidth, int quadHeight, int[] firstQuadTris, string windingOrder)
         {
-            for (int i = 0; i < firstQuadTris.Length; i++)
+            if (windingOrder == "anticlockwise")
             {
-                Debug.Log("QuadTris: " + firstQuadTris[i]);
-            }
-            Debug.Log("first quad tri[2] : " + firstQuadTris[2]);
-            if (firstQuadTris[2] == 1)
-            {
-                Debug.Log("Calculating anti-clockwise");
                 return CalculateAnticlockwiseTris(quadWidth, quadHeight);
-            }
-            else if (firstQuadTris[2] == 16)
-            {
-                Debug.Log("Calculating clockwise");
-                return CalculateClockwiseTris(quadWidth, quadHeight);
             }
             else
             {
-                Debug.Log("Unable to determine triangle winding order");
-                return CalculateAnticlockwiseTris(quadWidth, quadHeight);   //Quad has been subdivided, and I generate the triangles the RIGHT WAY ROUND
+                return CalculateClockwiseTris(quadWidth, quadHeight);
             }
         }
         public static int[] CalculateAnticlockwiseTris(int quadWidth, int quadHeight)
@@ -763,6 +805,7 @@ namespace AdvancedSubdivision
     }
     public class SubQuad : MonoBehaviour
     {
+        public int subdivisionLevel = 32;
         public bool furthest = false;
         public bool nearest = false;
         public string situation = "main";
@@ -778,11 +821,13 @@ namespace AdvancedSubdivision
         public Mesh originalMesh;
         int boundingWidth = 0;
         int boundingHeight = 0;
+        public string windingOrder = "clockwise";
+        bool meshIsOriginal = false;
         void OnDestroy()
         {
+            gameObject.GetComponent<MeshFilter>().mesh = Instantiate(originalMesh);
             Destroy(newQuad);
             Destroy(originalMesh);
-            Debug.Log("[ASSubQuad] Destroyed newQuad");
         }
         void Start()
         {
@@ -809,33 +854,53 @@ namespace AdvancedSubdivision
         }
         public void ForceUpdate()
         {
-            
-            if (FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.velocityD.magnitude > 25f || newQuad == null || gameObject == null)
+            if (newQuad == null || gameObject == null || FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.velocityD.magnitude > 25f)
             {
+                if (newQuad != null)
+                {
+                    if (newQuad.GetComponent<MeshRenderer>() != null)
+                    {
+                        newQuad.GetComponent<MeshRenderer>().enabled = false;
+                    }
+                }
+                
+                if (meshIsOriginal == false && gameObject.GetComponent<MeshFilter>() != null && gameObject.GetComponent<MeshFilter>().sharedMesh != null)
+                {
+                    if (originalMesh != null)
+                    {
+                        gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
+                    }
+                    meshIsOriginal = true;
+                }
                 return;
             }
             Ray ray = new Ray();
             RaycastHit hit;
             ray.origin = FlightGlobals.ActiveVessel.transform.position;
             ray.direction = -Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
-            if (UnityEngine.Physics.Raycast(ray, out hit, 50, (int)(1 << 29)))
+            if (UnityEngine.Physics.Raycast(ray, out hit, 50, (int)(1 << 15)))
             {
             }
             else
             {
+                newQuad.GetComponent<MeshRenderer>().enabled = false;
+                if (meshIsOriginal == false)
+                {
+                    gameObject.GetComponent<MeshFilter>().sharedMesh = Instantiate(originalMesh);
+                    meshIsOriginal = true;
+                }
+
                 return;
             }
             newQuad.transform.position = gameObject.transform.position;
+            newQuad.GetComponent<MeshRenderer>().enabled = true;
             situation = AdvancedSubdivisionGlobal.situation;
             smallestIndex = AdvancedSubdivisionGlobal.smallestIndex;
-            //if (centreWorldPos == AdvancedSubdivisionGlobal.centreWorldPos)
-            //{
-            //    return;
-            //}
             Mesh mesh = Instantiate(originalMesh);
             centreWorldPos = AdvancedSubdivisionGlobal.centreWorldPos;
             if (situation == "main" && newQuad.GetComponent<MeshFilter>().sharedMesh != null)
             {
+                
                 gameObject.GetComponent<MeshFilter>().sharedMesh = mesh;
                 Destroy(newQuad.GetComponent<MeshFilter>().sharedMesh);
             }
@@ -845,20 +910,18 @@ namespace AdvancedSubdivision
                 return;
             }
             gameObject.GetComponent<MeshFilter>().sharedMesh = mesh;
-            Debug.Log("Stuff for the subQuad " + Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, gameObject.transform.position) + "m away: ");
             if (situation != "topleft" && situation != "topright" && situation != "bottomleft" && situation != "bottomright" && furthest == true)
             {
                 Destroy(newQuad.GetComponent<MeshFilter>().sharedMesh);
                 return;
             }
             GetBoundingVertices(mesh);
-
             int indexLength = (int)(Mathf.Sqrt(mesh.vertexCount));
-
             int[] ThisQTris = mesh.triangles;
             int[] checkTriArray = new int[] { ThisQTris[0], ThisQTris[1], ThisQTris[2], ThisQTris[3], ThisQTris[4], ThisQTris[5] };
-            int[] tris = MeshHandler.CalculateTris(boundingWidth, boundingHeight, checkTriArray);
-
+            int[] tris = MeshHandler.CalculateTris(boundingWidth, boundingHeight, checkTriArray, windingOrder);
+            mesh.triangles = CutoutTris(indexLength - 1, indexLength - 1, checkTriArray, cutoutTris);
+            gameObject.GetComponent<MeshFilter>().sharedMesh = mesh;
 
             var meshFilter = newQuad.GetComponent<MeshFilter>();
             var quadMesh = new Mesh();
@@ -867,26 +930,10 @@ namespace AdvancedSubdivision
             quadMesh.colors = boundingColors;
             quadMesh.triangles = tris;
             quadMesh.uv = MeshHandler.CalculateUVs(boundingVertices.Length);
-            MeshHelper.Subdivide(quadMesh, 64);
+            MeshHelper.Subdivide(quadMesh, subdivisionLevel);
             meshFilter.mesh = quadMesh;
-
-            int[] quadTris = CutoutTris(indexLength - 1, indexLength - 1, checkTriArray, cutoutTris);
-            var oldQuadMesh = gameObject.GetComponent<MeshFilter>().sharedMesh;
-            //oldQuadMesh.vertices = cutoutVertices;
-            oldQuadMesh.triangles = quadTris;
-
-
-            Debug.Log("Finished that quad");
         }
-        //void OnDrawGizmos()
-        //{
-        //    Gizmos.color = Color.red;
-        //   
-        //    foreach (Vector3 vector in boundingVertices)
-        //    {
-        //        Gizmos.DrawSphere(transform.TransformPoint(vector), 0.1f);
-        //    }
-        //}
+
         Vector3[] GetBoundingVertices(Mesh mesh)
         {
 
@@ -1104,8 +1151,10 @@ namespace AdvancedSubdivision
         }
         public int[] CutoutTris(int quadWidth, int quadHeight, int[] checkTriArray, int[] subQuadTrisToDelete)
         {
+            Mesh mesh = gameObject.GetComponent<MeshFilter>().mesh;
             int[] newTris = new int[quadWidth * quadHeight * 2 * 3];
-            if (checkTriArray[2] == 1)
+            int indexLength = (int)Mathf.Sqrt(mesh.vertices.Length) - 1;
+            if (windingOrder == "anticlockwise")
             {
                 for (int y = 0; y < quadHeight; y++)
                 {
@@ -1137,7 +1186,7 @@ namespace AdvancedSubdivision
                     }
                 }
             }
-            else if (checkTriArray[2] == 16)
+            else
             {
                 for (int y = 0; y < quadHeight; y++)
                 {
@@ -1169,10 +1218,7 @@ namespace AdvancedSubdivision
                     }
                 }
             }
-            else
-            {
-                Debug.Log("Exception: Unable to detect triangle orientation");
-            }
+            
             return newTris;
         }
         public Vector3[] VerticalCorner(Vector3[] verts, Vector3[] normals, Color[] colors, int correctIndex, int indexLength)

@@ -33,6 +33,8 @@ namespace PQSModExpansion
     {
         public static Dictionary<string, GameObject> subdividedQuadList = new Dictionary<string, GameObject>();
         public static Dictionary<float, GameObject> quadsByDistance = new Dictionary<float, GameObject>();
+        public static int planetAdvancedSubdivisionLevel = 32;
+        public static int planetSubdivisionLevel = 1;
     }
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AdvancedSubdivisionManager : MonoBehaviour
@@ -43,6 +45,10 @@ namespace PQSModExpansion
         bool force = false;
         public void Update()
         {
+            if (GameSettings.TERRAIN_SHADER_QUALITY < 3)
+            {
+                return;
+            }
             if (FlightGlobals.ActiveVessel == null)
             {
                 return;
@@ -63,8 +69,8 @@ namespace PQSModExpansion
             {
                 newNameCheck += quad.name.ToString();
             }
-
-
+            
+            
             if (nameCheck != newNameCheck || force == true)
             {
                 nameCheck = newNameCheck;
@@ -74,21 +80,59 @@ namespace PQSModExpansion
             {
                 return;
             }
-
+            AdvancedSubdivisionGlobal.quadDirection = new string[quads.Count];
             for (int i = 0; i < quads.Count; i++)
             {
+                int windingOrderCheck = quads[i].GetComponent<MeshFilter>().sharedMesh.triangles[2];
+                int indexLength = (int)Mathf.Sqrt(quads[i].GetComponent<MeshFilter>().mesh.vertexCount);
+                if (windingOrderCheck == indexLength)
+                {
+                    //Debug.Log("passing windingOrderCheck = indexLength");
+                    if (QuadMeshDictionary.planetSubdivisionLevel % 2 != 0)
+                    {
+                        //Debug.Log("Clockwise 1");
+                        AdvancedSubdivisionGlobal.quadDirection[i] = "clockwise";
+                    }
+                    else
+                    {
+                        //Debug.Log("Anticlockwise 1");
+                        AdvancedSubdivisionGlobal.quadDirection[i] = "anticlockwise";
+                    }
+                       //We need to do the reverse here of what we do in the subdiv mod, idk why
+                }
+                else
+                {
+                    if (QuadMeshDictionary.planetSubdivisionLevel % 2 != 0)
+                    {
+                        //Debug.Log("Anticlockwise 2");
+                        AdvancedSubdivisionGlobal.quadDirection[i] = "anticlockwise";
+                    }
+                    else
+                    {
+                        //Debug.Log("Clockwise 2");
+                        AdvancedSubdivisionGlobal.quadDirection[i] = "clockwise";
+                    }
+                    
+                }
+                //Debug.Log("Finished determining winding order");
                 if (i == 0)
                 {
+                    //Debug.Log("making primary");
                     MakePrimary(quads[i], i, quads.Count);
                 }
                 else
                 {
+                    //Debug.Log("making secondary");
                     MakeSecondary(quads[i], i, quads.Count);
                 }
             }
             for (int i = 1; i < quads.Count; i++)
             {
-                quads[i].GetComponent<SubQuad>().ForceUpdate();
+                if (quads[i].GetComponent<SubQuad>() != null)
+                {
+                    quads[i].GetComponent<SubQuad>().ForceUpdate();
+                    quads[i].GetComponent<SubQuad>().subdivisionLevel = QuadMeshDictionary.planetAdvancedSubdivisionLevel;
+                }
             }
             force = false;
         }
@@ -106,9 +150,11 @@ namespace PQSModExpansion
             }
             if (quad.GetComponent<AdvancedSubdivision.AdvancedSubdivision>() != null)
             {
+                quad.GetComponent<AdvancedSubdivision.AdvancedSubdivision>().subdivisionLevel = QuadMeshDictionary.planetAdvancedSubdivisionLevel;
                 return;
             }
             quad.AddComponent<AdvancedSubdivision.AdvancedSubdivision>();
+            quad.GetComponent<AdvancedSubdivision.AdvancedSubdivision>().subdivisionLevel = QuadMeshDictionary.planetAdvancedSubdivisionLevel;
         }
         public void MakeSecondary(GameObject quad, int quadNumber, int quadCount)
         {
@@ -162,10 +208,10 @@ namespace PQSModExpansion
             {
                 quad.Value.GetComponent<MeshRenderer>().enabled = false;
                 Destroy(quad.Value);
-                Debug.Log("Destroyed a tile on scene change");
+                //Debug.Log("Destroyed a tile on scene change");
             }
             QuadMeshDictionary.subdividedQuadList.Clear();
-            Debug.Log("Cleared the quad mesh dictionary");
+            //Debug.Log("Cleared the quad mesh dictionary");
         }
     }
     public static class GrassMaterial
@@ -175,28 +221,34 @@ namespace PQSModExpansion
     public class QuadMeshes : MonoBehaviour
     {
         public bool subdivided = false;
+        public int advancedSubdivisionLevel;
         public PQ quad;
         public GameObject newQuad;
-        public GameObject collisionQuad;
+        //public GameObject collisionQuad;
         public int subdivisionLevel = 1;
         Material transparent = new Material(Shader.Find("Unlit/Transparent"));
         private float distance = 0;
         public bool overrideDistLimit = false;
         public int customDistLimit = 1000;
         Material trueMaterial;
+        public int timesUpdated = 0;
+        Mesh quadMesh;
+        GameObject[] lines;
 
         public void OnDestroy()
         {
             Destroy(newQuad);
-            Destroy(collisionQuad);
-            Debug.Log("[SubdivMod] Destroyed");
+            //Destroy(collisionQuad);
+            //Debug.Log("[SubdivMod] Destroyed");
         }
         public void Start()
         {
             InvokeRepeating("CheckSubdivision", 1f, 1f);
+            quadMesh = Instantiate(gameObject.GetComponent<MeshFilter>().sharedMesh);
         }
         public void CheckSubdivision()
         {
+
             if (quad != null && FlightGlobals.ActiveVessel != null)
             {
 
@@ -226,50 +278,38 @@ namespace PQSModExpansion
                     newQuad.transform.parent = quad.gameObject.transform;
                     newQuad.layer = 15;
 
-                    collisionQuad = new GameObject();   //Raycast for collisions are done on this layer
-                    collisionQuad.name = quad.name + "FAKE COLLIDER";
-                    collisionQuad.transform.position = quad.gameObject.transform.position;
-                    collisionQuad.transform.rotation = quad.gameObject.transform.rotation;
-                    collisionQuad.transform.parent = quad.gameObject.transform;
-                    collisionQuad.transform.localPosition = Vector3.zero;
-                    collisionQuad.transform.localRotation = Quaternion.identity;
-                    collisionQuad.transform.localScale = Vector3.one;
-                    collisionQuad.transform.parent = quad.gameObject.transform;
-                    collisionQuad.layer = 29;
-                    Debug.Log("1");
-
-                    Physics.IgnoreLayerCollision(0, 14);
-                    Debug.Log("1");
-
                     trueMaterial = quad.GetComponent<MeshRenderer>().sharedMaterial;    //reference to sharedMaterial
 
                     Mesh mesh = Instantiate(quadMeshFilter.sharedMesh);
                     if (subdivisionLevel > 1)
                     {
-                        mesh = MeshHandler.Subdivide(mesh, 14, 14);
+                        int windingOrderCheck = mesh.triangles[2];
+                        //Debug.Log("Winding order check = " + windingOrderCheck);
+                        int indexLength = (int)Mathf.Sqrt(mesh.vertexCount);
+                        //Debug.Log("IndexLength = " + indexLength);
+                        string direction = "anticlockwise";
+                        if (windingOrderCheck == indexLength)
+                        {
+                            //Debug.Log("passing windingOrderCheck = indexLength");
+                            direction = "clockwise";
+                        }
+                        for (int i = 0; i < subdivisionLevel - 1; i++)
+                        {
+                            int subdivFactor = (int)Mathf.Pow(2, i);    //1, 2, 4, 8, 16
+                            //Debug.Log("Index length is " + Mathf.Sqrt(mesh.vertexCount));
+                            //Debug.Log("Grid x Grid is " + (Mathf.Sqrt(mesh.vertexCount) - 1) + " x " + (Mathf.Sqrt(mesh.vertexCount) - 1));
+                            //Debug.Log("Passing in " + (14 * subdivFactor) + " x " + (14 * subdivFactor));
+                            mesh = MeshHandler.Subdivide(mesh, 14 * subdivFactor, 14 * subdivFactor, direction); //Subdivide in multiples of 2
+                        }
+                        
                     }
                     
-                    Debug.Log("1");
                     newQuad.AddComponent<MeshFilter>();
                     var newQuadMeshFilter = newQuad.GetComponent<MeshFilter>();
-                    collisionQuad.AddComponent<MeshFilter>();
-                    collisionQuad.GetComponent<MeshFilter>().sharedMesh = mesh;
-                    Debug.Log("1");
-                    collisionQuad.AddComponent<MeshRenderer>();
-                    collisionQuad.GetComponent<MeshRenderer>().enabled = false;
-                    Debug.Log("1");
                     newQuadMeshFilter.sharedMesh = mesh;
                     newQuad.AddComponent<MeshRenderer>();
                     var newQuadMeshRenderer = newQuad.GetComponent<MeshRenderer>();
-                    //Material[] newMaterials = new Material[1];
-                    collisionQuad.AddComponent<MeshCollider>();
-                    collisionQuad.GetComponent<MeshCollider>().sharedMesh = mesh;
-                    Debug.Log("1");
-                    //newQuadMeshRenderer.materials = new Material[2];
-                    //newQuadMeshRenderer.materials[0] = FlightGlobals.currentMainBody.pqsController.surfaceMaterial;
-                    //newQuadMeshRenderer.materials[1] = GetGrassMaterial();
                     newQuadMeshRenderer.sharedMaterial = quad.GetComponent<MeshRenderer>().sharedMaterial;//FlightGlobals.currentMainBody.pqsController.surfaceMaterial;//GrassMaterial.grassMaterial;
-                    Debug.Log("NewQuad Subdiv material: " + newQuadMeshRenderer.sharedMaterial.name);
                     //newMaterials[0] = GetGrassMaterial();
                     //newMaterials[1] = GetGrassMaterial();
                     //newQuadMeshRenderer.materials = newMaterials;
@@ -277,8 +317,11 @@ namespace PQSModExpansion
 
                     quadMeshRenderer.material = transparent;
                     quadMeshRenderer.material.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax/BlankAlpha"));
-                    Debug.Log("NewQuad Subdiv material 2: " + newQuadMeshRenderer.sharedMaterial.name);
+
+                    QuadMeshDictionary.planetAdvancedSubdivisionLevel = advancedSubdivisionLevel;
+                    QuadMeshDictionary.planetSubdivisionLevel = subdivisionLevel;
                     QuadMeshDictionary.subdividedQuadList.Add(newQuad.name, newQuad);
+                    
 
                 }
                 else if (distance >= distLimit && subdivided == true)
@@ -290,7 +333,7 @@ namespace PQSModExpansion
                         QuadMeshDictionary.subdividedQuadList.Remove(newQuadName);
                         quad.GetComponent<QuadMeshes>().subdivided = false;
                         quad.GetComponent<MeshRenderer>().sharedMaterial = trueMaterial;  //Don't make it transparent anymore
-                        Destroy(collisionQuad);
+                        //Destroy(collisionQuad);
                     }
                 }
             }
@@ -304,86 +347,43 @@ namespace PQSModExpansion
     public class PQSMod_Subdivide : PQSMod
     {
 
-
+        public int advancedSubdivisionLevel = 32;
         public int subdivisionLevel = 1;
         public bool overrideDistLimit = false;
         public int customDistLimit = 1000;
         public static bool needed = false;
-        Material fuckery = new Material(Shader.Find("Standard"));
         public override void OnVertexBuild(PQS.VertexBuildData data)
         {
-            //Vector3 normal = Vector3.Normalize(LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, 0) - FlightGlobals.currentMainBody.transform.position);
-            try
-            {
-                //data.vertHeight = (FlightGlobals.currentMainBody.Radius * 2) + 120 - data.vertHeight;
-            }
-            catch { }
+
         }
         public override void OnQuadBuilt(PQ quad)
         {
+            
             if (FlightGlobals.currentMainBody == null)
             {
                 return;
             }
-            //try
-            //{
-            //    if (needed == true)
-            //    {
-            //        return;
-            //    }
-            //    if (quad.GetComponent<MeshCollider>() != null)
-            //    {
-            //        quad.GetComponent<MeshCollider>().enabled = false;
-            //
-            //    }
-            //    if (quad.GetComponent<Collider>() != null)
-            //    {
-            //        quad.GetComponent<Collider>().enabled = false;
-            //    }
-            //    if (quad.GetComponent<MeshFilter>() != null)
-            //    {
-            //        //quad.GetComponent<MeshFilter>().transform.localScale *= -1;
-            //        //quad.GetComponent<MeshFilter>().transform.Rotate(Vector3.Normalize(quad.transform.position - FlightGlobals.currentMainBody.transform.position), 180);
-            //        //int[] temp = quad.GetComponent<MeshFilter>().sharedMesh.triangles;
-            //        //Array.Reverse(quad.GetComponent<MeshFilter>().sharedMesh.triangles);
-            //    }
-            //
-            //}
-            //catch
-            //{
-            //
-            //}
-            //SUBDIVISION MOD
-            if (quad is null || quad.mesh == null)
-            {
-                Debug.Log("Quad is null and has been caught. Distance to vessel is: ");
-                try
-                {
-                    Debug.Log(quad.transform.position - FlightGlobals.ActiveVessel.transform.position);
-                }
-                catch
-                {
-                    Debug.Log("Unable to get distance to vessel");
-                }
-            }
             try
             {
-                if (quad != null && quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
+
+                if (GameSettings.TERRAIN_SHADER_QUALITY == 3 && quad != null && quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel && HighLogic.LoadedScene == GameScenes.FLIGHT)
                 {
                     quad.gameObject.AddComponent<QuadMeshes>();
                     quad.gameObject.GetComponent<QuadMeshes>().quad = quad;
                     quad.gameObject.GetComponent<QuadMeshes>().subdivisionLevel = (int)(subdivisionLevel * 1);
                     quad.gameObject.GetComponent<QuadMeshes>().overrideDistLimit = overrideDistLimit;
                     quad.gameObject.GetComponent<QuadMeshes>().customDistLimit = customDistLimit;
+                    quad.gameObject.GetComponent<QuadMeshes>().advancedSubdivisionLevel = advancedSubdivisionLevel;
                 }
             }
             catch (Exception e)
             {
-                Debug.Log("[Parallax] Subdivision Error:\n" + e.ToString());
+                //Debug.Log("[Parallax] Subdivision Error:\n" + e.ToString());
             }
 
             //ADAPTIVE PARALLAX
-
+            //quad.GetComponent<MeshRenderer>().sharedMaterial = new Material(ShaderHolder.GetShader("Custom/Wireframe"));
+            //return;
             try
             {
                 double highPoint = 0;
@@ -400,7 +400,7 @@ namespace PQSModExpansion
                 }
                 catch
                 {
-                    Debug.Log("Highpoint / Lowpoint not set!");
+                    //Debug.Log("Highpoint / Lowpoint not set!");
                 }
                 double quadAltitude = Vector3.Distance(quad.transform.position, FlightGlobals.currentMainBody.transform.position);
                 quad.GetComponent<MeshRenderer>().sharedMaterial = ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name].full.parallaxMaterial;
@@ -447,11 +447,38 @@ namespace PQSModExpansion
                 //Steep calculation
                 Vector3 normalVector = Vector3.Normalize(quad.transform.position - FlightGlobals.currentMainBody.transform.position);
                 bool hasSteep = false;
+                ParallaxBody body = ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name];
+                Mesh mesh = Instantiate(quad.gameObject.GetComponent<MeshFilter>().sharedMesh);
+                Vector3[] verts = mesh.vertices;
+                Vector3[] normals = mesh.normals;
+                int vertCount = mesh.vertexCount;
+                float minSlope = 1;
+                int indexLength = (int)(Mathf.Sqrt(mesh.vertexCount));
+                for (int i = 0; i < vertCount; i++)
+                {
+                    Vector3 posInWorldSpace = quad.gameObject.transform.TransformPoint(verts[i]);
+                    Vector3 meshNormal = Vector3.Normalize(quad.gameObject.transform.TransformVector(normals[i]));
+                    Vector3 worldNormal = Vector3.Normalize(quad.gameObject.transform.TransformPoint(verts[i]) - FlightGlobals.currentMainBody.transform.position);
 
-                if (quadLocalMaxSlope < 0.975)   //0.05 = 1/20
+                    float slope = Mathf.Abs(Vector3.Dot(worldNormal, meshNormal));
+                    slope = Mathf.Clamp01(Mathf.Pow(slope, body._SteepPower));
+                    slope = Mathf.Clamp01((slope - body._SteepMidpoint) * body._SteepContrast + body._SteepMidpoint);
+                    if (i < indexLength || i % indexLength == 0 || i >= indexLength * (indexLength - 1) || i % indexLength == indexLength - 1)
+                    {
+                        //top, left, bottom, or right of the quad - apply a bias since the true normal could be different!
+                        slope -= 0.8f;
+                    }
+                    if (slope < minSlope)
+                    {
+                        minSlope = slope;
+                    }
+                    
+                }
+                if (minSlope < 0.05f)
                 {
                     hasSteep = true;
                 }
+                
                 if (hasSteep)
                 {
                     if (highPoint < lowStart)
@@ -476,6 +503,8 @@ namespace PQSModExpansion
                         //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_SurfaceTexture", ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name]._LoadTexture(ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name]._SurfaceTextureHigh));
                         //quad.GetComponent<MeshRenderer>().sharedMaterial.SetTexture("_BumpMap", ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name]._LoadTexture(ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.BumpMapHigh));
                     }
+                    //quad.GetComponent<MeshRenderer>().material.SetColor("_Color", new Color(0, 0, 0));
+                    
                 }
 
             }
@@ -487,7 +516,7 @@ namespace PQSModExpansion
         }
         public override void OnQuadDestroy(PQ quad)
         {
-            Debug.Log("Beginning quad destruction");
+            //Debug.Log("Beginning quad destruction");
             if (quad.gameObject.GetComponent<QuadMeshes>() != null)
             {
                 try
@@ -505,7 +534,7 @@ namespace PQSModExpansion
                 //    Destroy(comp.newQuad);
                 //}
 
-                Debug.Log("Destroying quadmesh component:");
+                //Debug.Log("Destroying quadmesh component:");
                 Destroy(quad.gameObject.GetComponent<QuadMeshes>());    //Quad is not maxLevel anymore, remove the damn thing
 
             }
@@ -519,45 +548,7 @@ namespace PQSModExpansion
         public double quadLocalMaxSlope = -1;
         public override void OnVertexBuildHeight(PQS.VertexBuildData data)
         {
-            try
-            {
-                if (data.buildQuad == null)
-                {
-                    return;
-                }
-                if (currentBuildQuad != data.buildQuad)
-                {
-                    currentBuildQuad = data.buildQuad;
-                }
-                else
-                {
-                    if (data.vertHeight > maxHeight)
-                    {
-                        maxHeight = data.vertHeight;
-                        maxVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
-                    }
-                    if (data.vertHeight < minHeight)
-                    {
-                        minHeight = data.vertHeight;
-                        minVertexPosition = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.position, FlightGlobals.currentMainBody.Radius, data.latitude, data.longitude, maxHeight);
-                    }
-                    //float slope = abs(dot(normalize(o.world_vertex - _PlanetOrigin), normalize(o.normalDir)));
-                    //slope = pow(slope, _SteepPower);
-                    float slope = Math.Abs(Vector3.Dot(Vector3.Normalize(maxVertexPosition - minVertexPosition), Vector3.Normalize(data.buildQuad.transform.position - FlightGlobals.currentMainBody.transform.position)));
-
-                    //Slope is now a value between 0 (Perpendicular to direction from terrain to planet centre) and 1 (Straight up fucking vertical)
-                    slope = (float)Math.Pow(slope, ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name]._SteepPower);
-                    //Slope is now an approximation to the slope calculated in the shader
-
-                    quadLocalMaxSlope = slope;  //OnQuadBuilt happens at the end of each OnVertexBuildHeight
-                }
-            }
-            catch
-            {
-
-            }
-
-            //This method should run before OnQuadBuilt
+            
 
         }
         public void ConvertLatLon(Vector2d latLon)
@@ -592,43 +583,16 @@ namespace PQSModExpansion
             get { return Mod.customDistLimit; }
             set { Mod.customDistLimit = value; }
         }
-
-    }
-
-
-    public class PQSMod_AlphaColorMap : PQSMod
-    {
-        public MapSO map;
-        public override void OnSetup()
+        [ParserTarget("advancedSubdivisionLevel", Optional = true)]
+        public NumericParser<int> advancedSubdivisionLevel
         {
-            this.requirements = PQS.ModiferRequirements.MeshColorChannel;
-
-        }
-        public override void OnVertexBuild(PQS.VertexBuildData data)
-        {
-            Color mapCol = map.GetPixelColor(data.u, data.v);
-            float alpha = mapCol.a;
-            Color vertexColor = new Color(alpha, alpha, alpha, alpha);
-            data.vertColor = vertexColor;           //Required for STOCK bodies
-
-        }                                           //Module manager syntax is fucking difficult, man
-    }
-    [RequireConfigType(ConfigType.Node)]
-    public class AlphaColorMap : ModLoader<PQSMod_AlphaColorMap>
-    {
-        [ParserTarget("map", Optional = false)]
-        public MapSOParserRGBA<MapSO> Map
-        {
-            get { return Mod.map; }
-            set { Mod.map = value; Debug.Log("PQSMod Map Set!"); }
-        }
-        [ParserTarget("order", Optional = false)]
-        public NumericParser<int> order
-        {
-            get { return Mod.order; }
-            set { Mod.order = int.MaxValue; }
+            get { return Mod.advancedSubdivisionLevel; }
+            set { Mod.advancedSubdivisionLevel = value; }
         }
     }
+
+
+    
     //[KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
     //public class GrassLoader : MonoBehaviour
     //{
@@ -668,220 +632,74 @@ namespace PQSModExpansion
         public static Material standardSTEEPHIGH = new Material(Shader.Find("Standard"));
         public void Start()
         {
-            standardLOW.SetColor("_Color", new Color(0.9f, 0.7f, 0.7f));
-            standardMID.SetColor("_Color", new Color(0.7f, 0.9f, 0.7f));
-            standardHIGH.SetColor("_Color", new Color(0.7f, 0.7f, 0.9f));
+            standardLOW.SetColor("_Color", new Color(0.1f, 1f, 0.1f));
+            standardMID.SetColor("_Color", new Color(0.1f, 1f, 0.1f));
+            standardHIGH.SetColor("_Color", new Color(0.1f, 1f, 0.1f));
 
-            standardSTEEPLOW.SetColor("_Color", new Color(0.75f, 0.5f, 0.5f));
-            standardSTEEPMID.SetColor("_Color", new Color(0.5f, 0.75f, 0.5f));
-            standardSTEEPHIGH.SetColor("_Color", new Color(0.5f, 0.5f, 0.75f));
+            standardSTEEPLOW.SetColor("_Color", new Color(1f, 0.94f, 0.1f));
+            standardSTEEPMID.SetColor("_Color", new Color(1f, 0.94f, 0.1f));
+            standardSTEEPHIGH.SetColor("_Color", new Color(1f, 0.94f, 0.1f));
 
-            standardLOWMID.SetColor("_Color", new Color(0.8f, 0.8f, 0.4f));
-            standardMIDHIGH.SetColor("_Color", new Color(0.4f, 0.8f, 0.8f));
-            standardLOWMIDHIGH.SetColor("_Color", new Color(1f, 0.3f, 0.3f));
+            standardLOWMID.SetColor("_Color", new Color(1f, 0.4f, 0.1f));
+            standardMIDHIGH.SetColor("_Color", new Color(1f, 0.4f, 0.1f));
+            standardLOWMIDHIGH.SetColor("_Color", new Color(1f, 0.1f, 0.1f));
+
+
+            standardLOW.SetFloat("_Gloss", 0);
+            standardMID.SetFloat("_Gloss", 0);
+            standardHIGH.SetFloat("_Gloss", 0);
+
+            standardSTEEPLOW.SetFloat("_Gloss", 0);
+            standardSTEEPMID.SetFloat("_Gloss", 0);
+            standardSTEEPHIGH.SetFloat("_Gloss", 0);
+
+            standardLOWMID.SetFloat("_Gloss", 0);
+            standardMIDHIGH.SetFloat("_Gloss", 0);
+            standardLOWMIDHIGH.SetFloat("_Gloss", 0);
+
+            standardLOW.SetFloat("_Metallic", 0);
+            standardMID.SetFloat("_Metallic", 0);
+            standardHIGH.SetFloat("_Metallic", 0);
+
+            standardSTEEPLOW.SetFloat("_Metallic", 0);
+            standardSTEEPMID.SetFloat("_Metallic", 0);
+            standardSTEEPHIGH.SetFloat("_Metallic", 0);
+
+            standardLOWMID.SetFloat("_Metallic", 0);
+            standardMIDHIGH.SetFloat("_Metallic", 0);
+            standardLOWMIDHIGH.SetFloat("_Metallic", 0);
+
 
             standardUNKNOWN.SetColor("_Color", new Color(1, 1, 1));
         }
     }
-    public class PQSMod_AdaptiveParallax : PQSMod
-    {
-        public override void OnQuadBuilt(PQ quad)
-        {
-
-        }
-        //public override void OnQuadDestroy(PQ quad)
-        //{
-        //
-        //}
-        //public override void OnVertexBuildHeight(PQS.VertexBuildData data)
-        //{
-        //    if (data.buildQuad == null)
-        //    {
-        //        Debug.Log("This build quad is null");
-        //        return;
-        //    }
-        //    if (data.buildQuad.subdivision <= 1)
-        //    {
-        //        Debug.Log("Returning as this quad subdivision is too low");
-        //        return;
-        //    }
-        //    Debug.Log("Vertex Height: " + (data.vertHeight - FlightGlobals.currentMainBody.Radius));
-        //    if (data.buildQuad.parent.gameObject == null)
-        //    {
-        //        Debug.Log("It doesn't fucking exist you mong");
-        //    }
-        //    Debug.Log("0.1");
-        //    string addedComponent = "";
-        //    Debug.Log("Current rad: " + FlightGlobals.currentMainBody.Radius);
-        //    Debug.Log("Current lowfactor: " + lowStart);
-        //    if (data.vertHeight - FlightGlobals.currentMainBody.Radius < lowStart)
-        //    {
-        //        Debug.Log("Adding low component");
-        //        //This vertex is safely in the LOW area
-        //        data.buildQuad.parent.gameObject.AddComponent<LowComponent>();
-        //        addedComponent = "low";
-        //        Debug.Log("The build quad does actually exist");
-        //    }
-        //    Debug.Log("1");
-        //    if (data.vertHeight - FlightGlobals.currentMainBody.Radius > ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.LowEnd && data.vertHeight < highStart)
-        //    {
-        //        //This vertex is safely in the MID area
-        //        data.buildQuad.parent.gameObject.AddComponent<MidComponent>();
-        //        addedComponent = "mid";
-        //        Debug.Log("The build quad does actually exist");
-        //    }
-        //    Debug.Log("2");
-        //    if (data.vertHeight - FlightGlobals.currentMainBody.Radius > ParallaxBodies.parallaxBodies[FlightGlobals.currentMainBody.name].ParallaxBodyMaterial.HighEnd)
-        //    {
-        //        //This vertex is safely in the HIGH area
-        //        data.buildQuad.parent.gameObject.AddComponent<HighComponent>();
-        //        addedComponent = "high";
-        //        Debug.Log("The build quad does actually exist");
-        //    }
-        //    Debug.Log("3");
-        //    Debug.Log("Messing about with components and shiz now");
-        //    if (data.buildQuad.parent.gameObject.GetComponent<LowComponent>() != null && data.buildQuad.parent.gameObject.GetComponent<MidComponent>() != null)
-        //    {
-        //        Debug.Log("This quad is in the LOW-MID region");
-        //        addedComponent = "lowmid";
-        //    }
-        //    Debug.Log("4");
-        //    if (data.buildQuad.parent.gameObject.GetComponent<MidComponent>() != null && data.buildQuad.parent.gameObject.GetComponent<HighComponent>() != null)
-        //    {
-        //        Debug.Log("This quad is in the MID-HIGH region");
-        //        addedComponent = "midhigh";
-        //    }
-        //    Debug.Log("5");
-        //    if (data.buildQuad.parent.gameObject.GetComponent<LowComponent>() != null && data.buildQuad.parent.gameObject.GetComponent<MidComponent>() != null && data.buildQuad.parent.gameObject.GetComponent<HighComponent>() != null)
-        //    {
-        //        Debug.Log("This quad is in the LOW-MID-HIGH region");
-        //        addedComponent = "lowmidhigh";
-        //    }
-        //    Debug.Log("6");
-        //    Debug.Log("Checking Components");
-        //
-        //    if (data.buildQuad.parent.gameObject.GetComponent<LowComponent>() != null && addedComponent != "low")
-        //    {
-        //        Destroy(data.buildQuad.parent.gameObject.GetComponent<LowComponent>());
-        //    }
-        //    if (data.buildQuad.parent.gameObject.GetComponent<MidComponent>() != null && addedComponent != "mid")
-        //    {
-        //        Destroy(data.buildQuad.parent.gameObject.GetComponent<MidComponent>());
-        //    }
-        //    if (data.buildQuad.parent.gameObject.GetComponent<HighComponent>() != null && addedComponent != "high")
-        //    {
-        //        Destroy(data.buildQuad.parent.gameObject.GetComponent<HighComponent>());
-        //    }
-        //
-        //    if (addedComponent == "lowmid")
-        //    {
-        //        data.buildQuad.parent.gameObject.AddComponent<LowMidComponent>();
-        //    }
-        //    if (addedComponent == "midhigh")
-        //    {
-        //        data.buildQuad.parent.gameObject.AddComponent<MidHighComponent>();
-        //    }
-        //    if (addedComponent == "lowmidhigh")
-        //    {
-        //        data.buildQuad.parent.gameObject.AddComponent<LowMidHighComponent>();
-        //    }
-        //
-        //    Debug.Log(" -    FINAL: This quad is in the " + addedComponent.ToUpper() + " region");
-        //
-        //    Color col = new Color(0, 0, 0);
-        //    if (addedComponent == "low")
-        //    {
-        //        col = new Color(1, 0, 0);
-        //    }
-        //    if (addedComponent == "mid")
-        //    {
-        //        col = new Color(0, 1, 0);
-        //    }
-        //    if (addedComponent == "high")
-        //    {
-        //        col = new Color(0, 0, 1);
-        //    }
-        //    if (addedComponent == "lowmid")
-        //    {
-        //        col = new Color(1, 1, 0);
-        //    }
-        //    if (addedComponent == "midhigh")
-        //    {
-        //        col = new Color(0, 1, 1);
-        //    }
-        //    if (addedComponent == "lowmidhigh")
-        //    {
-        //        col = new Color(1, 1, 1);
-        //    }
-        //    data.vertColor = col;
-        //}
-    }
-    [RequireConfigType(ConfigType.Node)]
-    public class AdaptiveParallax : ModLoader<PQSMod_AdaptiveParallax>
-    {
-        [ParserTarget("order", Optional = false)]
-        public NumericParser<int> order
-        {
-            get { return Mod.order; }
-            set { Mod.order = int.MaxValue; }
-        }
-    }
-    public class LowComponent : MonoBehaviour
-    {
-        public string name = "low";
-        //Quad exists only in LOW
-    }
-    public class MidComponent : MonoBehaviour
-    {
-        public string name = "mid";
-        //Quad exists only in MID
-    }
-    public class HighComponent : MonoBehaviour
-    {
-        public string name = "high";
-        //Quad exists only in HIGH
-    }
-
-    public class LowMidComponent : MonoBehaviour
-    {
-        public string name = "lowmid";
-        //Quad exists in LOW and MID
-    }
-    public class MidHighComponent : MonoBehaviour
-    {
-        public string name = "midhigh";
-        //Quad exists in MID and HIGH
-    }
-    public class LowMidHighComponent : MonoBehaviour
-    {
-        public string name = "lowmidhigh";
-        //Quad exists in LOW, MID and HIGH
-    }
+  
+ 
 
     [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
     public class OptimizeMaxLevel : MonoBehaviour
     {
         public void Start() //
         {
-            Debug.Log("Parallax Max Subdivision Updater:");
-            Debug.Log(" - Exception: This is not an 'exception', but this is written as one because your settings.cfg file has been altered by Parallax");
-            Debug.Log(" - This means that the planet terrain will remain more detailed even after uninstalling this mod.");
-            Debug.Log(" - In order to restore these changes (which you can leave without any harm), simply delete your Settings.cfg file");
+            //Debug.Log("Parallax Max Subdivision Updater:");
+            //Debug.Log(" - Exception: This is not an 'exception', but this is written as one because your settings.cfg file has been altered by Parallax");
+            //Debug.Log(" - This means that the planet terrain will remain more detailed even after uninstalling this mod.");
+            //Debug.Log(" - In order to restore these changes (which you can leave without any harm), simply delete your Settings.cfg file");
             for (int i = 0; i < PQSCache.PresetList.presets.Count; i++)
             {
-                Debug.Log("PRESET: " + PQSCache.PresetList.presets[i].name);
+                //Debug.Log("PRESET: " + PQSCache.PresetList.presets[i].name);
                 for (int b = 0; b < PQSCache.PresetList.presets[i].spherePresets.Count; b++)
                 {
-                    Debug.Log("     - SPHERE PRESET: " + PQSCache.PresetList.presets[i].spherePresets[b].name);
-                    Debug.Log("     - minSubDiv: " + PQSCache.PresetList.presets[i].spherePresets[b].minSubdivision);
-                    Debug.Log("     - maxSubDiv: " + PQSCache.PresetList.presets[i].spherePresets[b].maxSubdivision);
+                    //Debug.Log("     - SPHERE PRESET: " + PQSCache.PresetList.presets[i].spherePresets[b].name);
+                    //Debug.Log("     - minSubDiv: " + PQSCache.PresetList.presets[i].spherePresets[b].minSubdivision);
+                    //Debug.Log("     - maxSubDiv: " + PQSCache.PresetList.presets[i].spherePresets[b].maxSubdivision);
                     if (PQSCache.PresetList.presets[i].spherePresets[b].maxSubdivision <= 8)
                     {
                         PQSCache.PresetList.presets[i].spherePresets[b].maxSubdivision = 9;
-                        Debug.Log("     - " + PQSCache.PresetList.presets[i].spherePresets[b].name + " max subdivision is too low! Set to 9");
+                        //Debug.Log("     - " + PQSCache.PresetList.presets[i].spherePresets[b].name + " max subdivision is too low! Set to 9");
                         if (PQSCache.PresetList.presets[i].spherePresets[b].name == "Gilly")
                         {
-                            Debug.Log("Gilly detected, setting max subdivision to 7");
+                            //Debug.Log("Gilly detected, setting max subdivision to 7");
                             PQSCache.PresetList.presets[i].spherePresets[b].maxSubdivision = 7;
                         }
                         if (PQSCache.PresetList.presets[i].spherePresets[b].name == "Laythe")
@@ -891,48 +709,7 @@ namespace PQSModExpansion
                     }
                 }
             }
-            ChangeSpaceCenterColor();
-            //foreach (CelestialBody body in FlightGlobals.Bodies)
-            //{
-            //    if (body.GetComponentsInChildren<PQS>()[0] != null)
-            //    {
-            //        Debug.Log(body.name + " is not null");
-            //    }
-            //    if (body.GetComponentsInChildren<PQS>()[0] != null && body.GetComponentsInChildren<PQS>()[0].maxLevel < 8)
-            //    {
-            //        body.pqsController.maxLevel = 10;
-            //        Debug.Log("Max Level too low! Automatically increased " + body.name + "'s maxLevel to 10");
-            //    }
-            //}
         }
-        public void ChangeSpaceCenterColor()
-        {
-            Debug.Log("Home planet detected as " + FlightGlobals.GetHomeBody().displayName);
-            if (FlightGlobals.GetHomeBody().displayName == "Kerbin^N")
-            {
-                CelestialBody kerbin = FlightGlobals.GetHomeBody();
-                PQSCity ksc = kerbin.pqsController.GetComponentsInChildren<PQSCity>(true).First(m => m.name == "KSC");
-                ksc.gameObject.GetComponent<Renderer>().materials[0].color = new Color(24, 29, 19, 255);
-            }
-        }
-    }
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class FixAll : MonoBehaviour
-    {
-        public void Update()
-        {
-            bool key = Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.Alpha6);
-            if (key)
-            {
-                foreach (Part part in FlightGlobals.ActiveVessel.parts)
-                {
-                    if (part.Modules[0] is ModuleWheelBase)
-                    {
-                        Debug.Log("Found a wheel");
-                        part.PartRepair();
-                    }
-                }
-            }
-        }
+        
     }
 }
