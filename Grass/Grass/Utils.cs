@@ -5,15 +5,122 @@ using ParallaxGrass;
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace ScatterConfiguratorUtils
 {
     public class Utils
     {
 
-
-
-
+        public static ComputeBuffer SetupComputeBufferSafe(int count, int stride, ComputeBufferType type)
+        {
+            if (count == 0 || stride == 0)
+            {
+                return null;
+            }
+            if (type == ComputeBufferType.Append)
+            {
+                return new ComputeBuffer(count, stride, ComputeBufferType.Append);
+            }
+            else if (type == ComputeBufferType.IndirectArguments)
+            {
+                return new ComputeBuffer(count, stride, ComputeBufferType.IndirectArguments);
+            }
+            else if (type == ComputeBufferType.Structured)
+            {
+                return new ComputeBuffer(count, stride);
+            }
+            else
+            {
+                ScatterLog.Log("Exception trying to create a buffer with a type that SetupComputeBufferSafe() does not account for: " + type);
+                return new ComputeBuffer(count, stride);
+            }
+        }
+        public static void SafetyCheckRelease(ComputeBuffer buffer, string nameThisBufferSomethingUseful)
+        {
+            if (buffer != null)
+            {
+                buffer.Release();
+            }
+            if (buffer == null)
+            {
+                ScatterLog.Log("Exception performing release safety check on " + nameThisBufferSomethingUseful + " because it is null!");
+            }
+        }
+        public static void SafetyCheckDispose(ComputeBuffer buffer, string nameThisBufferSomethingUseful)
+        {
+            if (buffer != null)
+            {
+                buffer.Dispose();
+            }
+            if (buffer == null)
+            {
+                ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
+            }
+        }
+        public static uint[] GenerateArgs(Mesh mesh, int count)
+        {
+            if (count == 0)
+            {
+                return null;
+            }
+            uint[] args = new uint[5];
+            args[0] = (uint)mesh.GetIndexCount(0);
+            args[1] = (uint)count;
+            args[2] = (uint)mesh.GetIndexStart(0);
+            args[3] = (uint)mesh.GetBaseVertex(0);
+            return args;
+        }
+        public static void ForceGPUFinish(ComputeBuffer buffer, Type type, int count)
+        {
+            if (type == typeof(Vector3))
+            {
+                Vector3[] force = new Vector3[count];
+                buffer.GetData(force);
+                ScatterLog.Log("Forced GPU finish for " + count + " objects");
+            }
+        }
+        public static Material GetSubObjectMaterial(Scatter scatter, int index)
+        {
+            
+            if (index >= scatter.subObjectCount)
+            {
+                Debug.Log("Returning standard shader for index " + index);
+                return new Material(Shader.Find("Standard"));
+            }
+            else
+            {
+                SubObject sub = scatter.subObjects[index];
+                Material mat = new Material(sub.properties.material.shader);
+                Debug.Log("Shader is " + sub.properties.material.shader);
+                mat.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == sub.properties.material._MainTex));
+                Debug.Log("Texture is " + sub.properties.material._MainTex);
+                mat.SetTexture("_BumpMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == sub.properties.material._BumpMap));
+                mat.SetFloat("_Shininess", sub.properties.material._Shininess);
+                mat.SetColor("_SpecColor", sub.properties.material._SpecColor);
+                mat.SetFloat("_WaveSpeed", 0);
+                mat.SetFloat("_HeightCutoff", -1);
+                mat.SetFloat("_HeightFactor", 0);
+                mat.SetColor("_Color", new Color(1, 1, 1));
+                mat.SetVector("_PlanetOrigin", FlightGlobals.ActiveVessel.transform.position);
+                return mat;
+            }
+        }
+        public static Mesh GetSubObjectMesh(Scatter scatter, int index)
+        {
+            if (index >= scatter.subObjectCount)
+            {
+                return null;
+            }
+            else
+            {
+                SubObject sub = scatter.subObjects[index];
+                GameObject go = GameDatabase.Instance.GetModel(sub.properties.model);
+                Mesh mesh = GameObject.Instantiate( go.GetComponent<MeshFilter>().mesh);
+                return mesh;
+            }
+        }
+        
         public static readonly Dictionary<string, string>
             VarFromLabels = new Dictionary<string, string>
             {

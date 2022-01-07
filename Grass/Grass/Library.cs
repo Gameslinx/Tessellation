@@ -23,7 +23,7 @@ namespace Grass
         Vector3 floatingOriginOffset = Vector3.zero;
         public void LateUpdate()
         {
-            Debug.Log("Floating origin offset is " + floatingOriginOffset);
+            //Debug.Log("Floating origin offset is " + floatingOriginOffset);
             Vector3 newOffset = FloatingOrigin.Offset;
             if (newOffset != floatingOriginOffset)
             {

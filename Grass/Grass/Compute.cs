@@ -8,6 +8,7 @@ using Kopernicus.ConfigParser.BuiltinTypeParsers;
 using System.Collections;
 using Kopernicus.Configuration.ModLoader;
 using Grass;
+using ScatterConfiguratorUtils;
 
 namespace ComputeLoader
 {
@@ -20,10 +21,16 @@ namespace ComputeLoader
 
         public ComputeBuffer positionBuffer;
         public ComputeBuffer grassPositionBuffer;
-        public ComputeBuffer grassBuffer;
         public ComputeBuffer triangleBuffer;
         public ComputeBuffer countBuffer;
+
+        public ComputeBuffer grassBuffer;
         public ComputeBuffer farGrassBuffer;    //For the grass further away from the camera - Much lower LOD
+        public ComputeBuffer subObjectSlot1;
+        public ComputeBuffer subObjectSlot2;
+        public ComputeBuffer subObjectSlot3;
+        public ComputeBuffer subObjectSlot4;
+
         public PostCompute pc;
 
         public Mesh mesh;
@@ -32,11 +39,13 @@ namespace ComputeLoader
 
         public Vector3 _PlanetOrigin;
 
-        public Properties properties;
+        public Scatter scatter;
 
         private int evaluatePoints;
 
         public float updateFPS = 1.0f;
+
+        public int subObjectCount = 0;
 
         struct PositionData
         {
@@ -64,7 +73,7 @@ namespace ComputeLoader
         {
             yield return new WaitForSeconds(0.5f);
             float distance = Vector3.Distance(gameObject.transform.position, FlightGlobals.ActiveVessel.transform.position);
-            if (distance > properties.scatterDistribution._Range * 2)
+            if (distance > scatter.properties.scatterDistribution._Range * 2)
             {
                 StartCoroutine(UpdatePositionFPS());
                 yield break;
@@ -80,7 +89,7 @@ namespace ComputeLoader
             vertCount = mesh.vertexCount;
             triCount = mesh.triangles.Length;
             pc = gameObject.GetComponent<PostCompute>();
-            properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
+            scatter = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"];
             distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributePoints"));
             evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
             Debug.Log("Mesh count: " + vertCount + " / " + triCount);
@@ -92,14 +101,24 @@ namespace ComputeLoader
         public void InitializeAllBuffers()
         {
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
-            countBuffer = new ComputeBuffer(2, sizeof(int), ComputeBufferType.IndirectArguments);
-            grassBuffer = new ComputeBuffer((triCount / 3) * (int)properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
-            farGrassBuffer = new ComputeBuffer((triCount / 3) * (int)properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+
+            countBuffer = Utils.SetupComputeBufferSafe(6, sizeof(int), ComputeBufferType.IndirectArguments);
+            grassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+            farGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+
+            subObjectSlot1 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot2 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot3 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot4 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, GrassData.Size(), ComputeBufferType.Append);
+
             evaluate.SetBuffer(evaluatePoints, "Grass", grassBuffer);
             evaluate.SetBuffer(evaluatePoints, "Positions", grassPositionBuffer);
             evaluate.SetBuffer(evaluatePoints, "FarGrass", farGrassBuffer);
+            evaluate.SetBuffer(evaluatePoints, "SubObjects1", subObjectSlot1);
+            evaluate.SetBuffer(evaluatePoints, "SubObjects2", subObjectSlot2);
+            evaluate.SetBuffer(evaluatePoints, "SubObjects3", subObjectSlot3);
+            evaluate.SetBuffer(evaluatePoints, "SubObjects4", subObjectSlot4);
         }
-        float time = 0;
         void Update()
         {
             if (ScatterLibrary.requiresUpdate)
@@ -139,17 +158,19 @@ namespace ComputeLoader
         {
             Vector3[] verts = mesh.vertices;
             int[] tris = mesh.triangles;
-            ReleasePositionBuffers();
-            positionBuffer = new ComputeBuffer(vertCount, 12);
-            grassPositionBuffer = new ComputeBuffer((tris.Length / 3) * (int)properties.scatterDistribution._PopulationMultiplier, PositionData.Size());
-            triangleBuffer = new ComputeBuffer(tris.Length, sizeof(int));
+            Utils.SafetyCheckRelease(positionBuffer, "position buffer");
+            Utils.SafetyCheckRelease(grassPositionBuffer, "grass position buffer");
+            Utils.SafetyCheckRelease(triangleBuffer, "mesh triangle buffer");
+            positionBuffer = Utils.SetupComputeBufferSafe(vertCount, 12, ComputeBufferType.Structured);
+            grassPositionBuffer = Utils.SetupComputeBufferSafe((tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier, PositionData.Size(), ComputeBufferType.Structured);
+            triangleBuffer = Utils.SetupComputeBufferSafe(tris.Length, sizeof(int), ComputeBufferType.Structured);
 
             positionBuffer.SetData(verts);
             triangleBuffer.SetData(tris);
 
             int distributeKernel = distribute.FindKernel("DistributePoints");
 
-            distribute.SetInt("_PopulationMultiplier", (int)properties.scatterDistribution._PopulationMultiplier);
+            distribute.SetInt("_PopulationMultiplier", (int)scatter.properties.scatterDistribution._PopulationMultiplier);
             distribute.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
             distribute.SetVector("_PlanetOrigin", FlightGlobals.currentMainBody.transform.position);
             distribute.SetInt("_VertCount", vertCount);
@@ -169,30 +190,83 @@ namespace ComputeLoader
             //ReleaseEvaluationBuffers();
             grassBuffer.SetCounterValue(0);
             farGrassBuffer.SetCounterValue(0);
+            subObjectSlot1.SetCounterValue(0);
+            subObjectSlot2.SetCounterValue(0);
+            subObjectSlot3.SetCounterValue(0);
+            subObjectSlot4.SetCounterValue(0);
 
-            evaluate.SetVector("minScale", properties.scatterDistribution._MinScale);
-            evaluate.SetVector("maxScale", properties.scatterDistribution._MaxScale);
-            evaluate.SetVector("grassColorMain", properties.scatterMaterial._MainColor);
-            evaluate.SetVector("grassColorSub", properties.scatterMaterial._SubColor);
-            evaluate.SetFloat("grassColorNoiseStrength", properties.scatterMaterial._ColorNoiseStrength);
-            evaluate.SetFloat("grassColorNoiseScale", properties.scatterMaterial._ColorNoiseScale);
-            evaluate.SetFloat("grassCutoffScale", properties.scatterDistribution._CutoffScale);
-            evaluate.SetFloat("grassSizeNoiseScale", properties.scatterDistribution._SizeNoiseScale);
-            evaluate.SetFloat("grassSizeNoiseStrength", properties.scatterDistribution._SizeNoiseStrength);
-            evaluate.SetFloat("grassSizeNoiseOffset", properties.scatterDistribution._SizeNoiseOffset.x);
-            evaluate.SetFloat("range", properties.scatterDistribution._Range);
+            evaluate.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
+            evaluate.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
+            evaluate.SetVector("grassColorMain", scatter.properties.scatterMaterial._MainColor);
+            evaluate.SetVector("grassColorSub", scatter.properties.scatterMaterial._SubColor);
+            evaluate.SetFloat("grassColorNoiseStrength", scatter.properties.scatterMaterial._ColorNoiseStrength);
+            evaluate.SetFloat("grassColorNoiseScale", scatter.properties.scatterMaterial._ColorNoiseScale);
+            evaluate.SetFloat("grassCutoffScale", scatter.properties.scatterDistribution._CutoffScale);
+            evaluate.SetFloat("grassSizeNoiseScale", scatter.properties.scatterDistribution._SizeNoiseScale);
+            evaluate.SetFloat("grassSizeNoiseStrength", scatter.properties.scatterDistribution._SizeNoiseStrength);
+            evaluate.SetFloat("grassSizeNoiseOffset", scatter.properties.scatterDistribution._SizeNoiseOffset.x);
+            evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
             evaluate.SetVector("_ThisPos", transform.position - ScatterLibrary.floatingOriginOffset);
             evaluate.SetVector("_CameraPos", FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
 
-            evaluate.Dispatch(evaluatePoints, ((triCount / 3) * (int)properties.scatterDistribution._PopulationMultiplier) / 32, 1, 1);
+            evaluate.SetFloat("subObjectWeight1", GetSubObjectProperty("subObjectWeight", 0));
+            evaluate.SetFloat("subObjectNoiseScale1", GetSubObjectProperty("subObjectNoiseScale", 0));
+            evaluate.SetFloat("subObjectSpawnChance1", GetSubObjectProperty("subObjectSpawnChance", 0));
+
+            evaluate.SetFloat("subObjectWeight2", GetSubObjectProperty("subObjectWeight", 1));
+            evaluate.SetFloat("subObjectNoiseScale2", GetSubObjectProperty("subObjectNoiseScale", 1));
+            evaluate.SetFloat("subObjectSpawnChance2", GetSubObjectProperty("subObjectSpawnChance", 1));
+
+            evaluate.SetFloat("subObjectWeight3", GetSubObjectProperty("subObjectWeight", 2));
+            evaluate.SetFloat("subObjectNoiseScale3", GetSubObjectProperty("subObjectNoiseScale", 2));
+            evaluate.SetFloat("subObjectSpawnChance3", GetSubObjectProperty("subObjectSpawnChance", 2));
+
+            evaluate.SetFloat("subObjectWeight4", GetSubObjectProperty("subObjectWeight", 3));
+            evaluate.SetFloat("subObjectNoiseScale4", GetSubObjectProperty("subObjectNoiseScale", 3));
+            evaluate.SetFloat("subObjectSpawnChance4", GetSubObjectProperty("subObjectSpawnChance", 3));
+
+            evaluate.Dispatch(evaluatePoints, ((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier) / 32, 1, 1);
             ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
             ComputeBuffer.CopyCount(farGrassBuffer, countBuffer, 4);
-            int[] count = new int[] { 0, 0 };
+            ComputeBuffer.CopyCount(subObjectSlot1, countBuffer, 8);
+            ComputeBuffer.CopyCount(subObjectSlot2, countBuffer, 12);
+            ComputeBuffer.CopyCount(subObjectSlot3, countBuffer, 16);
+            ComputeBuffer.CopyCount(subObjectSlot4, countBuffer, 20);
+            int[] count = new int[] { 0, 0, 0, 0, 0, 0 };
             countBuffer.GetData(count);
             Debug.Log("Rendering " + count[0] + " objects and " + count[1] + " low LOD objects");
-            pc.Setup(count[0], count[1], grassBuffer, farGrassBuffer);
+            pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
         }
-
+        public float GetSubObjectProperty(string property, int index)
+        {
+            if (index >= subObjectCount)    //0, 1, 2, 3
+            {                               //1, 2, 3, 4
+                return 0;
+            }
+            else
+            {
+                if (property == "subObjectWeight")
+                {
+                    Debug.Log(property + " = " + scatter.subObjects[index].properties._NoiseAmount);
+                    return scatter.subObjects[index].properties._NoiseAmount;
+                }
+                else if (property == "subObjectNoiseScale")
+                {
+                    Debug.Log(property + " = " + scatter.subObjects[index].properties._NoiseScale);
+                    return scatter.subObjects[index].properties._NoiseScale;
+                }
+                else if (property == "subObjectSpawnChance")
+                {
+                    Debug.Log(property + " = " + scatter.subObjects[index].properties._Density);
+                    return scatter.subObjects[index].properties._Density;
+                }
+                else
+                {
+                    ScatterLog.Log("Exception getting SubObject property: " + property);
+                    return 0;
+                }
+            }
+        }
         void ReleasePositionBuffers()
         {
             if (positionBuffer != null && triangleBuffer != null && grassPositionBuffer != null)
@@ -256,39 +330,64 @@ namespace ComputeLoader
     }
     public class PostCompute : MonoBehaviour
     {
-        public int population;
-        public float range = 100;
-        public float viewDist;
 
         public Material material;
         public Material materialFar;
+        public Material subObjectMat1;
+        public Material subObjectMat2;
+        public Material subObjectMat3;
+        public Material subObjectMat4;
+
         public Mesh mesh;
         public Mesh farMesh;
+        public Mesh subObjectMesh1;
+        public Mesh subObjectMesh2;
+        public Mesh subObjectMesh3;
+        public Mesh subObjectMesh4;
 
         private ComputeBuffer argsBuffer;
         private ComputeBuffer farArgsBuffer;
-        private ComputeBuffer meshPropertiesBuffer;
-        private ComputeBuffer farMeshPropertiesBuffer;
+        private ComputeBuffer subArgs1;
+        private ComputeBuffer subArgs2;
+        private ComputeBuffer subArgs3;
+        private ComputeBuffer subArgs4;
+
+
+        private ComputeBuffer mainNear;
+        private ComputeBuffer mainFar;
+        private ComputeBuffer sub1;
+        private ComputeBuffer sub2;
+        private ComputeBuffer sub3;
+        private ComputeBuffer sub4;
 
         private Bounds bounds;
         bool setup = false;
         bool setupInitial = false;
         int countCheck;
         int farCountCheck;
+        int subCount1;
+        int subCount2;
+        int subCount3;
+        int subCount4;
+
         public Properties scatterProps;
         
-        public void Setup(int count, int farCount, ComputeBuffer buffer, ComputeBuffer farBuffer)
+        public void Setup(int[] counts, ComputeBuffer[] buffers, Scatter scatter)
         {
             if (!setupInitial)
             {
                 GameObject go = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scatters/Models/grassclumpoptimized");
-                go.transform.position += new Vector3(4,4,4);
-                go.transform.up = Vector3.Normalize(gameObject.transform.position - FlightGlobals.currentMainBody.transform.position);
                 Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
+               
                 this.mesh = mesh;
                 go = GameDatabase.Instance.GetModel("Parallax_StockTextures/_Scatters/Models/trigrass");
                 farMesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
                 material = new Material(ScatterShaderHolder.GetShader("Custom/InstancedIndirectColor"));
+                subObjectMesh1 = Utils.GetSubObjectMesh(scatter, 0);
+                subObjectMesh2 = Utils.GetSubObjectMesh(scatter, 1);
+                subObjectMesh3 = Utils.GetSubObjectMesh(scatter, 2);
+                subObjectMesh4 = Utils.GetSubObjectMesh(scatter, 3);
+
                 //material.SetFloat("_WaveSpeed", 0);
                 //material.SetFloat("_HeightCutoff", -1000);
                 material.SetColor("_Color", new Color(1, 1, 1, 1));
@@ -313,6 +412,10 @@ namespace ComputeLoader
                 //material.SetFloat("_Cutoff", 0);
 
                 materialFar = Instantiate(material);
+                subObjectMat1 = Utils.GetSubObjectMaterial(scatter, 0);
+                subObjectMat2 = Utils.GetSubObjectMaterial(scatter, 1);
+                subObjectMat3 = Utils.GetSubObjectMaterial(scatter, 2);
+                subObjectMat4 = Utils.GetSubObjectMaterial(scatter, 3);
                 //materialFar.SetFloat("_Cutoff", 0.5f);
                 //materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scatters/grassuv5"));
 
@@ -320,60 +423,92 @@ namespace ComputeLoader
             }
             int subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
             bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange + 1));
-            countCheck = count;
-            farCountCheck = farCount;
-            InitializeBuffers(count, farCount, buffer, farBuffer);
+            countCheck = counts[0];
+            farCountCheck = counts[1];
+            subCount1 = counts[2];
+            subCount2 = counts[3];
+            subCount3 = counts[4];
+            subCount4 = counts[5];
+
+            mainNear = buffers[0];
+            mainFar = buffers[1];
+            sub1 = buffers[2];
+            sub2 = buffers[3];
+            sub3 = buffers[4];
+            sub4 = buffers[5];
+
+            Debug.Log("Sub1 count: " + subCount1);
+            Debug.Log("Sub2 count: " + subCount2);
+            Debug.Log("Sub3 count: " + subCount3);
+            Debug.Log("Sub4 count: " + subCount4);
+
+            InitializeBuffers();
         }
 
-        private void InitializeBuffers(int count, int farCount, ComputeBuffer buffer, ComputeBuffer farBuffer)
+        private void InitializeBuffers()
         {
-
             if (mesh == null)
             {
                 Debug.Log("Mesh null");
                 return;
             }
-            if (count == 0)
+            if (countCheck == 0)
             {
                 Debug.Log("Count is 0");
                 return;
             }
-            farMeshPropertiesBuffer = farBuffer;
-            meshPropertiesBuffer = buffer;
-            float time = Time.realtimeSinceStartup;
-            uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
-            args[0] = (uint)mesh.GetIndexCount(0);
-            args[1] = (uint)count;
-            args[2] = (uint)mesh.GetIndexStart(0);
-            args[3] = (uint)mesh.GetBaseVertex(0);
+            Utils.SafetyCheckRelease(argsBuffer, "main args");
+            Utils.SafetyCheckRelease(farArgsBuffer, "main args far");
+            Utils.SafetyCheckRelease(subArgs1, "sub args 1");
+            Utils.SafetyCheckRelease(subArgs2, "sub args 2");
+            Utils.SafetyCheckRelease(subArgs3, "sub args 3");
+            Utils.SafetyCheckRelease(subArgs4, "sub args 4");
 
-            uint[] farArgs = new uint[5] { 0, 0, 0, 0, 0 };
-            farArgs[0] = (uint)farMesh.GetIndexCount(0);
-            farArgs[1] = (uint)farCount;
-            farArgs[2] = (uint)farMesh.GetIndexStart(0);
-            farArgs[3] = (uint)farMesh.GetBaseVertex(0);
-
-
-            if (argsBuffer != null)
+            uint[] subArgsSlot1 = new uint[0];
+            uint[] subArgsSlot2 = new uint[0];
+            uint[] subArgsSlot3 = new uint[0];
+            uint[] subArgsSlot4 = new uint[0];
+            if (subCount1 != 0)
             {
-                argsBuffer.Release();
+                subArgsSlot1 = Utils.GenerateArgs(subObjectMesh1, subCount1);
+                subArgs1 = Utils.SetupComputeBufferSafe(1, subArgsSlot1.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+                subArgs1.SetData(subArgsSlot1);
+                subObjectMat1.SetBuffer("_Properties", sub1);
             }
-            if (farArgsBuffer != null)
+            if (subCount2 != 0)
             {
-                farArgsBuffer.Release();
+                subArgsSlot2 = Utils.GenerateArgs(subObjectMesh2, subCount2);
+                subArgs2 = Utils.SetupComputeBufferSafe(1, subArgsSlot2.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+                subArgs2.SetData(subArgsSlot2);
+                subObjectMat2.SetBuffer("_Properties", sub2);
             }
-            //if (meshPropertiesBuffer != null)
-            //{
-            //    meshPropertiesBuffer.Release();
-            //}
-            argsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+            if (subCount3 != 0)
+            {
+                subArgsSlot3 = Utils.GenerateArgs(subObjectMesh3, subCount3);
+                subArgs3 = Utils.SetupComputeBufferSafe(1, subArgsSlot3.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+                subArgs3.SetData(subArgsSlot3);
+                subObjectMat3.SetBuffer("_Properties", sub3);
+            }
+            if (subCount4 != 0)
+            {
+                subArgsSlot4 = Utils.GenerateArgs(subObjectMesh4, subCount4);
+                subArgs4 = Utils.SetupComputeBufferSafe(1, subArgsSlot4.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+                subArgs4.SetData(subArgsSlot4);
+                subObjectMat4.SetBuffer("_Properties", sub4);
+            }
+
+
+            uint[] args = Utils.GenerateArgs(mesh, countCheck);
+            uint[] farArgs = Utils.GenerateArgs(farMesh, farCountCheck);
+            argsBuffer = Utils.SetupComputeBufferSafe(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             argsBuffer.SetData(args);
-            farArgsBuffer = new ComputeBuffer(1, farArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+            farArgsBuffer = Utils.SetupComputeBufferSafe(1, farArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             farArgsBuffer.SetData(farArgs);
-            //meshPropertiesBuffer = new ComputeBuffer(props.Length, ComputeComponent.GrassData.Size());
-            //meshPropertiesBuffer.SetData(props);
-            material.SetBuffer("_Properties", buffer);
-            materialFar.SetBuffer("_Properties", farBuffer);
+
+            material.SetBuffer("_Properties", mainNear);
+            materialFar.SetBuffer("_Properties", mainFar);
+
+
             setup = true;
             if (argsBuffer == null)
             {
@@ -390,60 +525,66 @@ namespace ComputeLoader
 
             if (mesh == null || setup == false || argsBuffer == null)
             {
-                Debug.Log("uh oh spaghettio");
-                Debug.Log(" - " + mesh);
-                Debug.Log(" - " + setup);
-                Debug.Log(" - " + argsBuffer);
+                //Debug.Log("uh oh spaghettio");
+                //Debug.Log(" - " + mesh);
+                //Debug.Log(" - " + setup);
+                //Debug.Log(" - " + argsBuffer);
                 return;
             }
             //InitializeBuffers();
             Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer);
             Graphics.DrawMeshInstancedIndirect(farMesh, 0, materialFar, bounds, farArgsBuffer);
+            if (subCount1 != 0)
+            {
+                Graphics.DrawMeshInstancedIndirect(subObjectMesh1, 0, subObjectMat1, bounds, subArgs1);
+            }
+            if (subCount2 != 0)
+            {
+                Graphics.DrawMeshInstancedIndirect(subObjectMesh2, 0, subObjectMat2, bounds, subArgs2);
+            }
+            if (subCount3 != 0)
+            {
+                Graphics.DrawMeshInstancedIndirect(subObjectMesh3, 0, subObjectMat3, bounds, subArgs3);
+            }
+            if (subCount4 != 0)
+            {
+                Graphics.DrawMeshInstancedIndirect(subObjectMesh4, 0, subObjectMat4, bounds, subArgs4);
+            }
         }
 
         private void OnDestroy()
         {
             Debug.Log("OnDestroy called, forcing GPU finish");
-            Vector3[] forceGPUFinish = new Vector3[countCheck];
-            meshPropertiesBuffer.GetData(forceGPUFinish);
-            Vector3[] forceGPUFinishFar = new Vector3[farCountCheck];
-            farMeshPropertiesBuffer.GetData(forceGPUFinishFar);
-            if (meshPropertiesBuffer != null)
-            {
-                meshPropertiesBuffer.Dispose();
-            }
-            if (farMeshPropertiesBuffer != null)
-            {
-                farMeshPropertiesBuffer.Dispose();
-            }
-            //meshPropertiesBuffer = null;
-
-            if (argsBuffer != null)
-            {
-                argsBuffer.Dispose();
-            }
-            //argsBuffer = null;
+            Utils.ForceGPUFinish(mainNear, typeof(Vector3), countCheck);
+            Utils.SafetyCheckDispose(mainNear, "main scatter close");
+            Utils.SafetyCheckDispose(mainFar, "main scatter far");
+            Utils.SafetyCheckDispose(sub1, "sub object 1");
+            Utils.SafetyCheckDispose(sub2, "sub object 2");
+            Utils.SafetyCheckDispose(sub3, "sub object 3");
+            Utils.SafetyCheckDispose(sub4, "sub object 4");
+            Utils.SafetyCheckDispose(argsBuffer, "main scatter args");
+            Utils.SafetyCheckDispose(farArgsBuffer, "main scatter far args");
+            Utils.SafetyCheckDispose(subArgs1, "sub1 args");
+            Utils.SafetyCheckDispose(subArgs2, "sub2 args");
+            Utils.SafetyCheckDispose(subArgs3, "sub3 args");
+            Utils.SafetyCheckDispose(subArgs4, "sub4 args");
         }
         private void OnDisable()
         {
             Debug.Log("OnDisable called, forcing GPU finish");
-            Vector3[] forceGPUFinish = new Vector3[countCheck];
-            meshPropertiesBuffer.GetData(forceGPUFinish);
-            Vector3[] forceGPUFinishFar = new Vector3[farCountCheck];
-            farMeshPropertiesBuffer.GetData(forceGPUFinishFar);
-            if (meshPropertiesBuffer != null)
-            {
-                meshPropertiesBuffer.Dispose();
-            }
-            if (argsBuffer != null)
-            {
-                argsBuffer.Dispose();
-            }
-            if (farMeshPropertiesBuffer != null)
-            {
-                farMeshPropertiesBuffer.Dispose();
-            }
-            Debug.Log("Post Compute disabled");
+            Utils.ForceGPUFinish(mainNear, typeof(Vector3), countCheck);
+            Utils.SafetyCheckDispose(mainNear, "main scatter close");
+            Utils.SafetyCheckDispose(mainFar, "main scatter far");
+            Utils.SafetyCheckDispose(sub1, "sub object 1");
+            Utils.SafetyCheckDispose(sub2, "sub object 2");
+            Utils.SafetyCheckDispose(sub3, "sub object 3");
+            Utils.SafetyCheckDispose(sub4, "sub object 4");
+            Utils.SafetyCheckDispose(argsBuffer, "main scatter args");
+            Utils.SafetyCheckDispose(farArgsBuffer, "main scatter far args");
+            Utils.SafetyCheckDispose(subArgs1, "sub1 args");
+            Utils.SafetyCheckDispose(subArgs2, "sub2 args");
+            Utils.SafetyCheckDispose(subArgs3, "sub3 args");
+            Utils.SafetyCheckDispose(subArgs4, "sub4 args");
         }
     }
     public class QuadMeshes : MonoBehaviour
@@ -456,8 +597,6 @@ namespace ComputeLoader
         void Start()
         {
             InvokeRepeating("CheckRange", 1f, 1f);
-            //quadMesh = Instantiate(gameObject.GetComponent<MeshFilter>().sharedMesh);
-            //StartCoroutine(CheckRange());
         }
         void CheckRange()
         {
@@ -498,6 +637,7 @@ namespace ComputeLoader
 
                 ComputeComponent comp = newQuad.gameObject.AddComponent<ComputeComponent>();
                 comp.mesh = mesh;
+                comp.subObjectCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].subObjectCount;
                 PostCompute postComp = newQuad.gameObject.AddComponent<PostCompute>();
             }
             else if (distance >= limit && quad != null)

@@ -14,6 +14,7 @@ namespace ParallaxGrass
         public Distribution scatterDistribution;
         public ScatterMaterial scatterMaterial;
         public Wind scatterWind;
+        public int subObjectCount;
     }
     public struct Distribution
     {
@@ -42,6 +43,22 @@ namespace ParallaxGrass
         public float _HeightCutoff;
         public float _HeightFactor;
     }
+    public struct SubObjectProperties
+    {
+        public SubObjectMaterial material;
+        public string model;
+        public float _NoiseScale;
+        public float _NoiseAmount;
+        public float _Density;
+    }
+    public struct SubObjectMaterial
+    {
+        public Shader shader;
+        public string _MainTex;
+        public string _BumpMap;
+        public float _Shininess;
+        public Color _SpecColor;
+    }
     public static class ScatterBodies
     {
         public static Dictionary<string, ScatterBody> scatterBodies = new Dictionary<string, ScatterBody>();
@@ -58,7 +75,9 @@ namespace ParallaxGrass
     public class Scatter
     {
         public string scatterName = "invalidname";
+        public int subObjectCount = 0;
         public Properties properties;
+        public SubObject[] subObjects;
         public Scatter(string name)
         {
             scatterName = name;
@@ -76,11 +95,22 @@ namespace ParallaxGrass
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
+                    comp.scatter.properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
                     comp.updateFPS = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties.scatterDistribution.updateRate;
                     comp.EvaluatePositions();
                 }
             }
+        }
+    }
+    public class SubObject
+    {
+        public string objectName;
+        public Scatter scatter;
+        public SubObjectProperties properties;
+        public SubObject(Scatter parent, string name)
+        {
+            objectName = name;
+            scatter = parent;
         }
     }
     public static class ScatterLog
@@ -141,14 +171,14 @@ namespace ParallaxGrass
                     ConfigNode distributionNode = scatterNode.GetNode("Distribution");
                     ConfigNode materialNode = scatterNode.GetNode("Material");
                     ConfigNode windNode = scatterNode.GetNode("Wind");
-
+                    ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
                     //ConfigNode windNode = globalNodes[i].config.nodes[b].GetNode("Distribution");
 
-                    ParseNewBody(scatterNode, distributionNode, materialNode, windNode, bodyName);
+                    ParseNewBody(scatterNode, distributionNode, materialNode, windNode, subObjectNode, bodyName);
                 }
             }
         }
-        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, string bodyName)
+        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subObjectNode, string bodyName)
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = scatterNode.GetValue("name");
@@ -158,7 +188,7 @@ namespace ParallaxGrass
             props.scatterMaterial = ParseMaterial(materialNode);
             props.scatterWind = ParseWind(windNode);
             scatter.properties = props;
-
+            scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
             body.scatters.Add(scatterName, scatter);
         }
         public Distribution ParseDistribution(ConfigNode distributionNode)
@@ -201,6 +231,42 @@ namespace ParallaxGrass
             material._HeightFactor = ParseFloat(ParseVar(windNode, "_HeightFactor"));
 
             return material;
+        }
+        public SubObject[] ParseSubObjects(Scatter scatter, ConfigNode subObjectsNode)
+        {
+            ConfigNode[] subObjects = subObjectsNode.GetNodes("Object");
+            int count = subObjects.Length;
+            SubObject[] objects = new SubObject[count];
+            scatter.subObjectCount = count;
+            for (int i = 0; i < count; i++)
+            {
+                string name = subObjects[i].GetValue("name");
+                ScatterLog.Log("Parsing SubObject: " + name);
+                SubObject subObject = new SubObject(scatter, name);
+                subObject.properties = ParseSubObjectProperties(subObjects[i]);
+                objects[i] = subObject;
+            }
+            return objects;
+        }
+        public SubObjectProperties ParseSubObjectProperties(ConfigNode subNode)
+        {
+            SubObjectProperties props = new SubObjectProperties();
+            props.model = subNode.GetValue("model");
+            props._NoiseScale = ParseFloat(ParseVar(subNode, "_NoiseScale"));
+            props._NoiseAmount = ParseFloat(ParseVar(subNode, "_NoiseAmount"));
+            props._Density = ParseFloat(ParseVar(subNode, "_Density"));
+            props.material = ParseSubObjectMaterial(subNode.GetNode("Material"));
+            return props;
+        }
+        public SubObjectMaterial ParseSubObjectMaterial(ConfigNode subNode)
+        {
+            SubObjectMaterial mat = new SubObjectMaterial();
+            mat.shader = ScatterShaderHolder.GetShader(ParseVar(subNode, "shader"));    //SHADER VALUES NOT SET HERE
+            mat._MainTex = ParseVar(subNode, "_MainTex");
+            mat._BumpMap = ParseVar(subNode, "_BumpMap");
+            mat._Shininess = ParseFloat(ParseVar(subNode, "_Shininess"));
+            mat._SpecColor = ParseColor(ParseVar(subNode, "_SpecColor"));
+            return mat;
         }
         public string ParseVar(ConfigNode scatter, string valueName)
         {
