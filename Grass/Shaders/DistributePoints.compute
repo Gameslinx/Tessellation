@@ -1,0 +1,161 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel DistributePoints
+#include "noiseSimplex.cginc"
+#include "UnityCG.cginc"
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+
+struct PositionData
+{
+    float3 pos;
+    float4x4 mat;
+};
+struct GrassData
+{
+    float4x4 mat;
+    float4 color;
+};
+
+RWStructuredBuffer<float3> Objects;
+RWStructuredBuffer<PositionData> Positions;
+RWStructuredBuffer<int> Tris;
+
+float4x4 _ObjectToWorld;
+int _PopulationMultiplier = 1;
+float PI = 3.141592654;
+float3 _PlanetOrigin = float3(0, -100000, 0);
+float3 _ThisPos;
+uint _VertCount;
+
+
+float Random01(float2 uv)
+{
+    float rnd = frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453123);
+    return rnd;
+}
+float DegToRad(float deg)
+{
+    return (3.14159 / 180.0f) * deg;
+}
+float4x4 GetTranslationMatrix(float3 pos)
+{
+    return  float4x4(float4(1, 0, 0, pos.x), float4(0, 1, 0, pos.y), float4(0, 0, 1, pos.z), float4(0,0,0,1));//
+}
+float4x4 GetRotationMatrix(float3 anglesDeg)
+{
+    anglesDeg = float3(DegToRad(anglesDeg.x), DegToRad(anglesDeg.y), DegToRad(anglesDeg.z));
+
+    float4x4 rotationX = 
+        float4x4(float4(1, 0, 0, 0),
+        float4(0, cos(anglesDeg.x), -sin(anglesDeg.x), 0),
+        float4(0, sin(anglesDeg.x), cos(anglesDeg.x), 0),
+        float4(0, 0, 0, 1));
+
+    float4x4 rotationY = 
+        float4x4(float4(cos(anglesDeg.y), 0, sin(anglesDeg.y), 0),
+        float4(0, 1, 0, 0),
+        float4(-sin(anglesDeg.y), 0, cos(anglesDeg.y), 0),
+        float4(0, 0, 0, 1));
+
+    float4x4 rotationZ = 
+        float4x4(float4(cos(anglesDeg.z), -sin(anglesDeg.z), 0, 0),
+        float4(sin(anglesDeg.z), cos(anglesDeg.z), 0, 0),
+        float4(0, 0, 1, 0),
+        float4(0, 0, 0, 1));
+
+    return mul(rotationY, mul(rotationX, rotationZ));
+}
+float4x4 GetScaleMatrix(float3 scale)
+{
+    return  float4x4(float4(scale.x, 0, 0, 0),
+            float4(0, scale.y, 0, 0),
+            float4(0, 0, scale.z, 0),
+            float4(0, 0, 0, 1));
+}
+float4x4 TransformToPlanetNormal(float3 a, float3 b)
+{
+    //if (a == float3(0,0,1))//
+    float3 v = (cross(a, b));
+    float v1 = v.x;
+    float v2 = v.y;
+    float v3 = v.z;
+    
+    float c = dot(a, b);
+    float4x4 V = float4x4(
+        float4(0, -v3, v2, 0),
+        float4(v3, 0, -v1, 0),
+        float4(-v2, v1, 0, 0),
+        float4(0, 0, 0, 1)
+        );
+    V = transpose(V);
+    float4x4 VPlusI = float4x4(
+        float4(1, -v3, v2, 0),
+        float4(v3, 1, -v1, 0),
+        float4(-v2, v1, 1, 0),
+        float4(0, 0, 0, 1)
+        );
+    VPlusI = transpose(VPlusI);
+    float4x4 VSquared = mul(V, V);
+    
+    float lastPart = (1 / (1 + c));
+    
+    float4x4 halfMat = VSquared * lastPart;
+    float4x4 full = transpose(halfMat + VPlusI);
+    full[0].w = 0;
+    full[1].w = 0;
+    full[2].w = 0;
+    
+    full[3].w = 1;
+    
+    full[3].x = 0;
+    full[3].y = 0;
+    full[3].z = 0;
+    return full;
+}
+float4x4 GetTRSMatrix(float3 position, float3 rotationAngles, float3 scale)
+{
+
+    float4x4 mat = TransformToPlanetNormal(float3(0,1,0), normalize(position - _PlanetOrigin));
+    return mul(GetTranslationMatrix(position), mul(mat, GetScaleMatrix(float3(1,1,1))));
+    //return GetTranslationMatrix(position);
+}
+[numthreads(32,1,1)]
+void DistributePoints(uint3 id : SV_DispatchThreadID)
+{
+    //if (id.x > _VertCount)
+    //{
+    //    return;
+    //}
+    int index1 = Tris[id.x * 3];
+    int index2 = Tris[id.x * 3 + 1];
+    int index3 = Tris[id.x * 3 + 2];
+
+    float3 pos1 = Objects[index1];
+    float3 pos2 = Objects[index2];
+    float3 pos3 = Objects[index3];
+
+    float3 minYOffset = float3(0, 0, 0);
+    float3 maxYOffset = float3(0, 1, 0);
+
+    //Positions[id.x].pos = 1;
+    for (int i = 0; i < _PopulationMultiplier; i++)
+    {
+        float r1 = Random01(id.xy + 1 + i);
+        float r2 = Random01(float2(id.x, r1) + 1 * 1.23133 + i);
+    
+        float3 pos = ((1 - sqrt(r1)) * pos1) + ((sqrt(r1) * (1 - r2)) * pos2) + ((r2 * sqrt(r1)) * pos3);
+        float3 rot = float3(0, 0, 0);
+        float3 scale = float3(0.1, 0.1, 0.1);
+        //pos = pos + lerp(float3(0,0,0), float3(0,3,0), (snoise(pos) + 1) / 2);
+        pos = mul(_ObjectToWorld, float4(pos.xyz, 1)).xyz - _ThisPos;
+       
+        PositionData newPosition;
+        float4x4 mat = GetTRSMatrix(pos, rot, scale);
+        newPosition.pos = pos;
+        newPosition.mat = mat;
+        Positions[id.x * _PopulationMultiplier + i] = newPosition;      //0, 3, 6, 9... 24
+    }
+    //id is from 1 to 200
+    //We know new population is 200 * popMult = 200
+}
+

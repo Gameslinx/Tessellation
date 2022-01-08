@@ -1,0 +1,259 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel EvaluatePoints
+#include "noiseSimplex.cginc"
+#include "UnityCG.cginc"
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+
+struct PositionData
+{
+    float3 pos;
+    float4x4 mat;
+};
+struct GrassData
+{
+    float4x4 mat;
+    float4 color;
+};
+AppendStructuredBuffer<GrassData> Grass;
+AppendStructuredBuffer<GrassData> FarGrass;
+AppendStructuredBuffer<GrassData> SubObjects1;
+AppendStructuredBuffer<GrassData> SubObjects2;
+AppendStructuredBuffer<GrassData> SubObjects3;
+AppendStructuredBuffer<GrassData> SubObjects4;
+RWStructuredBuffer<PositionData> Positions;
+
+float4x4 objectToWorld;
+float PI = 3.141592654;
+float3 _PlanetOrigin = float3(0, -100000, 0);
+
+float3 grassColorMain = float3(1, 1, 1);
+float3 grassColorSub = float3(1, 1, 1);
+float grassColorNoiseStrength = 1;
+float grassColorNoiseScale = 1;
+
+float grassSizeNoiseStrength = 1;
+float grassSizeNoiseScale = 1;
+float grassSizeNoiseOffset = 0;
+float3 minScale = float3(0.5f, 0.5f, 0.5f);
+float3 maxScale = float3(1, 1, 1);
+float range = 100;
+float3 _CameraPos;
+float3 _ThisPos;
+
+float grassCutoffScale = 0.1;
+
+float subObjectWeight1 = 0;
+float subObjectNoiseScale1 = 0;
+float subObjectSpawnChance1 = 0;
+
+float subObjectWeight2 = 0;
+float subObjectNoiseScale2 = 0;
+float subObjectSpawnChance2 = 0;
+
+float subObjectWeight3 = 0;
+float subObjectNoiseScale3 = 0;
+float subObjectSpawnChance3 = 0;
+
+float subObjectWeight4 = 0;
+float subObjectNoiseScale4 = 0;
+float subObjectSpawnChance4 = 0;
+
+float3 minYOffset = float3(0, 0, 0);
+float3 maxYOffset = float3(0, 100, 0);
+
+float Random01(float2 uv)
+{
+    float rnd = frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453123);
+    return rnd;
+}
+float DegToRad(float deg)
+{
+    return (3.14159 / 180.0f) * deg;
+}
+float4x4 GetTranslationMatrix(float3 pos)
+{
+    return  float4x4(float4(1, 0, 0, pos.x), float4(0, 1, 0, pos.y), float4(0, 0, 1, pos.z), float4(0,0,0,1));//
+}
+float4x4 GetRotationMatrix(float3 anglesDeg)
+{
+    anglesDeg = float3(DegToRad(anglesDeg.x), DegToRad(anglesDeg.y), DegToRad(anglesDeg.z));
+
+    float4x4 rotationX = 
+        float4x4(float4(1, 0, 0, 0),
+        float4(0, cos(anglesDeg.x), -sin(anglesDeg.x), 0),
+        float4(0, sin(anglesDeg.x), cos(anglesDeg.x), 0),
+        float4(0, 0, 0, 1));
+
+    float4x4 rotationY = 
+        float4x4(float4(cos(anglesDeg.y), 0, sin(anglesDeg.y), 0),
+        float4(0, 1, 0, 0),
+        float4(-sin(anglesDeg.y), 0, cos(anglesDeg.y), 0),
+        float4(0, 0, 0, 1));
+
+    float4x4 rotationZ = 
+        float4x4(float4(cos(anglesDeg.z), -sin(anglesDeg.z), 0, 0),
+        float4(sin(anglesDeg.z), cos(anglesDeg.z), 0, 0),
+        float4(0, 0, 1, 0),
+        float4(0, 0, 0, 1));
+
+    return mul(rotationY, mul(rotationX, rotationZ));
+}
+float4x4 GetScaleMatrix(float3 scale)
+{
+    return  float4x4(float4(scale.x, 0, 0, 0),
+            float4(0, scale.y, 0, 0),
+            float4(0, 0, scale.z, 0),
+            float4(0, 0, 0, 1));
+}
+float4x4 TransformToPlanetNormal(float3 a, float3 b)
+{
+    //if (a == float3(0,0,1))//
+    float3 v = (cross(a, b));
+    float v1 = v.x;
+    float v2 = v.y;
+    float v3 = v.z;
+    
+    float c = dot(a, b);
+    float4x4 V = float4x4(
+        float4(0, -v3, v2, 0),
+        float4(v3, 0, -v1, 0),
+        float4(-v2, v1, 0, 0),
+        float4(0, 0, 0, 1)
+        );
+    V = transpose(V);
+    float4x4 VPlusI = float4x4(
+        float4(1, -v3, v2, 0),
+        float4(v3, 1, -v1, 0),
+        float4(-v2, v1, 1, 0),
+        float4(0, 0, 0, 1)
+        );
+    VPlusI = transpose(VPlusI);
+    float4x4 VSquared = mul(V, V);
+    
+    float lastPart = (1 / (1 + c));
+    
+    float4x4 halfMat = VSquared * lastPart;
+    float4x4 full = transpose(halfMat + VPlusI);
+    full[0].w = 0;
+    full[1].w = 0;
+    full[2].w = 0;
+    
+    full[3].w = 1;
+    
+    full[3].x = 0;
+    full[3].y = 0;
+    full[3].z = 0;
+    return full;
+}
+float4x4 GetTRSMatrix(float3 position, float3 rotationAngles, float3 scale)
+{
+
+    float4x4 mat = TransformToPlanetNormal(float3(0,1,0), normalize(position - _PlanetOrigin));
+    return GetTranslationMatrix(position);//mul(GetTranslationMatrix(position), mul(mat, GetScaleMatrix(scale)));
+}
+[numthreads(32,1,1)]
+void EvaluatePoints (uint3 id : SV_DispatchThreadID)
+{
+    
+    
+    float3 worldPos = Positions[id.x].pos;
+    float dist = distance(_CameraPos, worldPos + _ThisPos);
+    float rangePerc = saturate(dist / range);
+    rangePerc = pow(1 / (1 + exp(-7 * (rangePerc))), 100);
+    rangePerc += 0.1 * rangePerc;
+    float r2 = Random01(worldPos.xy * 0.8 + 110);
+    if (rangePerc > 0.9)
+    {
+        return;
+    }
+
+    float4x4 posTRS = Positions[id.x].mat;
+    GrassData newGrass;
+
+
+    
+    //float3 scale = float3(1, 1, 1) * rangePerc;
+
+
+
+    //float3 pos1 = Objects[index1];
+    //float3 pos2 = Objects[index2];
+    //float3 pos3 = Objects[index3];
+    //
+    //float r1 = Random01(id.xy + 1 + i);
+    //float r2 = Random01(float2(id.x, r1) + 1 * 1.23133 + i);
+    //
+    //float3 pos = ((1 - sqrt(r1)) * pos1) + ((sqrt(r1) * (1 - r2)) * pos2) + ((r2 * sqrt(r1)) * pos3);
+    //
+    //
+    float r3 = Random01(worldPos.xz * 0.2 + 110);
+    float r4 = Random01(r3 * 0.2 + 110);
+    //
+    float3 rot = float3(r4, 180 * r3, r4);
+    ////scale = float3(1, (1 + r3) * 1, 1);
+    //pos = mul(objectToWorld, float4(pos.xyz, 1)).xyz - thisPos;
+    //
+    //
+    //GrassData newGrass;
+    //
+    //
+    float mainNoiseScale = 20 * grassColorNoiseScale;
+    float subNoiseScale = 6 * grassColorNoiseScale;
+    float mainSizeNoiseScale = 20 * grassSizeNoiseScale;
+    float subSizeNoiseScale = 6 * grassSizeNoiseScale;
+    ////
+    ////
+    worldPos += _ThisPos;
+    float colorNoise = (snoise(worldPos.xyz / mainNoiseScale) + snoise(worldPos.xyz / subNoiseScale)) / 2;
+    float sizeNoise = (snoise((worldPos.xyz + grassSizeNoiseOffset) / mainSizeNoiseScale) + snoise(worldPos.xyz / subSizeNoiseScale)) + 1;
+    newGrass.color = lerp(float4(grassColorMain, 1), float4(grassColorSub, 1), colorNoise * grassColorNoiseStrength);
+    float sizeNoiseAdjusted = sizeNoise - grassCutoffScale;
+    float3 scale = lerp(minScale, maxScale, sizeNoiseAdjusted * grassSizeNoiseStrength);
+    float4x4 scaleMatrix = GetScaleMatrix(scale);
+    float4x4 rotationMatrix = GetRotationMatrix(rot);
+    newGrass.mat = mul(mul(posTRS, scaleMatrix), rotationMatrix);
+
+
+    float typeNoise = (snoise(worldPos.xyz / subObjectNoiseScale1 - 10000) + 1) / 2;
+    if (typeNoise < subObjectWeight1 * r4 * subObjectSpawnChance1)
+    {
+        newGrass.color = 1;
+        SubObjects1.Append(newGrass);
+        return;
+    }
+    //float typeNoise2 = (snoise(worldPos.xyz / subObjectNoiseScale2 - 9000) + 1) / 2;
+    //if (typeNoise2 < subObjectWeight2 * r4 * subObjectSpawnChance2)
+    //{
+    //    newGrass.color = 1;
+    //    SubObjects2.Append(newGrass);
+    //    return;
+    //}
+    //float typeNoise3 = (snoise(worldPos.xyz / subObjectNoiseScale3 - 8000) + 1) / 2;
+    //if (typeNoise3 < subObjectWeight3 * r4 * subObjectSpawnChance3)
+    //{
+    //    newGrass.color = 1;
+    //    SubObjects3.Append(newGrass);
+    //    return;
+    //}
+    //float typeNoise4 = (snoise(worldPos.xyz / subObjectNoiseScale4 - 7000) + 1) / 2;
+    //if (typeNoise4 < subObjectWeight4 * r4 * subObjectSpawnChance4)
+    //{
+    //    newGrass.color = 1;
+    //    SubObjects4.Append(newGrass);
+    //    return;
+    //}
+
+    if (sizeNoise * r3 > grassCutoffScale && dist / range > 0.25f)
+    {
+        FarGrass.Append(newGrass);
+    }
+    if (sizeNoise * r3 > grassCutoffScale && dist / range < 0.25f)
+    {
+        Grass.Append(newGrass);
+    }
+    
+    
+    //Grass.Append(newGrass);
+}
+
