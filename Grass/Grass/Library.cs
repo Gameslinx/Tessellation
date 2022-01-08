@@ -3,6 +3,7 @@ using Kopernicus.ConfigParser.Attributes;
 using Kopernicus.ConfigParser.BuiltinTypeParsers;
 using Kopernicus.ConfigParser.Enumerations;
 using Kopernicus.Configuration.ModLoader;
+using ParallaxGrass;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,17 +42,16 @@ namespace Grass
     {
         public override void OnQuadBuilt(PQ quad)
         {
-            if (quad != null && HighLogic.LoadedScene == GameScenes.FLIGHT && quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel)
+            if (quad != null && HighLogic.LoadedScene == GameScenes.FLIGHT && quad.subdivision >= FlightGlobals.currentMainBody.pqsController.maxLevel - 4)
             {
                 QuadMeshes sm = quad.gameObject.AddComponent<QuadMeshes>();
+                sm.body = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name];
                 sm.quad = quad;
             }
         }
         public override void OnQuadDestroy(PQ quad)
         {
             QuadMeshes subComp = quad.gameObject.GetComponent<QuadMeshes>();
-            ComputeComponent compComp = quad.gameObject.GetComponent<ComputeComponent>();
-            PostCompute postComp = quad.gameObject.GetComponent<PostCompute>();
             if (subComp != null)
             {
                 Destroy(subComp);

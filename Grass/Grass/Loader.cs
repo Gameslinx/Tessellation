@@ -14,6 +14,7 @@ namespace ParallaxGrass
         public Distribution scatterDistribution;
         public ScatterMaterial scatterMaterial;
         public Wind scatterWind;
+        public SubdivisionProperties subdivisionSettings;
         public int subObjectCount;
     }
     public struct Distribution
@@ -30,6 +31,12 @@ namespace ParallaxGrass
     }
     public struct ScatterMaterial
     {
+        public Shader shader;
+        public string _MainTex;
+        public string _BumpMap;
+        public float _Cutoff;
+        public float _Shininess;
+        public Color _SpecColor;
         public Color _MainColor;
         public Color _SubColor;
         public float _ColorNoiseStrength;
@@ -42,6 +49,17 @@ namespace ParallaxGrass
         public float _WaveAmp;
         public float _HeightCutoff;
         public float _HeightFactor;
+    }
+    public struct SubdivisionProperties
+    {
+        public SubdivisionMode mode;
+        public float range;
+        public int level;
+    }
+    public enum SubdivisionMode
+    {
+        NearestQuads,
+        FixedRange
     }
     public struct SubObjectProperties
     {
@@ -75,6 +93,8 @@ namespace ParallaxGrass
     public class Scatter
     {
         public string scatterName = "invalidname";
+        public string model;
+        public string modelLowLOD;
         public int subObjectCount = 0;
         public Properties properties;
         public SubObject[] subObjects;
@@ -95,8 +115,8 @@ namespace ParallaxGrass
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.scatter.properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
-                    comp.updateFPS = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties.scatterDistribution.updateRate;
+                    comp.scatter.properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties;
+                    comp.updateFPS = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution.updateRate;
                     comp.EvaluatePositions();
                 }
             }
@@ -171,22 +191,26 @@ namespace ParallaxGrass
                     ConfigNode distributionNode = scatterNode.GetNode("Distribution");
                     ConfigNode materialNode = scatterNode.GetNode("Material");
                     ConfigNode windNode = scatterNode.GetNode("Wind");
+                    ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
                     ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
                     //ConfigNode windNode = globalNodes[i].config.nodes[b].GetNode("Distribution");
 
-                    ParseNewBody(scatterNode, distributionNode, materialNode, windNode, subObjectNode, bodyName);
+                    ParseNewBody(scatterNode, distributionNode, materialNode, windNode, subdivisionSettingsNode, subObjectNode, bodyName);
                 }
             }
         }
-        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subObjectNode, string bodyName)
+        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = scatterNode.GetValue("name");
             Scatter scatter = new Scatter(scatterName);
             Properties props = new Properties();
+            scatter.model = scatterNode.GetValue("model");
+            scatter.modelLowLOD = scatterNode.GetValue("modelLowLOD");
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterMaterial = ParseMaterial(materialNode);
             props.scatterWind = ParseWind(windNode);
+            props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
             scatter.properties = props;
             scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
             body.scatters.Add(scatterName, scatter);
@@ -211,11 +235,19 @@ namespace ParallaxGrass
         {
             ScatterMaterial material = new ScatterMaterial();
 
+            material.shader = ScatterShaderHolder.GetShader(ParseVar(materialNode, "shader"));
+
             material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor"));
             material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor"));
 
             material._ColorNoiseScale = ParseFloat(ParseVar(materialNode, "_ColorNoiseScale"));
             material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength"));
+
+            material._MainTex = ParseVar(materialNode, "_MainTex");
+            material._BumpMap = ParseVar(materialNode, "_BumpMap");
+            material._Shininess = ParseFloat(ParseVar(materialNode, "_Shininess"));
+            material._SpecColor = ParseColor(ParseVar(materialNode, "_SpecColor"));
+            material._Cutoff = ParseFloat(ParseVar(materialNode, "_Cutoff"));
 
             return material;
         }
@@ -232,8 +264,35 @@ namespace ParallaxGrass
 
             return material;
         }
+        public SubdivisionProperties ParseSubdivisionSettings(ConfigNode subdivNode)
+        {
+            SubdivisionProperties props = new SubdivisionProperties();
+
+            string mode = subdivNode.GetValue("subdivisionRangeMode");
+            if (mode == "NearestQuads")
+            {
+                props.mode = SubdivisionMode.NearestQuads;
+            }
+            else if (mode == "FixedRange")
+            {
+                props.mode = SubdivisionMode.FixedRange;
+            }
+            else
+            {
+                props.mode = SubdivisionMode.FixedRange;
+            }
+
+            props.level = (int)ParseFloat(ParseVar(subdivNode, "subdivisionLevel"));
+            props.range = ParseFloat(ParseVar(subdivNode, "subdivisionRange"));
+
+            return props;
+        }
         public SubObject[] ParseSubObjects(Scatter scatter, ConfigNode subObjectsNode)
         {
+            if (subObjectsNode == null)
+            {
+                return new SubObject[0];
+            }
             ConfigNode[] subObjects = subObjectsNode.GetNodes("Object");
             int count = subObjects.Length;
             SubObject[] objects = new SubObject[count];
@@ -275,6 +334,7 @@ namespace ParallaxGrass
             if (!succeeded)
             {
                 ScatterLog.Log("[Exception] Unable to get the value of " + valueName);
+                return null;
             }
             else
             {
@@ -290,10 +350,19 @@ namespace ParallaxGrass
         }
         public float ParseFloat(string data)
         {
+            if (data == null)
+            {
+                ScatterLog.Log("Null value, returning 0");
+                return 0;
+            }
             return float.Parse(data);
         }
         public Color ParseColor(string data)
         {
+            if (data == null)
+            {
+                ScatterLog.Log("Null value, returning 0");
+            }
             string cleanString = data.Replace(" ", string.Empty);
             string[] components = cleanString.Split(',');
             return new Color(float.Parse(components[0]), float.Parse(components[1]), float.Parse(components[2]));

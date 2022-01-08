@@ -44,7 +44,7 @@ namespace ScatterConfiguratorUtils
             }
             if (buffer == null)
             {
-                ScatterLog.Log("Exception performing release safety check on " + nameThisBufferSomethingUseful + " because it is null!");
+                //ScatterLog.Log("Exception performing release safety check on " + nameThisBufferSomethingUseful + " because it is null!");
             }
         }
         public static void SafetyCheckDispose(ComputeBuffer buffer, string nameThisBufferSomethingUseful)
@@ -55,13 +55,14 @@ namespace ScatterConfiguratorUtils
             }
             if (buffer == null)
             {
-                ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
+                //ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
             }
         }
         public static uint[] GenerateArgs(Mesh mesh, int count)
         {
             if (count == 0)
             {
+                Debug.Log("Exception: Count is 0");
                 return null;
             }
             uint[] args = new uint[5];

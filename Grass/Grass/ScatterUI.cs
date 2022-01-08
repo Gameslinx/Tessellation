@@ -34,7 +34,7 @@ namespace ScatterConfiguratorUtils
             CelestialBody currentBody = FlightGlobals.currentMainBody;
             lastBodyName = currentBody.name;
 
-            BodyScatter = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters["Grass"] : null;
+            BodyScatter = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters["Trees"] : null;
 
             if (firstRun)
             {
@@ -121,7 +121,7 @@ namespace ScatterConfiguratorUtils
 
             BodyScatter.properties.scatterDistribution.updateRate = (int)TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution.updateRate)], BodyScatter.properties.scatterDistribution.updateRate);
 
-            ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"] = BodyScatter;
+            ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"] = BodyScatter;
 
             GUILayout.EndVertical();
 
