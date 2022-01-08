@@ -1,3 +1,7 @@
-
-Grass/Grass/bin/Debug/Assembly-CSharp-firstpass.dll
-Grass/Grass/bin/Debug/Assembly-CSharp.dll
+Grass/.vs/
+Grass/Grass/*.suo
+Grass/Grass/*.user
+Grass/Grass/_ReSharper.*
+Grass/Grass/bin/
+Grass/Grass/obj/
+Grass/Grass/packages/
