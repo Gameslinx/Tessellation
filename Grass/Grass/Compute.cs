@@ -9,6 +9,7 @@ using System.Collections;
 using Kopernicus.Configuration.ModLoader;
 using Grass;
 using ScatterConfiguratorUtils;
+using System;
 
 namespace ComputeLoader
 {
@@ -26,6 +27,7 @@ namespace ComputeLoader
 
         public ComputeBuffer grassBuffer;
         public ComputeBuffer farGrassBuffer;    //For the grass further away from the camera - Much lower LOD
+        public ComputeBuffer furtherGrassBuffer;
         public ComputeBuffer subObjectSlot1;
         public ComputeBuffer subObjectSlot2;
         public ComputeBuffer subObjectSlot3;
@@ -43,7 +45,7 @@ namespace ComputeLoader
 
         private int evaluatePoints;
 
-        public float updateFPS = 0.05f; //1.0f;
+        public float updateFPS; //1.0f;
 
         public int subObjectCount = 0;
         public int quadSubdivisionDifference = 1;  //Using this, increase population as quad subdivision is reduced to balance out
@@ -91,7 +93,6 @@ namespace ComputeLoader
             pc = gameObject.GetComponent<PostCompute>();
             distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributePoints"));
             evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
-            Debug.Log("Mesh count: " + vertCount + " / " + triCount);
             GeneratePositions();
             InitializeAllBuffers();
             EvaluatePositions();
@@ -101,9 +102,11 @@ namespace ComputeLoader
         {
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
 
-            countBuffer = Utils.SetupComputeBufferSafe(6, sizeof(int), ComputeBufferType.IndirectArguments);
+            countBuffer = Utils.SetupComputeBufferSafe(7, sizeof(int), ComputeBufferType.IndirectArguments);
             grassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
             farGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
+            furtherGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
+
 
             subObjectSlot1 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
             subObjectSlot2 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
@@ -113,25 +116,62 @@ namespace ComputeLoader
             evaluate.SetBuffer(evaluatePoints, "Grass", grassBuffer);
             evaluate.SetBuffer(evaluatePoints, "Positions", grassPositionBuffer);
             evaluate.SetBuffer(evaluatePoints, "FarGrass", farGrassBuffer);
+            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", furtherGrassBuffer);
             evaluate.SetBuffer(evaluatePoints, "SubObjects1", subObjectSlot1);
             evaluate.SetBuffer(evaluatePoints, "SubObjects2", subObjectSlot2);
             evaluate.SetBuffer(evaluatePoints, "SubObjects3", subObjectSlot3);
             evaluate.SetBuffer(evaluatePoints, "SubObjects4", subObjectSlot4);
         }
+        Vector3d previousTerrainOffset = Vector3d.zero;
         void Update()
         {
-            if (ScatterLibrary.requiresUpdate)
+            //if (FloatingOrigin.TerrainShaderOffset != previousTerrainOffset)
+            //{
+            //    EvaluatePositions();
+            //    timeSinceLastUpdate = 0;
+            //    previousTerrainOffset = FloatingOrigin.TerrainShaderOffset;
+            //}
+
+            bool isTime = CheckTheTime(scatter.updateFPS);
+            if (isTime && FlightGlobals.ActiveVessel.speed > 0.05f)
             {
+                
                 EvaluatePositions();
-                timeSinceLastUpdate = 0;
             }
-            bool isTime = CheckTheTime(updateFPS);
-            if (isTime)
+            
+        }
+        float timeSinceLastSoftUpdate = 0;
+        void FixedUpdate()
+        {
+            
+            if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
             {
-                EvaluatePositions();
+                float targetDeltaTime = 1.0f / softUpdateRate;
+                float deltaTime = Time.deltaTime;
+                if (timeSinceLastSoftUpdate >= targetDeltaTime)
+                {
+                    timeSinceLastSoftUpdate = 0;
+                    bool isTimeForSoft = CheckTheSoftTime();
+                    if (isTimeForSoft && FlightGlobals.ActiveVessel.speed < 100f)
+                    {
+
+                        EvaluatePositions();
+
+                    }
+                }
+                else
+                {
+                    timeSinceLastSoftUpdate += Time.deltaTime;
+                }
+                
+                
+
             }
         }
+        float softUpdateRate = 1;
         float timeSinceLastUpdate = 0;
+        float distanceSinceLastUpdate = 0;
+        Vector3 lastPos = Vector3.zero;
         public bool CheckTheTime(float TargetFPS) //Grass framerate
         {
             float targetDeltaTime = 1.0f / TargetFPS;
@@ -152,6 +192,24 @@ namespace ComputeLoader
                 timeSinceLastUpdate += Time.deltaTime;
                 return false;
             }
+        }
+        public bool CheckTheSoftTime() //Grass framerate
+        {
+            if (Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, transform.position) > scatter.properties.scatterDistribution._LODRange + (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel))) )
+            {
+                return false;
+            }
+            Vector3 thisPos = LatLon.GetRelSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.ActiveVessel.transform.position);
+            float distance = Vector3.Distance(thisPos, lastPos);
+            lastPos = thisPos;
+            distanceSinceLastUpdate += distance;
+            //Debug.Log(distanceSinceLastUpdate);
+            if (distanceSinceLastUpdate > scatter.properties.scatterDistribution._LODRange)
+            {
+                distanceSinceLastUpdate = 0;
+                return true;
+            }
+            else { return false; }
         }
         void GeneratePositions()
         {
@@ -178,7 +236,7 @@ namespace ComputeLoader
             distribute.SetBuffer(distributeKernel, "Objects", positionBuffer);
             distribute.SetBuffer(distributeKernel, "Tris", triangleBuffer);
             distribute.SetBuffer(distributeKernel, "Positions", grassPositionBuffer);
-
+            
             distribute.Dispatch(distributeKernel, Mathf.CeilToInt(((float)tris.Length / 3f) / 32f), 1, 1);
 
             //EvaluatePositions();
@@ -189,6 +247,7 @@ namespace ComputeLoader
             //ReleaseEvaluationBuffers();
             grassBuffer.SetCounterValue(0);
             farGrassBuffer.SetCounterValue(0);
+            furtherGrassBuffer.SetCounterValue(0);
             subObjectSlot1.SetCounterValue(0);
             subObjectSlot2.SetCounterValue(0);
             subObjectSlot3.SetCounterValue(0);
@@ -205,7 +264,6 @@ namespace ComputeLoader
             evaluate.SetFloat("grassSizeNoiseStrength", scatter.properties.scatterDistribution._SizeNoiseStrength);
             evaluate.SetFloat("grassSizeNoiseOffset", scatter.properties.scatterDistribution._SizeNoiseOffset.x);
             evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
-            evaluate.SetVector("_ThisPos", transform.position - ScatterLibrary.floatingOriginOffset);
             evaluate.SetVector("_CameraPos", FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
 
             evaluate.SetFloat("subObjectWeight1", GetSubObjectProperty("subObjectWeight", 0));
@@ -224,17 +282,23 @@ namespace ComputeLoader
             evaluate.SetFloat("subObjectNoiseScale4", GetSubObjectProperty("subObjectNoiseScale", 3));
             evaluate.SetFloat("subObjectSpawnChance4", GetSubObjectProperty("subObjectSpawnChance", 3));
 
+            evaluate.SetFloat("_LODPerc", scatter.properties.scatterDistribution._LODRange / scatter.properties.scatterDistribution._Range);    //At what range does the LOD change to the low one?
+            evaluate.SetFloat("_LOD2Perc", scatter.properties.scatterDistribution._LOD2Range / scatter.properties.scatterDistribution._Range);
+
+            evaluate.SetVector("_ShaderOffset", -(Vector3)FloatingOrigin.TerrainShaderOffset);
+            evaluate.SetVector("_ThisPos", transform.position);
+
             evaluate.Dispatch(evaluatePoints, ((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) / 32, 1, 1);
             ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
             ComputeBuffer.CopyCount(farGrassBuffer, countBuffer, 4);
-            ComputeBuffer.CopyCount(subObjectSlot1, countBuffer, 8);
-            ComputeBuffer.CopyCount(subObjectSlot2, countBuffer, 12);
-            ComputeBuffer.CopyCount(subObjectSlot3, countBuffer, 16);
-            ComputeBuffer.CopyCount(subObjectSlot4, countBuffer, 20);
-            int[] count = new int[] { 0, 0, 0, 0, 0, 0 };
+            ComputeBuffer.CopyCount(furtherGrassBuffer, countBuffer, 8);
+            ComputeBuffer.CopyCount(subObjectSlot1, countBuffer, 12);
+            ComputeBuffer.CopyCount(subObjectSlot2, countBuffer, 16);
+            ComputeBuffer.CopyCount(subObjectSlot3, countBuffer, 20);
+            ComputeBuffer.CopyCount(subObjectSlot4, countBuffer, 24);
+            int[] count = new int[] { 0, 0, 0, 0, 0, 0, 0 };
             countBuffer.GetData(count);
-            Debug.Log("Rendering " + count[0] + " objects and " + count[1] + " low LOD objects");
-            pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
+            pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
         }
         public float GetSubObjectProperty(string property, int index)
         {
@@ -285,27 +349,46 @@ namespace ComputeLoader
         }
         void OnDestroy()
         {
-            positionBuffer.Dispose();
-            triangleBuffer.Dispose();
-            grassPositionBuffer.Dispose();
-            countBuffer.Dispose();
-            grassBuffer.Dispose();
+
+            Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
+            Utils.DestroyComputeBufferSafe(positionBuffer);
+            Utils.DestroyComputeBufferSafe(triangleBuffer);
+            Utils.DestroyComputeBufferSafe(grassPositionBuffer);
+            Utils.DestroyComputeBufferSafe(countBuffer);
+            Utils.DestroyComputeBufferSafe(grassBuffer);
+            Utils.DestroyComputeBufferSafe(farGrassBuffer);
+            Utils.DestroyComputeBufferSafe(furtherGrassBuffer);
+            Utils.DestroyComputeBufferSafe(subObjectSlot1);
+            Utils.DestroyComputeBufferSafe(subObjectSlot2);
+            Utils.DestroyComputeBufferSafe(subObjectSlot3);
+            Utils.DestroyComputeBufferSafe(subObjectSlot4);
             Destroy(pc);
+            Debug.Log("Compute component DESTROYED");
         }
         void OnDisable()
         {
-            positionBuffer.Release();
-            triangleBuffer.Release();
-            grassPositionBuffer.Release();
-            countBuffer.Release();
-            grassBuffer.Release();
-            Debug.Log("Compute Component disabled");
+            Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
+            Utils.DestroyComputeBufferSafe(positionBuffer);
+            Utils.DestroyComputeBufferSafe(triangleBuffer);
+            Utils.DestroyComputeBufferSafe(grassPositionBuffer);
+            Utils.DestroyComputeBufferSafe(countBuffer);
+            Utils.DestroyComputeBufferSafe(grassBuffer);
+            Utils.DestroyComputeBufferSafe(farGrassBuffer);
+            Utils.DestroyComputeBufferSafe(furtherGrassBuffer);
+            Utils.DestroyComputeBufferSafe(subObjectSlot1);
+            Utils.DestroyComputeBufferSafe(subObjectSlot2);
+            Utils.DestroyComputeBufferSafe(subObjectSlot3);
+            Utils.DestroyComputeBufferSafe(subObjectSlot4);
+            Destroy(pc);
+            Debug.Log("Compute component DISABLED");
         }
     }
 
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
     public class ShadowFixer : MonoBehaviour
     {
+        GameObject go;
+        GameObject sphere;
         public void Start()
         {
             QualitySettings.shadowDistance = 10000;
@@ -315,9 +398,41 @@ namespace ComputeLoader
             QualitySettings.shadowCascade4Split = new Vector3(0.002f, 0.022f, 0.178f);
             Camera.main.nearClipPlane = 0.1f;
             Camera.current.nearClipPlane = 0.1f;
+           
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+            {
+                //go = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                //go.transform.localScale = new Vector3(250, 250, 250);
+                //go.GetComponent<MeshRenderer>().material = new Material(ScatterShaderHolder.GetShader("Custom/NoisePosTest"));
+                //
+                //sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                //sphere.transform.localScale = new Vector3(25, 25, 25);
+                //sphere.GetComponent<MeshRenderer>().material = new Material(ScatterShaderHolder.GetShader("Custom/NoisePosTest"));
+                //
+                //
+                //Destroy(go.GetComponent<Collider>());
+                //Destroy(sphere.GetComponent<Collider>());
+            }
+            
+
         }
         void Update()
         {
+            
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+            {
+                //Vector3 a = LatLon.GetRelSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.ActiveVessel.transform.position);
+                //Vector3 b = LatLon.GetWorldSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.currentMainBody.Radius, LatLon.GetLatitude(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.ActiveVessel.transform.position), LatLon.GetLongitude(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.ActiveVessel.transform.position), FlightGlobals.ActiveVessel.altitude);
+                //Debug.Log("Relative planet position is " + a.ToString("F3"));
+                //Debug.Log(" - - - - World Surface planet position is " + a.ToString("F3"));
+                //go.transform.position = FlightGlobals.ActiveVessel.transform.position + Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                //go.GetComponent<MeshRenderer>().material.SetVector("_ShaderOffset", -(Vector3)FloatingOrigin.TerrainShaderOffset);
+                //go.transform.up = Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                //
+                //sphere.transform.position = -(Vector3)FloatingOrigin.TerrainShaderOffset;
+            }
+            
+
             QualitySettings.shadowDistance = 10000;
             QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
             QualitySettings.shadowProjection = ShadowProjection.StableFit;
@@ -332,6 +447,7 @@ namespace ComputeLoader
 
         public Material material;
         public Material materialFar;
+        public Material materialFurther;
         public Material subObjectMat1;
         public Material subObjectMat2;
         public Material subObjectMat3;
@@ -339,6 +455,7 @@ namespace ComputeLoader
 
         public Mesh mesh;
         public Mesh farMesh;
+        public Mesh furtherMesh;
         public Mesh subObjectMesh1;
         public Mesh subObjectMesh2;
         public Mesh subObjectMesh3;
@@ -346,6 +463,7 @@ namespace ComputeLoader
 
         private ComputeBuffer argsBuffer;
         private ComputeBuffer farArgsBuffer;
+        private ComputeBuffer furtherArgsBuffer;
         private ComputeBuffer subArgs1;
         private ComputeBuffer subArgs2;
         private ComputeBuffer subArgs3;
@@ -354,6 +472,7 @@ namespace ComputeLoader
 
         private ComputeBuffer mainNear;
         private ComputeBuffer mainFar;
+        private ComputeBuffer mainFurther;
         private ComputeBuffer sub1;
         private ComputeBuffer sub2;
         private ComputeBuffer sub3;
@@ -364,10 +483,13 @@ namespace ComputeLoader
         bool setupInitial = false;
         int countCheck;
         int farCountCheck;
+        int furtherCountCheck;
         int subCount1;
         int subCount2;
         int subCount3;
         int subCount4;
+
+        float subdivisionRange = 0;
 
         public Properties scatterProps;
         
@@ -377,11 +499,12 @@ namespace ComputeLoader
             {
                 GameObject go = GameDatabase.Instance.GetModel(scatter.model);
                 Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
-                Debug.Log("Mesh: " + mesh + " with vertex count: " + mesh.vertexCount);
                
                 this.mesh = mesh;
                 go = GameDatabase.Instance.GetModel(scatter.modelLowLOD);
                 farMesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
+                go = GameDatabase.Instance.GetModel(scatter.modelLowLOD2);
+                furtherMesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
                 material = new Material(scatter.properties.scatterMaterial.shader);
                 subObjectMesh1 = Utils.GetSubObjectMesh(scatter, 0);
                 subObjectMesh2 = Utils.GetSubObjectMesh(scatter, 1);
@@ -413,6 +536,7 @@ namespace ComputeLoader
                 material.SetFloat("_Cutoff", scatterProps.scatterMaterial._Cutoff);
 
                 materialFar = Instantiate(material);
+                materialFurther = Instantiate(material);
                 subObjectMat1 = Utils.GetSubObjectMaterial(scatter, 0);
                 subObjectMat2 = Utils.GetSubObjectMaterial(scatter, 1);
                 subObjectMat3 = Utils.GetSubObjectMaterial(scatter, 2);
@@ -420,46 +544,35 @@ namespace ComputeLoader
                 //materialFar.SetFloat("_Cutoff", 0.5f);
                 //materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scatters/grassuv5"));
 
+                subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
                 setupInitial = true;
             }
-            int subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
+            
             bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange + 1));
             countCheck = counts[0];
             farCountCheck = counts[1];
-            subCount1 = counts[2];
-            subCount2 = counts[3];
-            subCount3 = counts[4];
-            subCount4 = counts[5];
+            furtherCountCheck = counts[2];
+            subCount1 = counts[3];
+            subCount2 = counts[4];
+            subCount3 = counts[5];
+            subCount4 = counts[6];
 
             mainNear = buffers[0];
             mainFar = buffers[1];
-            sub1 = buffers[2];
-            sub2 = buffers[3];
-            sub3 = buffers[4];
-            sub4 = buffers[5];
-
-            Debug.Log("Sub1 count: " + subCount1);
-            Debug.Log("Sub2 count: " + subCount2);
-            Debug.Log("Sub3 count: " + subCount3);
-            Debug.Log("Sub4 count: " + subCount4);
+            mainFurther = buffers[2];
+            sub1 = buffers[3];
+            sub2 = buffers[4];
+            sub3 = buffers[5];
+            sub4 = buffers[6];
 
             InitializeBuffers();
         }
 
         private void InitializeBuffers()
         {
-            if (mesh == null)
-            {
-                Debug.Log("Mesh null");
-                return;
-            }
-            if (countCheck == 0)
-            {
-                Debug.Log("Count is 0");
-                return;
-            }
             Utils.SafetyCheckRelease(argsBuffer, "main args");
             Utils.SafetyCheckRelease(farArgsBuffer, "main args far");
+            Utils.SafetyCheckRelease(furtherArgsBuffer, "main args far");
             Utils.SafetyCheckRelease(subArgs1, "sub args 1");
             Utils.SafetyCheckRelease(subArgs2, "sub args 2");
             Utils.SafetyCheckRelease(subArgs3, "sub args 3");
@@ -471,7 +584,7 @@ namespace ComputeLoader
             uint[] subArgsSlot4 = new uint[0];
             uint[] args = new uint[0];// Utils.GenerateArgs(mesh, countCheck);
             uint[] farArgs = new uint[0];//Utils.GenerateArgs(farMesh, farCountCheck);
-            Debug.Log("Checking subcounts");
+            uint[] furtherArgs = new uint[0];
             if (subCount1 != 0)
             {
                 subArgsSlot1 = Utils.GenerateArgs(subObjectMesh1, subCount1);
@@ -514,14 +627,15 @@ namespace ComputeLoader
                 farArgsBuffer.SetData(farArgs);
                 materialFar.SetBuffer("_Properties", mainFar);
             }
-            Debug.Log("Args creation complete");
-
+            if (furtherCountCheck != 0)
+            {
+                furtherArgs = Utils.GenerateArgs(mesh, furtherCountCheck);
+                furtherArgsBuffer = Utils.SetupComputeBufferSafe(1, furtherArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
+                furtherArgsBuffer.SetData(furtherArgs);
+                materialFurther.SetBuffer("_Properties", mainFurther);
+            }
 
             setup = true;
-            if (argsBuffer == null)
-            {
-                return;
-            }
         }
 
         private void Start()
@@ -530,16 +644,8 @@ namespace ComputeLoader
         }
         private void Update()
         {
-
-            if (mesh == null || setup == false || argsBuffer == null)
-            {
-                //Debug.Log("uh oh spaghettio");
-                //Debug.Log(" - " + mesh);
-                //Debug.Log(" - " + setup);
-                //Debug.Log(" - " + argsBuffer);
-                return;
-            }
-            //InitializeBuffers();
+            //UpdateMaterialOffsets();
+            UpdateBounds();
             if (countCheck != 0)
             {
                 Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer);
@@ -547,6 +653,10 @@ namespace ComputeLoader
             if (farCountCheck != 0)
             {
                 Graphics.DrawMeshInstancedIndirect(farMesh, 0, materialFar, bounds, farArgsBuffer);
+            }
+            if (furtherCountCheck != 0)
+            {
+                Graphics.DrawMeshInstancedIndirect(furtherMesh, 0, materialFurther, bounds, furtherArgsBuffer);
             }
             if (subCount1 != 0)
             {
@@ -565,40 +675,82 @@ namespace ComputeLoader
                 Graphics.DrawMeshInstancedIndirect(subObjectMesh4, 0, subObjectMat4, bounds, subArgs4);
             }
         }
-
+        private void UpdateMaterialOffsets()
+        {
+            Vector3 floatingOffset = -FloatingOrigin.TerrainShaderOffset;//Vector3.zero;
+            if (material != null)
+            {
+                //Debug.Log("Updated near offset: " + floatingOffset.ToString("F3"));
+                material.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (materialFar != null)
+            {
+                materialFar.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (materialFurther != null)
+            {
+                materialFurther.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (subObjectMat1 != null)
+            {
+                subObjectMat1.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (subObjectMat2 != null)
+            {
+                subObjectMat2.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (subObjectMat3 != null)
+            {
+                subObjectMat3.SetVector("_ShaderOffset", floatingOffset);
+            }
+            if (subObjectMat4 != null)
+            {
+                subObjectMat4.SetVector("_ShaderOffset", floatingOffset);
+            }
+        }
+        private void UpdateBounds()
+        {
+            bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange + 1));
+        }
         private void OnDestroy()
         {
-            Debug.Log("OnDestroy called, forcing GPU finish");
-            Utils.ForceGPUFinish(mainNear, typeof(Vector3), countCheck);
-            Utils.SafetyCheckDispose(mainNear, "main scatter close");
-            Utils.SafetyCheckDispose(mainFar, "main scatter far");
-            Utils.SafetyCheckDispose(sub1, "sub object 1");
-            Utils.SafetyCheckDispose(sub2, "sub object 2");
-            Utils.SafetyCheckDispose(sub3, "sub object 3");
-            Utils.SafetyCheckDispose(sub4, "sub object 4");
-            Utils.SafetyCheckDispose(argsBuffer, "main scatter args");
-            Utils.SafetyCheckDispose(farArgsBuffer, "main scatter far args");
-            Utils.SafetyCheckDispose(subArgs1, "sub1 args");
-            Utils.SafetyCheckDispose(subArgs2, "sub2 args");
-            Utils.SafetyCheckDispose(subArgs3, "sub3 args");
-            Utils.SafetyCheckDispose(subArgs4, "sub4 args");
+            Debug.Log("PostCompute DESTROYED");
+            Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
+
+            Utils.DestroyComputeBufferSafe(mainNear);
+            Utils.DestroyComputeBufferSafe(mainFar);
+            Utils.DestroyComputeBufferSafe(mainFurther);
+            Utils.DestroyComputeBufferSafe(sub1);
+            Utils.DestroyComputeBufferSafe(sub2);
+            Utils.DestroyComputeBufferSafe(sub3);
+            Utils.DestroyComputeBufferSafe(sub4);
+            Utils.DestroyComputeBufferSafe(argsBuffer);
+            Utils.DestroyComputeBufferSafe(farArgsBuffer);
+            Utils.DestroyComputeBufferSafe(furtherArgsBuffer);
+            Utils.DestroyComputeBufferSafe(subArgs1);
+            Utils.DestroyComputeBufferSafe(subArgs2);
+            Utils.DestroyComputeBufferSafe(subArgs3);
+            Utils.DestroyComputeBufferSafe(subArgs4);
         }
         private void OnDisable()
         {
-            Debug.Log("OnDisable called, forcing GPU finish");
-            Utils.ForceGPUFinish(mainNear, typeof(Vector3), countCheck);
-            Utils.SafetyCheckDispose(mainNear, "main scatter close");
-            Utils.SafetyCheckDispose(mainFar, "main scatter far");
-            Utils.SafetyCheckDispose(sub1, "sub object 1");
-            Utils.SafetyCheckDispose(sub2, "sub object 2");
-            Utils.SafetyCheckDispose(sub3, "sub object 3");
-            Utils.SafetyCheckDispose(sub4, "sub object 4");
-            Utils.SafetyCheckDispose(argsBuffer, "main scatter args");
-            Utils.SafetyCheckDispose(farArgsBuffer, "main scatter far args");
-            Utils.SafetyCheckDispose(subArgs1, "sub1 args");
-            Utils.SafetyCheckDispose(subArgs2, "sub2 args");
-            Utils.SafetyCheckDispose(subArgs3, "sub3 args");
-            Utils.SafetyCheckDispose(subArgs4, "sub4 args");
+            Debug.Log("PostCompute DISABLED");
+            Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
+
+            Utils.DestroyComputeBufferSafe(mainNear);
+            Utils.DestroyComputeBufferSafe(mainFar);
+            Utils.DestroyComputeBufferSafe(mainFurther);
+            Utils.DestroyComputeBufferSafe(sub1);
+            Utils.DestroyComputeBufferSafe(sub2);
+            Utils.DestroyComputeBufferSafe(sub3);
+            Utils.DestroyComputeBufferSafe(sub4);
+            Utils.DestroyComputeBufferSafe(argsBuffer);
+            Utils.DestroyComputeBufferSafe(farArgsBuffer);
+            Utils.DestroyComputeBufferSafe(furtherArgsBuffer);
+            Utils.DestroyComputeBufferSafe(subArgs1);
+            Utils.DestroyComputeBufferSafe(subArgs2);
+            Utils.DestroyComputeBufferSafe(subArgs3);
+            Utils.DestroyComputeBufferSafe(subArgs4);
         }
     }
     public class QuadMeshes : MonoBehaviour
@@ -609,6 +761,7 @@ namespace ComputeLoader
         Material transparent = new Material(Shader.Find("Unlit/Transparent"));
         GameObject newQuad;
         public ScatterBody body;
+        bool wasEverSubdivided = false;
         void Start()
         {
             InvokeRepeating("CheckRange", 1f, 1f);
@@ -648,13 +801,13 @@ namespace ComputeLoader
                 var newQuadMeshFilter = newQuad.AddComponent<MeshFilter>();
                 newQuadMeshFilter.sharedMesh = mesh;
                 var newQuadMeshRenderer = newQuad.AddComponent<MeshRenderer>();
-                newQuadMeshRenderer.sharedMaterial = oldMaterial;//new Material(ScatterShaderHolder.GetShader("Custom/Wireframe"));//quadMeshRenderer.sharedMaterial;
+                newQuadMeshRenderer.sharedMaterial = Instantiate(oldMaterial);//new Material(ScatterShaderHolder.GetShader("Custom/Wireframe"));//quadMeshRenderer.sharedMaterial;
                 newQuadMeshRenderer.enabled = true;
                 quadMeshRenderer.enabled = false;
                 quadMeshRenderer.material = transparent;
                 quadMeshRenderer.material.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax/BlankAlpha"));
                 alreadySubdivided = true;
-
+                wasEverSubdivided = true;
                 string[] keys = body.scatters.Keys.ToArray();
 
                 for (int i = 0; i < body.scatters.Count; i++)
@@ -667,41 +820,64 @@ namespace ComputeLoader
                         comp.subObjectCount = thisScatter.subObjectCount;
                         comp.scatter = thisScatter;
                         PostCompute postComp = newQuad.gameObject.AddComponent<PostCompute>();
-                        Debug.Log("Added " + thisScatter.scatterName);
                     }
                 }
             }
             else if (distance >= limit && quad != null && quad.subdivision == FlightGlobals.currentMainBody.pqsController.maxLevel)
             {
-            
-                try
+                if (wasEverSubdivided)
                 {
+                    Debug.Log("Expecting destroy messages:");
+                    ComputeComponent comp = null;
+                    PostCompute postComp = null;
+                    if (newQuad != null)
+                    {
+                        comp = newQuad.GetComponent<ComputeComponent>();
+                        postComp = newQuad.GetComponent<PostCompute>();
+                    }
+                        
+                    if (comp != null)
+                    {
+                        Destroy(comp);
+                    }
+                    if (postComp != null)
+                    {
+                        Destroy(postComp);
+                    }
+                    Debug.Log("Shoud be here ^");
                     Destroy(newQuad);
-                }
-                catch
-                { Debug.Log("Unable to destroy newQuad"); }
-                var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
-                if (oldMaterial != null)
-                {
-                    quadMeshRenderer.sharedMaterial = oldMaterial;
+                    var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
+                    if (oldMaterial != null)
+                    {
+                        quadMeshRenderer.sharedMaterial = FlightGlobals.currentMainBody.pqsController.surfaceMaterial;
+                        quadMeshRenderer.enabled = true;
+                        Debug.Log("Swapped out old material");
+                    }
+                    else
+                    {
+                        Debug.Log("Old material is null");
+                    }
+                    alreadySubdivided = false;
+                    wasEverSubdivided = false;
                 }
                 
-                alreadySubdivided = false;
+                
+                
             }
         }
         bool alreadyAdded = false;
         void CheckFixedRange()
         {
+            
+
             int maxLevel = FlightGlobals.currentMainBody.pqsController.maxLevel;
             int maxLevelDiff = maxLevel - quad.subdivision;
-            Debug.Log("Checking fixed range");
             string[] keys = body.scatters.Keys.ToArray();
             for (int i = 0; i < body.scatters.Count; i++)
             {
                 Scatter thisScatter = body.scatters[keys[i]];
                 if (thisScatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
                 {
-                    Debug.Log("Fixed range detected");
                     float distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
                     float limit = thisScatter.properties.subdivisionSettings.range;
                     Vector3 planetNormal = Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);

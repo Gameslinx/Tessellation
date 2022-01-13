@@ -13,31 +13,6 @@ using UnityEngine;
 
 namespace Grass
 {
-    class ScatterLibrary
-    {
-        public static Vector3 floatingOriginOffset = Vector3.zero;
-        public static bool requiresUpdate = false;
-    }
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class ScatterFloatingOrigin : MonoBehaviour
-    {
-        Vector3 floatingOriginOffset = Vector3.zero;
-        public void LateUpdate()
-        {
-            //Debug.Log("Floating origin offset is " + floatingOriginOffset);
-            Vector3 newOffset = FloatingOrigin.Offset;
-            if (newOffset != floatingOriginOffset)
-            {
-                floatingOriginOffset = newOffset;
-                ScatterLibrary.floatingOriginOffset = floatingOriginOffset;
-                ScatterLibrary.requiresUpdate = true;
-            }
-            else
-            {
-                ScatterLibrary.requiresUpdate = false;
-            }
-        }
-    }
     public class PQSMod_ParallaxScatter : PQSMod
     {
         public override void OnQuadBuilt(PQ quad)

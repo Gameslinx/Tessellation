@@ -28,6 +28,8 @@ namespace ParallaxGrass
         public Vector3 _MaxScale;               //Largest scatter size
         public float _CutoffScale;              //Minimum scale at which, below that scale, the scatter is not placed
         public int updateRate;
+        public float _LODRange;
+        public float _LOD2Range;
     }
     public struct ScatterMaterial
     {
@@ -95,6 +97,8 @@ namespace ParallaxGrass
         public string scatterName = "invalidname";
         public string model;
         public string modelLowLOD;
+        public string modelLowLOD2;
+        public float updateFPS = 1;
         public int subObjectCount = 0;
         public Properties properties;
         public SubObject[] subObjects;
@@ -108,7 +112,7 @@ namespace ParallaxGrass
             ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
             foreach (ComputeComponent comp in allComputeComponents)
             {
-                if (comp.gameObject.activeSelf)
+                if (comp.gameObject.activeSelf && comp.scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
                 {
                     Debug.Log("Found ComputeComponent: " + comp.name);
                     if (comp == null)
@@ -207,12 +211,14 @@ namespace ParallaxGrass
             Properties props = new Properties();
             scatter.model = scatterNode.GetValue("model");
             scatter.modelLowLOD = scatterNode.GetValue("modelLowLOD");
+            scatter.modelLowLOD2 = scatterNode.GetValue("modelLowerLOD");
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterMaterial = ParseMaterial(materialNode);
             props.scatterWind = ParseWind(windNode);
             props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
             scatter.properties = props;
             scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
+            scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS"));
             body.scatters.Add(scatterName, scatter);
         }
         public Distribution ParseDistribution(ConfigNode distributionNode)
@@ -228,6 +234,9 @@ namespace ParallaxGrass
             distribution._SizeNoiseOffset = ParseVector(ParseVar(distributionNode, "_SizeNoiseOffset"));
             distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale"));
             distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale"));
+
+            distribution._LODRange = ParseFloat(ParseVar(distributionNode, "_LODRange"));
+            distribution._LOD2Range = ParseFloat(ParseVar(distributionNode, "_LOD2Range"));
 
             return distribution;
         }

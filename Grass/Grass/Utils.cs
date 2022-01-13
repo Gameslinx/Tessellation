@@ -11,7 +11,14 @@ namespace ScatterConfiguratorUtils
 {
     public class Utils
     {
-
+        public static void DestroyComputeBufferSafe(ComputeBuffer buffer)
+        {
+            if (buffer != null)
+            {
+                buffer.Dispose();
+                buffer = null;
+            }
+        }
         public static ComputeBuffer SetupComputeBufferSafe(int count, int stride, ComputeBufferType type)
         {
             if (count == 0 || stride == 0)
@@ -79,6 +86,7 @@ namespace ScatterConfiguratorUtils
                 Vector3[] force = new Vector3[count];
                 buffer.GetData(force);
                 ScatterLog.Log("Forced GPU finish for " + count + " objects");
+                force = null;
             }
         }
         public static Material GetSubObjectMaterial(Scatter scatter, int index)
@@ -144,7 +152,8 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterWind._WaveSpeed),  nameof(scatterBody.properties.scatterWind._WaveSpeed)},
                 {nameof(scatterBody.properties.scatterWind._WaveAmp),  nameof(scatterBody.properties.scatterWind._WaveAmp)},
                 {nameof(scatterBody.properties.scatterWind._HeightCutoff),  nameof(scatterBody.properties.scatterWind._HeightCutoff)},
-                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)}
+                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)},
+                 {nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
             };
 
         public static readonly Dictionary<string, string>
@@ -170,7 +179,8 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterWind._WaveSpeed),  nameof(scatterBody.properties.scatterWind._WaveSpeed)},
                 {nameof(scatterBody.properties.scatterWind._WaveAmp),  nameof(scatterBody.properties.scatterWind._WaveAmp)},
                 {nameof(scatterBody.properties.scatterWind._HeightCutoff),  nameof(scatterBody.properties.scatterWind._HeightCutoff)},
-                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)}
+                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)},
+                {nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
             };
         private static Scatter scatterBody => ParallaxConfiguratorMain.BodyScatter;
 

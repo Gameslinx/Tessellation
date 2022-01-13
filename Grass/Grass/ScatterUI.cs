@@ -34,7 +34,7 @@ namespace ScatterConfiguratorUtils
             CelestialBody currentBody = FlightGlobals.currentMainBody;
             lastBodyName = currentBody.name;
 
-            BodyScatter = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters["Trees"] : null;
+            BodyScatter = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters["Grass"] : null;
 
             if (firstRun)
             {
@@ -106,6 +106,7 @@ namespace ScatterConfiguratorUtils
             BodyScatter.properties.scatterDistribution._MinScale = TextAreaLabelVector(Labels[nameof(BodyScatter.properties.scatterDistribution._MinScale)], BodyScatter.properties.scatterDistribution._MinScale);
             BodyScatter.properties.scatterDistribution._MaxScale = TextAreaLabelVector(Labels[nameof(BodyScatter.properties.scatterDistribution._MaxScale)], BodyScatter.properties.scatterDistribution._MaxScale);
             BodyScatter.properties.scatterDistribution._CutoffScale = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._CutoffScale)], BodyScatter.properties.scatterDistribution._CutoffScale);
+            BodyScatter.properties.scatterDistribution._LODRange = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._LODRange)], BodyScatter.properties.scatterDistribution._LODRange);
 
             BodyScatter.properties.scatterMaterial._MainColor = TextAreaLabelColor(Labels[nameof(BodyScatter.properties.scatterMaterial._MainColor)], BodyScatter.properties.scatterMaterial._MainColor);
             BodyScatter.properties.scatterMaterial._SubColor = TextAreaLabelColor(Labels[nameof(BodyScatter.properties.scatterMaterial._SubColor)], BodyScatter.properties.scatterMaterial._SubColor);
@@ -121,7 +122,7 @@ namespace ScatterConfiguratorUtils
 
             BodyScatter.properties.scatterDistribution.updateRate = (int)TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution.updateRate)], BodyScatter.properties.scatterDistribution.updateRate);
 
-            ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"] = BodyScatter;
+            ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"] = BodyScatter;
 
             GUILayout.EndVertical();
 
