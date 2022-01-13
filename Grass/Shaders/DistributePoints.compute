@@ -18,6 +18,7 @@ struct GrassData
 
 RWStructuredBuffer<float3> Objects;
 RWStructuredBuffer<PositionData> Positions;
+RWStructuredBuffer<float3> Normals;
 RWStructuredBuffer<int> Tris;
 
 float4x4 _ObjectToWorld;
@@ -27,6 +28,9 @@ float3 _PlanetOrigin = float3(0, -100000, 0);
 float3 _ThisPos;
 uint _VertCount;
 
+float _SteepPower;
+float _SteepContrast;
+float _SteepMidpoint;
 
 float Random01(float2 uv)
 {
@@ -151,6 +155,7 @@ void DistributePoints(uint3 id : SV_DispatchThreadID)
        
         PositionData newPosition;
         float4x4 mat = GetTRSMatrix(pos, rot, scale);
+        //pos += _ThisPos;
         newPosition.pos = pos;
         newPosition.mat = mat;
         Positions[id.x * _PopulationMultiplier + i] = newPosition;      //0, 3, 6, 9... 24

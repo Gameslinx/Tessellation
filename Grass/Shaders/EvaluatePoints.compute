@@ -17,6 +17,7 @@ struct GrassData
 };
 AppendStructuredBuffer<GrassData> Grass;
 AppendStructuredBuffer<GrassData> FarGrass;
+AppendStructuredBuffer<GrassData> FurtherGrass;
 AppendStructuredBuffer<GrassData> SubObjects1;
 AppendStructuredBuffer<GrassData> SubObjects2;
 AppendStructuredBuffer<GrassData> SubObjects3;
@@ -40,6 +41,8 @@ float3 maxScale = float3(1, 1, 1);
 float range = 100;
 float3 _CameraPos;
 float3 _ThisPos;
+float _LODPerc = 0.2;
+float _LOD2Perc = 0.6;
 
 float grassCutoffScale = 0.1;
 
@@ -61,6 +64,8 @@ float subObjectSpawnChance4 = 0;
 
 float3 minYOffset = float3(0, 0, 0);
 float3 maxYOffset = float3(0, 100, 0);
+
+float3 _ShaderOffset;
 
 float Random01(float2 uv)
 {
@@ -155,8 +160,6 @@ float4x4 GetTRSMatrix(float3 position, float3 rotationAngles, float3 scale)
 [numthreads(32,1,1)]
 void EvaluatePoints (uint3 id : SV_DispatchThreadID)
 {
-    
-    
     float3 worldPos = Positions[id.x].pos;
     float dist = distance(_CameraPos, worldPos + _ThisPos);
     float rangePerc = saturate(dist / range);
@@ -167,11 +170,12 @@ void EvaluatePoints (uint3 id : SV_DispatchThreadID)
     {
         return;
     }
-
     float4x4 posTRS = Positions[id.x].mat;
     GrassData newGrass;
-
-
+    //newGrass.mat = posTRS;
+    //newGrass.color = (snoise(((worldPos + _ThisPos - _ShaderOffset) / grassSizeNoiseScale)) + 1) / 2;
+    //Grass.Append(newGrass);
+    //return;
     
     //float3 scale = float3(1, 1, 1) * rangePerc;
 
@@ -187,7 +191,7 @@ void EvaluatePoints (uint3 id : SV_DispatchThreadID)
     //float3 pos = ((1 - sqrt(r1)) * pos1) + ((sqrt(r1) * (1 - r2)) * pos2) + ((r2 * sqrt(r1)) * pos3);
     //
     //
-    float r3 = Random01(worldPos.xz * 0.2 + 110);
+    float r3 = Random01(id.x * 0.2 + 110);
     float r4 = Random01(r3 * 0.2 + 110);
     //
     float3 rot = float3(r4, 180 * r3, r4);
@@ -202,11 +206,14 @@ void EvaluatePoints (uint3 id : SV_DispatchThreadID)
     float subNoiseScale = 6 * grassColorNoiseScale;
     float mainSizeNoiseScale = 20 * grassSizeNoiseScale;
     float subSizeNoiseScale = 6 * grassSizeNoiseScale;
+
+    float3 noiseWorldPos = worldPos + _ThisPos - _ShaderOffset;
     ////
     ////
-    worldPos += _ThisPos;
-    float colorNoise = (snoise(worldPos.xyz / mainNoiseScale) + snoise(worldPos.xyz / subNoiseScale)) / 2;
-    float sizeNoise = (snoise((worldPos.xyz + grassSizeNoiseOffset) / mainSizeNoiseScale) + snoise(worldPos.xyz / subSizeNoiseScale)) + 1;
+    float colorNoise = (snoise(noiseWorldPos.xyz / mainNoiseScale) + snoise(noiseWorldPos.xyz / subNoiseScale)) / 2;
+    //grassColorMain = float4(1, 0, 0, 1);
+
+    float sizeNoise = (snoise((noiseWorldPos.xyz + grassSizeNoiseOffset) / mainSizeNoiseScale) + snoise(noiseWorldPos.xyz / subSizeNoiseScale)) + 1;
     newGrass.color = lerp(float4(grassColorMain, 1), float4(grassColorSub, 1), colorNoise * grassColorNoiseStrength);
     float sizeNoiseAdjusted = sizeNoise - grassCutoffScale;
     float3 scale = lerp(minScale, maxScale, sizeNoiseAdjusted * grassSizeNoiseStrength);
@@ -215,7 +222,7 @@ void EvaluatePoints (uint3 id : SV_DispatchThreadID)
     newGrass.mat = mul(mul(posTRS, scaleMatrix), rotationMatrix);
 
 
-    float typeNoise = (snoise(worldPos.xyz / subObjectNoiseScale1 - 10000) + 1) / 2;
+    float typeNoise = (snoise(noiseWorldPos.xyz / subObjectNoiseScale1 - 10000) + 1) / 2;
     if (typeNoise < subObjectWeight1 * r4 * subObjectSpawnChance1)
     {
         newGrass.color = 1;
@@ -243,12 +250,17 @@ void EvaluatePoints (uint3 id : SV_DispatchThreadID)
     //    SubObjects4.Append(newGrass);
     //    return;
     //}
-
-    if (sizeNoise * r3 > grassCutoffScale && dist / range > 0.25f)
+    float distRange = dist / range;
+    if (sizeNoise * r3 > grassCutoffScale && distRange > _LOD2Perc)
+    {
+        FurtherGrass.Append(newGrass);
+        return;
+    }
+    if (sizeNoise * r3 > grassCutoffScale && distRange > _LODPerc && distRange < _LOD2Perc)
     {
         FarGrass.Append(newGrass);
     }
-    if (sizeNoise * r3 > grassCutoffScale && dist / range < 0.25f)
+    if (sizeNoise * r3 > grassCutoffScale && distRange < _LODPerc)
     {
         Grass.Append(newGrass);
     }
