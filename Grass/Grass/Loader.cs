@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using ComputeLoader;
+using System.Collections;
 
 namespace ParallaxGrass
 {
@@ -13,12 +14,12 @@ namespace ParallaxGrass
     {
         public Distribution scatterDistribution;
         public ScatterMaterial scatterMaterial;
-        public Wind scatterWind;
         public SubdivisionProperties subdivisionSettings;
         public int subObjectCount;
     }
     public struct Distribution
     {
+        public LODs lods;
         public float _Range;                    //How far from the camera to render at the max graphics setting
         public float _PopulationMultiplier;     //How many scatters to render
         public float _SizeNoiseStrength;        //Strength of perlin noise - How varied the scatter size is
@@ -27,30 +28,35 @@ namespace ParallaxGrass
         public Vector3 _MinScale;               //Smallest scatter size
         public Vector3 _MaxScale;               //Largest scatter size
         public float _CutoffScale;              //Minimum scale at which, below that scale, the scatter is not placed
+        public float _SteepPower;
+        public float _SteepContrast;
+        public float _SteepMidpoint;
         public int updateRate;
-        public float _LODRange;
-        public float _LOD2Range;
+        public float _SpawnChance;
+    }
+    public struct LODs
+    {
+        public LOD[] lods;
+        public int LODCount;
+    }
+    public struct LOD
+    {
+        public float range;
+        public string modelName;
+        public string mainTexName;
     }
     public struct ScatterMaterial
     {
+        public Dictionary<string, string> Textures;
+        public Dictionary<string, float> Floats;
+        public Dictionary<string, Vector3> Vectors;
+        public Dictionary<string, Color> Colors;
+
         public Shader shader;
-        public string _MainTex;
-        public string _BumpMap;
-        public float _Cutoff;
-        public float _Shininess;
-        public Color _SpecColor;
         public Color _MainColor;
         public Color _SubColor;
         public float _ColorNoiseStrength;
         public float _ColorNoiseScale;
-    }
-    public struct Wind
-    {
-        public Vector3 _WindSpeed;
-        public float _WaveSpeed;
-        public float _WaveAmp;
-        public float _HeightCutoff;
-        public float _HeightFactor;
     }
     public struct SubdivisionProperties
     {
@@ -65,7 +71,7 @@ namespace ParallaxGrass
     }
     public struct SubObjectProperties
     {
-        public SubObjectMaterial material;
+        public ScatterMaterial material;
         public string model;
         public float _NoiseScale;
         public float _NoiseAmount;
@@ -106,23 +112,115 @@ namespace ParallaxGrass
         {
             scatterName = name;
         }
-        public void ForceComputeUpdate()
+        public IEnumerator ForceComputeUpdate(Scatter currentScatter)
         {
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
             ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
             foreach (ComputeComponent comp in allComputeComponents)
             {
-                if (comp.gameObject.activeSelf && comp.scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
+                if (comp.gameObject.activeSelf && comp.scatter.scatterName == currentScatter.scatterName)
                 {
                     Debug.Log("Found ComputeComponent: " + comp.name);
                     if (comp == null)
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.scatter.properties = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties;
-                    comp.updateFPS = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution.updateRate;
+                    comp.scatter.properties = currentScatter.properties;
+                    comp.updateFPS = currentScatter.properties.scatterDistribution.updateRate;
+                    comp.GeneratePositions();
+                    comp.InitializeAllBuffers();
                     comp.EvaluatePositions();
                 }
+                yield return null;
+            }
+        }
+        public int GetGlobalVertexCount(Scatter currentScatter)
+        {
+            if (currentScatter == null)
+            {
+                ScatterLog.Log("The next scatter is null!");
+                return 0;
+            }
+            int[] objectCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
+            int[] vertCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
+            ScreenMessages.PostScreenMessage("WARNING: Counting all objects, this should not be called in realtime!");
+            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            foreach (ComputeComponent cc in allComputeComponents)
+            {
+                
+                if (cc.gameObject.activeSelf && cc.scatter.scatterName == currentScatter.scatterName)
+                {
+                    PostCompute pc = cc.pc;
+                    vertCount[0] = pc.vertexCount;
+                    vertCount[1] = pc.farVertexCount;
+                    vertCount[2] = pc.furtherVertexCount;
+
+                    vertCount[3] = pc.subVertexCount1;
+                    vertCount[4] = pc.subVertexCount2;
+                    vertCount[5] = pc.subVertexCount3;
+                    vertCount[6] = pc.subVertexCount4;
+
+                    objectCount[0] += pc.countCheck;
+                    objectCount[1] += pc.farCountCheck;
+                    objectCount[2] += pc.furtherCountCheck;
+
+                    objectCount[3] += pc.subCount1;
+                    objectCount[4] += pc.subCount2;
+                    objectCount[5] += pc.subCount3;
+                    objectCount[6] += pc.subCount4;
+                }
+            }
+            ScatterLog.Log("Finished counting objects and vertices");
+            ScatterLog.Log("Breakdown for Scatter '" + currentScatter.scatterName + "':");
+            ScatterLog.Log("LOD0 Mesh vertex count: " + vertCount[0].ToString("N0"));
+            ScatterLog.Log("LOD1 Mesh vertex count: " + vertCount[1].ToString("N0"));
+            ScatterLog.Log("LOD2 Mesh vertex count: " + vertCount[2].ToString("N0"));
+            Debug.Log("");
+            ScatterLog.Log("SO 1 Mesh vertex count: " + vertCount[3].ToString("N0"));
+            ScatterLog.Log("SO 2 Mesh vertex count: " + vertCount[4].ToString("N0"));
+            ScatterLog.Log("SO 3 Mesh vertex count: " + vertCount[5].ToString("N0"));
+            ScatterLog.Log("SO 4 Mesh vertex count: " + vertCount[6].ToString("N0"));
+            ScatterLog.Log("----------------------------");
+            ScatterLog.Log("LOD0 object count: " + objectCount[0].ToString("N0"));
+            ScatterLog.Log("LOD1 object count: " + objectCount[1].ToString("N0"));
+            ScatterLog.Log("LOD2 object count: " + objectCount[2].ToString("N0"));
+            Debug.Log("");
+            ScatterLog.Log("SO 1 object count: " + objectCount[3].ToString("N0"));
+            ScatterLog.Log("SO 2 object count: " + objectCount[4].ToString("N0"));
+            ScatterLog.Log("SO 3 object count: " + objectCount[5].ToString("N0"));
+            ScatterLog.Log("SO 4 object count: " + objectCount[6].ToString("N0"));
+            ScatterLog.Log("----------------------------");
+            ScatterLog.Log("LOD0 global vertex count: " + (objectCount[0] * vertCount[0]).ToString("N0"));
+            ScatterLog.Log("LOD1 global vertex count: " + (objectCount[1] * vertCount[1]).ToString("N0"));
+            ScatterLog.Log("LOD2 global vertex count: " + (objectCount[2] * vertCount[2]).ToString("N0"));
+            Debug.Log("");
+            ScatterLog.Log("SO 1 global vertex count: " + (objectCount[3] * vertCount[3]).ToString("N0"));
+            ScatterLog.Log("SO 2 global vertex count: " + (objectCount[4] * vertCount[4]).ToString("N0"));
+            ScatterLog.Log("SO 3 global vertex count: " + (objectCount[5] * vertCount[5]).ToString("N0"));
+            ScatterLog.Log("SO 4 global vertex count: " + (objectCount[6] * vertCount[6]).ToString("N0"));
+            ScatterLog.Log("----------------------------");
+            int totalVertCount = CountAll(objectCount, vertCount);
+            ScatterLog.Log("Total amount of vertices for this scatter being rendered right now: " + totalVertCount.ToString("N0"));
+            return totalVertCount;
+        }
+        public static int CountAll(int[] objs, int[] verts)
+        {
+            int total = 0;
+            for (int i = 0; i < objs.Length; i++)
+            {
+                total += (objs[i] * verts[i]);
+            }
+            return total;
+        }
+        public static int GetMeshVertexCountSafe(Mesh mesh, int countCheck)
+        {
+            if (countCheck > 0 && mesh != null)
+            {
+                return mesh.vertexCount;
+            }
+            else
+            {
+                return 0;
             }
         }
     }
@@ -191,14 +289,11 @@ namespace ParallaxGrass
                 {
                     ConfigNode rootNode = globalNodes[i].config;
                     ConfigNode scatterNode = rootNode.nodes[b];
-                    Debug.Log("Scatter node: " + scatterNode.name);
                     ConfigNode distributionNode = scatterNode.GetNode("Distribution");
                     ConfigNode materialNode = scatterNode.GetNode("Material");
                     ConfigNode windNode = scatterNode.GetNode("Wind");
                     ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
                     ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
-                    //ConfigNode windNode = globalNodes[i].config.nodes[b].GetNode("Distribution");
-
                     ParseNewBody(scatterNode, distributionNode, materialNode, windNode, subdivisionSettingsNode, subObjectNode, bodyName);
                 }
             }
@@ -210,11 +305,8 @@ namespace ParallaxGrass
             Scatter scatter = new Scatter(scatterName);
             Properties props = new Properties();
             scatter.model = scatterNode.GetValue("model");
-            scatter.modelLowLOD = scatterNode.GetValue("modelLowLOD");
-            scatter.modelLowLOD2 = scatterNode.GetValue("modelLowerLOD");
             props.scatterDistribution = ParseDistribution(distributionNode);
-            props.scatterMaterial = ParseMaterial(materialNode);
-            props.scatterWind = ParseWind(windNode);
+            props.scatterMaterial = ParseMaterial(materialNode, false);
             props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
             scatter.properties = props;
             scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
@@ -230,46 +322,153 @@ namespace ParallaxGrass
             distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength"));
             distribution._SizeNoiseScale = ParseFloat(ParseVar(distributionNode, "_SizeNoiseScale"));
             distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale"));
+            distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower"));
+            distribution._SteepContrast = ParseFloat(ParseVar(distributionNode, "_SteepContrast"));
+            distribution._SteepMidpoint = ParseFloat(ParseVar(distributionNode, "_SteepMidpoint"));
 
             distribution._SizeNoiseOffset = ParseVector(ParseVar(distributionNode, "_SizeNoiseOffset"));
             distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale"));
             distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale"));
 
-            distribution._LODRange = ParseFloat(ParseVar(distributionNode, "_LODRange"));
-            distribution._LOD2Range = ParseFloat(ParseVar(distributionNode, "_LOD2Range"));
+            distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance"));
+
+            ConfigNode lodNode = distributionNode.GetNode("LODs");
+            distribution.lods = ParseLODs(lodNode);
 
             return distribution;
         }
-        public ScatterMaterial ParseMaterial(ConfigNode materialNode)
+        public LODs ParseLODs(ConfigNode lodNode)
+        {
+            LODs lods = new LODs();
+            ConfigNode[] lodNodes = lodNode.GetNodes("LOD");
+            lods.LODCount = lodNodes.Length;
+            lods.lods = new LOD[lods.LODCount];
+            for (int i = 0; i < lods.LODCount; i++)
+            {
+                LOD lod = new LOD();
+                lod.range = ParseFloat(ParseVar(lodNodes[i], "range"));
+                lod.modelName = ParseVar(lodNodes[i], "model");
+                lod.mainTexName = ParseVar(lodNodes[i], "_MainTex");
+                lods.lods[i] = lod;
+                //Parse models on main menu after they have loaded
+            }
+            return lods;
+        }
+        public ScatterMaterial GetShaderVars(string shaderName, ScatterMaterial material, ConfigNode materialNode)
+        {
+            UrlDir.UrlConfig[] nodes = GameDatabase.Instance.GetConfigs("ScatterShader");
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                string configShaderName = nodes[i].config.GetValue("name");
+                ScatterLog.Log("Parsing shader: " + configShaderName);
+                if (configShaderName == shaderName)
+                {
+                    ConfigNode propertiesNode = nodes[i].config.GetNode("Properties");
+                    ConfigNode texturesNode = propertiesNode.GetNode("Textures");
+                    ConfigNode floatsNode = propertiesNode.GetNode("Floats");
+                    ConfigNode vectorsNode = propertiesNode.GetNode("Vectors");
+                    ConfigNode colorsNode = propertiesNode.GetNode("Colors");
+                    material = ParseNodeType(texturesNode, typeof(string), material);
+                    material = ParseNodeType(floatsNode, typeof(float), material);
+                    material = ParseNodeType(vectorsNode, typeof(Vector3), material);
+                    material = ParseNodeType(colorsNode, typeof(Color), material);
+                    material = SetShaderValues(materialNode, material);
+
+                }
+            }
+            return material;
+        }
+        public ScatterMaterial ParseNodeType(ConfigNode node, Type type, ScatterMaterial material)
+        {
+            string[] values = node.GetValues("name");
+            if (type == typeof(string))
+            {
+                material.Textures = new Dictionary<string, string>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    material.Textures.Add(values[i], null);
+                }
+            }
+            else if (type == typeof(float))
+            {
+                material.Floats = new Dictionary<string, float>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    material.Floats.Add(values[i], 0);
+                }
+            }
+            else if (type == typeof(Vector3))
+            {
+                material.Vectors = new Dictionary<string, Vector3>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    material.Vectors.Add(values[i], Vector3.zero);
+                }
+            }
+            else if (type == typeof(Color))
+            {
+                material.Colors = new Dictionary<string, Color>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    material.Colors.Add(values[i], Color.magenta);
+                }
+            }
+            else
+            {
+                ScatterLog.Log("Unable to determine type");
+            }
+            return material;
+        }
+        public ScatterMaterial SetShaderValues(ConfigNode materialNode, ScatterMaterial material)
+        {
+            string[] textureKeys = material.Textures.Keys.ToArray();
+            
+            for (int i = 0; i < material.Textures.Keys.Count; i++)
+            {
+                ScatterLog.Log("Parsing " + textureKeys[i] + " as " + materialNode.GetValue(textureKeys[i]));
+                material.Textures[textureKeys[i]] = materialNode.GetValue(textureKeys[i]);
+            }
+            string[] floatKeys = material.Floats.Keys.ToArray();
+            for (int i = 0; i < material.Floats.Keys.Count; i++)
+            {
+                ScatterLog.Log("Parsing " + floatKeys[i] + " as " + materialNode.GetValue(floatKeys[i]));
+                material.Floats[floatKeys[i]] = float.Parse(materialNode.GetValue(floatKeys[i]));
+            }
+            string[] vectorKeys = material.Vectors.Keys.ToArray();
+            for (int i = 0; i < material.Vectors.Keys.Count; i++)
+            {
+                string configValue = materialNode.GetValue(vectorKeys[i]);
+                ScatterLog.Log("Parsing " + vectorKeys[i] + " as " + materialNode.GetValue(vectorKeys[i]));
+                material.Vectors[vectorKeys[i]] = ParseVector(configValue);
+            }
+            string[] colorKeys = material.Colors.Keys.ToArray();
+            for (int i = 0; i < material.Colors.Keys.Count; i++)
+            {
+                string configValue = materialNode.GetValue(colorKeys[i]);
+                ScatterLog.Log("Parsing " + colorKeys[i] + " as " + materialNode.GetValue(colorKeys[i]));
+                material.Colors[colorKeys[i]] = ParseColor(configValue);
+            }
+            return material;
+        }
+        public ScatterMaterial ParseMaterial(ConfigNode materialNode, bool isSubObject)
         {
             ScatterMaterial material = new ScatterMaterial();
 
             material.shader = ScatterShaderHolder.GetShader(ParseVar(materialNode, "shader"));
 
-            material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor"));
-            material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor"));
+            material = GetShaderVars(material.shader.name, material, materialNode);
+            if (!isSubObject)
+            {
+                material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor"));
+                material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor"));
 
-            material._ColorNoiseScale = ParseFloat(ParseVar(materialNode, "_ColorNoiseScale"));
-            material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength"));
-
-            material._MainTex = ParseVar(materialNode, "_MainTex");
-            material._BumpMap = ParseVar(materialNode, "_BumpMap");
-            material._Shininess = ParseFloat(ParseVar(materialNode, "_Shininess"));
-            material._SpecColor = ParseColor(ParseVar(materialNode, "_SpecColor"));
-            material._Cutoff = ParseFloat(ParseVar(materialNode, "_Cutoff"));
-
-            return material;
-        }
-        public Wind ParseWind(ConfigNode windNode)
-        {
-            Wind material = new Wind();
-
-            material._WindSpeed = ParseVector(ParseVar(windNode, "_WindSpeed"));
-            material._WaveSpeed = ParseFloat(ParseVar(windNode, "_WaveSpeed"));
-            material._WaveAmp = ParseFloat(ParseVar(windNode, "_WaveAmp"));
-
-            material._HeightCutoff = ParseFloat(ParseVar(windNode, "_HeightCutoff"));
-            material._HeightFactor = ParseFloat(ParseVar(windNode, "_HeightFactor"));
+                material._ColorNoiseScale = ParseFloat(ParseVar(materialNode, "_ColorNoiseScale"));
+                material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength"));
+            }
 
             return material;
         }
@@ -326,14 +525,11 @@ namespace ParallaxGrass
             props.material = ParseSubObjectMaterial(subNode.GetNode("Material"));
             return props;
         }
-        public SubObjectMaterial ParseSubObjectMaterial(ConfigNode subNode)
+        public ScatterMaterial ParseSubObjectMaterial(ConfigNode subNode)
         {
-            SubObjectMaterial mat = new SubObjectMaterial();
-            mat.shader = ScatterShaderHolder.GetShader(ParseVar(subNode, "shader"));    //SHADER VALUES NOT SET HERE
-            mat._MainTex = ParseVar(subNode, "_MainTex");
-            mat._BumpMap = ParseVar(subNode, "_BumpMap");
-            mat._Shininess = ParseFloat(ParseVar(subNode, "_Shininess"));
-            mat._SpecColor = ParseColor(ParseVar(subNode, "_SpecColor"));
+            ScatterMaterial mat = ParseMaterial(subNode, true);
+            
+            
             return mat;
         }
         public string ParseVar(ConfigNode scatter, string valueName)

@@ -11,7 +11,6 @@ float4 BlinnPhong(float3 normal, float3 pos, float4 diffuseCol)
     // Dot
     half NdotL = saturate(dot(normal, lightDir));
     half NdotH = saturate(dot(normal, halfDir));
-
     // Color
     fixed3 ambient = UNITY_LIGHTMODEL_AMBIENT.rgb * diffuseCol.rgb;
     fixed3 diffuse = _LightColor0.rgb * diffuseCol.rgb * NdotL;
@@ -20,4 +19,8 @@ float4 BlinnPhong(float3 normal, float3 pos, float4 diffuseCol)
     fixed4 color = fixed4(ambient + diffuse + specular, 1.0);
 
     return color;
+}
+float4x4 GetTranslationMatrix(float3 pos)
+{
+    return  float4x4(float4(1, 0, 0, pos.x), float4(0, 1, 0, pos.y), float4(0, 0, 1, pos.z), float4(0, 0, 0, 1));//
 }

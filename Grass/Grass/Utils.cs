@@ -101,24 +101,17 @@ namespace ScatterConfiguratorUtils
             {
                 SubObject sub = scatter.subObjects[index];
                 Material mat = new Material(sub.properties.material.shader);
-                Debug.Log("Shader is " + sub.properties.material.shader);
-                mat.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == sub.properties.material._MainTex));
-                Debug.Log("Texture is " + sub.properties.material._MainTex);
-                mat.SetTexture("_BumpMap", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == sub.properties.material._BumpMap));
-                mat.SetFloat("_Shininess", sub.properties.material._Shininess);
-                mat.SetColor("_SpecColor", sub.properties.material._SpecColor);
-                mat.SetFloat("_WaveSpeed", 0);
-                mat.SetFloat("_HeightCutoff", -1);
-                mat.SetFloat("_HeightFactor", 0);
-                mat.SetColor("_Color", new Color(1, 1, 1));
-                mat.SetVector("_PlanetOrigin", FlightGlobals.ActiveVessel.transform.position);
+
+                mat = SetShaderProperties(mat, sub.properties.material);
+
                 return mat;
             }
         }
-        public static Mesh GetSubObjectMesh(Scatter scatter, int index)
+        public static Mesh GetSubObjectMesh(Scatter scatter, int index, out int vertCount)
         {
             if (index >= scatter.subObjectCount)
             {
+                vertCount = 0;
                 return null;
             }
             else
@@ -126,10 +119,38 @@ namespace ScatterConfiguratorUtils
                 SubObject sub = scatter.subObjects[index];
                 GameObject go = GameDatabase.Instance.GetModel(sub.properties.model);
                 Mesh mesh = GameObject.Instantiate( go.GetComponent<MeshFilter>().mesh);
+                vertCount = mesh.vertexCount;
                 return mesh;
             }
         }
-        
+        public static Material SetShaderProperties(Material mat, ScatterMaterial scatterMaterial)
+        {
+            Dictionary<string, string> textures = scatterMaterial.Textures;
+            Dictionary<string, float> floats = scatterMaterial.Floats;
+            Dictionary<string, Vector3> vectors = scatterMaterial.Vectors;
+            Dictionary<string, Color> colors = scatterMaterial.Colors;
+            string[] texKeys = textures.Keys.ToArray();
+            string[] floatKeys = floats.Keys.ToArray();
+            string[] vectorKeys = vectors.Keys.ToArray();
+            string[] colorKeys = colors.Keys.ToArray();
+            for (int i = 0; i < texKeys.Length; i++)
+            {
+                mat.SetTexture(texKeys[i], Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == textures[texKeys[i]]));
+            }
+            for (int i = 0; i < floatKeys.Length; i++)
+            {
+                mat.SetFloat(floatKeys[i], floats[floatKeys[i]]);
+            }
+            for (int i = 0; i < vectorKeys.Length; i++)
+            {
+                mat.SetVector(vectorKeys[i], vectors[vectorKeys[i]]);
+            }
+            for (int i = 0; i < colorKeys.Length; i++)
+            {
+                mat.SetColor(colorKeys[i], colors[colorKeys[i]]);
+            }
+            return mat;
+        }
         public static readonly Dictionary<string, string>
             VarFromLabels = new Dictionary<string, string>
             {
@@ -148,12 +169,7 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale)},
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength)},
 
-                {nameof(scatterBody.properties.scatterWind._WindSpeed),  nameof(scatterBody.properties.scatterWind._WindSpeed)},
-                {nameof(scatterBody.properties.scatterWind._WaveSpeed),  nameof(scatterBody.properties.scatterWind._WaveSpeed)},
-                {nameof(scatterBody.properties.scatterWind._WaveAmp),  nameof(scatterBody.properties.scatterWind._WaveAmp)},
-                {nameof(scatterBody.properties.scatterWind._HeightCutoff),  nameof(scatterBody.properties.scatterWind._HeightCutoff)},
-                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)},
-                 {nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
+                 //{nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
             };
 
         public static readonly Dictionary<string, string>
@@ -175,14 +191,9 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength)},
 
 
-                {nameof(scatterBody.properties.scatterWind._WindSpeed),  nameof(scatterBody.properties.scatterWind._WindSpeed)},
-                {nameof(scatterBody.properties.scatterWind._WaveSpeed),  nameof(scatterBody.properties.scatterWind._WaveSpeed)},
-                {nameof(scatterBody.properties.scatterWind._WaveAmp),  nameof(scatterBody.properties.scatterWind._WaveAmp)},
-                {nameof(scatterBody.properties.scatterWind._HeightCutoff),  nameof(scatterBody.properties.scatterWind._HeightCutoff)},
-                {nameof(scatterBody.properties.scatterWind._HeightFactor),  nameof(scatterBody.properties.scatterWind._HeightFactor)},
-                {nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
+                //{nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
             };
-        private static Scatter scatterBody => ParallaxConfiguratorMain.BodyScatter;
+        private static Scatter scatterBody => ParallaxConfiguratorMain.currentScatter;
 
         public static object GetVariableOriginalValue(string varName)
         {
@@ -470,6 +481,7 @@ namespace ScatterConfiguratorUtils
             GUILayout.EndHorizontal();
             return value;
         }
+        
     }
     public static class Parsers
     {

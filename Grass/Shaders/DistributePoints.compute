@@ -9,15 +9,12 @@ struct PositionData
 {
     float3 pos;
     float4x4 mat;
-};
-struct GrassData
-{
-    float4x4 mat;
     float4 color;
+    int mode;
 };
 
 RWStructuredBuffer<float3> Objects;
-RWStructuredBuffer<PositionData> Positions;
+AppendStructuredBuffer<PositionData> Positions;
 RWStructuredBuffer<float3> Normals;
 RWStructuredBuffer<int> Tris;
 
@@ -31,6 +28,46 @@ uint _VertCount;
 float _SteepPower;
 float _SteepContrast;
 float _SteepMidpoint;
+int _MaxCount;
+
+float3 grassColorMain = float3(1, 1, 1);
+float3 grassColorSub = float3(1, 1, 1);
+float grassColorNoiseStrength = 1;
+float grassColorNoiseScale = 1;
+
+float grassSizeNoiseStrength = 1;
+float grassSizeNoiseScale = 1;
+float grassSizeNoiseOffset = 0;
+float3 minScale = float3(0.5f, 0.5f, 0.5f);
+float3 maxScale = float3(1, 1, 1);
+float range = 100;
+float3 _CameraPos;
+
+float _LODPerc = 0.2;
+float _LOD2Perc = 1;
+
+float grassCutoffScale = 0.1;
+
+float subObjectWeight1 = 0;
+float subObjectNoiseScale1 = 0;
+float subObjectSpawnChance1 = 0;
+
+float subObjectWeight2 = 0;
+float subObjectNoiseScale2 = 0;
+float subObjectSpawnChance2 = 0;
+
+float subObjectWeight3 = 0;
+float subObjectNoiseScale3 = 0;
+float subObjectSpawnChance3 = 0;
+
+float subObjectWeight4 = 0;
+float subObjectNoiseScale4 = 0;
+float subObjectSpawnChance4 = 0;
+
+float3 _ShaderOffset;
+float3 _PlanetNormal;
+
+float spawnChance = 1;
 
 float Random01(float2 uv)
 {
@@ -123,13 +160,29 @@ float4x4 GetTRSMatrix(float3 position, float3 rotationAngles, float3 scale)
     return mul(GetTranslationMatrix(position), mul(mat, GetScaleMatrix(float3(1,1,1))));
     //return GetTranslationMatrix(position);
 }
+float3 GetAveragePoint(int index1, int index2, int index3)
+{
+    return (Objects[index1] + Objects[index2] + Objects[index3]) / 3;
+}
+float CalculateSlope(float slope)
+{
+    slope = saturate((slope - _SteepMidpoint) * _SteepContrast + _SteepMidpoint);
+    return slope;
+}
+float GetSlope(float3 pos, float3 normal)
+{
+    float slope = abs(dot(normalize(pos - _PlanetOrigin).xyz, normal.xyz));
+    slope = pow(slope, _SteepPower);
+    slope = CalculateSlope(slope);
+    return slope;
+}
 [numthreads(32,1,1)]
 void DistributePoints(uint3 id : SV_DispatchThreadID)
 {
-    //if (id.x > _VertCount)
-    //{
-    //    return;
-    //}
+    if ((int)(id.x * _PopulationMultiplier) > _MaxCount - 1)
+    {
+        return;
+    }
     int index1 = Tris[id.x * 3];
     int index2 = Tris[id.x * 3 + 1];
     int index3 = Tris[id.x * 3 + 2];
@@ -138,6 +191,11 @@ void DistributePoints(uint3 id : SV_DispatchThreadID)
     float3 pos2 = Objects[index2];
     float3 pos3 = Objects[index3];
 
+    float3 normal1 = Normals[index1];
+    float3 normal2 = Normals[index2];
+    float3 normal3 = Normals[index3];
+    float3 avgNrm = (normal1 + normal2 + normal3) / 3;
+    avgNrm = (normalize(mul(_ObjectToWorld, avgNrm)));
     float3 minYOffset = float3(0, 0, 0);
     float3 maxYOffset = float3(0, 1, 0);
 
@@ -146,19 +204,122 @@ void DistributePoints(uint3 id : SV_DispatchThreadID)
     {
         float r1 = Random01(id.xy + 1 + i);
         float r2 = Random01(float2(id.x, r1) + 1 * 1.23133 + i);
-    
+
         float3 pos = ((1 - sqrt(r1)) * pos1) + ((sqrt(r1) * (1 - r2)) * pos2) + ((r2 * sqrt(r1)) * pos3);
-        float3 rot = float3(0, 0, 0);
+        float3 nrm = ((1 - sqrt(r1)) * normal1) + ((sqrt(r1) * (1 - r2)) * normal2) + ((r2 * sqrt(r1)) * normal3);
+        float3 rot1 = float3(0, 0, 0);
         float3 scale = float3(0.1, 0.1, 0.1);
         //pos = pos + lerp(float3(0,0,0), float3(0,3,0), (snoise(pos) + 1) / 2);
         pos = mul(_ObjectToWorld, float4(pos.xyz, 1)).xyz - _ThisPos;
-       
+        nrm = normalize(mul(_ObjectToWorld, float4(nrm.xyz, 1))).xyz;
+
+        float slope = abs(dot(normalize(-_PlanetNormal), avgNrm));
+        slope = pow(slope, _SteepPower);
+        slope = CalculateSlope(slope);
         PositionData newPosition;
-        float4x4 mat = GetTRSMatrix(pos, rot, scale);
+        if (slope < 0.05)
+        {
+            newPosition.mode = 10;  //CULLED
+        }
+
+        float4x4 mat = GetTRSMatrix(pos, rot1, scale);
         //pos += _ThisPos;
+        //newPosition.pos = pos;
+        //newPosition.mat = mat;
+        float3 worldPos = pos;
+        
+        r2 = Random01(worldPos.xy * 0.8 + 110);
+
+        float r3 = Random01(worldPos.xz * 0.2 + 110);
+        float r4 = Random01(r3 * 0.2 + 110);
+
+        float3 rot = float3(0, 180.0 * frac(worldPos.x + worldPos.z), 0);
+
+        float mainNoiseScale = 20 * grassColorNoiseScale;
+        float subNoiseScale = 6 * grassColorNoiseScale;
+        float mainSizeNoiseScale = 20 * grassSizeNoiseScale;
+        float subSizeNoiseScale = 6 * grassSizeNoiseScale;
+
+        float3 noiseWorldPos = worldPos + _ThisPos - _ShaderOffset;
+
+        float colorNoise = ((snoise((noiseWorldPos.xyz) / mainNoiseScale) + snoise((noiseWorldPos.xyz / subNoiseScale)))) / 2;
+
+        float sizeNoise = (snoise((noiseWorldPos.xyz + grassSizeNoiseOffset) / mainSizeNoiseScale) + snoise(noiseWorldPos.xyz / subSizeNoiseScale)) + 1;
+
+        newPosition.color = lerp(float4(grassColorMain, 1), float4(grassColorSub, 1), colorNoise * grassColorNoiseStrength);
+        float sizeNoiseAdjusted = sizeNoise - grassCutoffScale;
+        scale = lerp(minScale, maxScale, sizeNoiseAdjusted * grassSizeNoiseStrength);
+        float4x4 scaleMatrix = GetScaleMatrix(scale);
+        float4x4 rotationMatrix = GetRotationMatrix(rot);
+        newPosition.mat = mul(mul(mat, scaleMatrix), rotationMatrix);
         newPosition.pos = pos;
-        newPosition.mat = mat;
-        Positions[id.x * _PopulationMultiplier + i] = newPosition;      //0, 3, 6, 9... 24
+        //TYPES: 0 = near, 1 = far, 2 = furthest, 3456 = subObjects
+        float typeNoise = (snoise(noiseWorldPos.xyz / subObjectNoiseScale1 - 10000) + 1) / 2;
+        float typeNoise2 = (snoise(noiseWorldPos.xyz / subObjectNoiseScale2 - 8000) + 1) / 2;
+        float typeNoise3 = (snoise(noiseWorldPos.xyz / subObjectNoiseScale3 - 6000) + 1) / 2;
+        float typeNoise4 = (snoise(noiseWorldPos.xyz / subObjectNoiseScale4 - 4000) + 1) / 2;
+
+        float weight1Chance = subObjectWeight1 * r4 * subObjectSpawnChance1;
+        float weight2Chance = subObjectWeight2 * r4 * subObjectSpawnChance2;
+        float weight3Chance = subObjectWeight3 * r4 * subObjectSpawnChance3;
+        float weight4Chance = subObjectWeight4 * r4 * subObjectSpawnChance4;
+        bool processed = false;
+        if (r4 > spawnChance)
+        {
+            processed = true;
+        }
+        if (sizeNoise * r3 > grassCutoffScale && typeNoise < weight1Chance && processed == false)
+        {
+            newPosition.color = 1;
+            newPosition.mode = 3;
+            Positions.Append(newPosition);
+            processed = true;
+        }
+        if (sizeNoise * r3 > grassCutoffScale && typeNoise2 < weight2Chance && processed == false)
+        {
+            newPosition.color = 1;
+            newPosition.mode = 4;
+            Positions.Append(newPosition);
+            processed = true;
+        }
+        if (sizeNoise * r3 > grassCutoffScale && typeNoise3 < weight3Chance && processed == false)
+        {
+            newPosition.color = 1;
+            newPosition.mode = 5;
+            Positions.Append(newPosition);
+            processed = true;
+        }
+        //float typeNoise3 = (snoise(worldPos.xyz / subObjectNoiseScale3 - 8000) + 1) / 2;
+        //if (typeNoise3 < subObjectWeight3 * r4 * subObjectSpawnChance3)
+        //{
+        //    newPosition.color = 1;
+        //    newPosition.mode = 5;
+        //    Positions.Append(newPosition);
+        //}
+        //float typeNoise4 = (snoise(worldPos.xyz / subObjectNoiseScale4 - 7000) + 1) / 2;
+        //if (typeNoise4 < subObjectWeight4 * r4 * subObjectSpawnChance4)
+        //{
+        //    newPosition.color = 1;
+        //    newPosition.mode = 6;
+        //    Positions.Append(newPosition);
+        //}
+        if (sizeNoise * r3 > grassCutoffScale && slope > 0.05f && processed == false) //typeNoise > weight1Chance && 
+        {
+            newPosition.mode = 0;
+            Positions.Append(newPosition);
+        }
+        //if (processed == false)
+        //{
+        //    newPosition.mode = 0;
+        //    Positions.Append(newPosition);
+        //}
+        
+
+        //newPosition.mode = 0;
+        //newPosition.color = float4(slope, slope, slope, 1);// float4(avgNrm, 1);
+        //Positions.Append(newPosition);
+
+              //0, 3, 6, 9... 24
     }
     //id is from 1 to 200
     //We know new population is 200 * popMult = 200

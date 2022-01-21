@@ -16,14 +16,14 @@
         _Shininess("_Shininess", Range(0.001, 100)) = 1
         _SpecColor("_SpecColor", COLOR) = (1,1,1)
         _PlanetOrigin("_PlanetOrigin", vector) = (0,0,0)
+            _ShaderOffset("_ShaderOffset", vector) = (0,0,0)
     }
     SubShader
     {
             //Tags{ "RenderType" = "Opaque" "LightMode" = "ForwardBase" }
-        //ZTest Always
-        //ZWrite Off
+        ZWrite On
         //Cull Off
-            Tags { "RenderType" = "TransparentCutout" "Queue" = "AlphaTest" }
+            Tags {"Queue" = "AlphaTest" "IgnoreProjector" = "True" "RenderType" = "TransparentCutout"}
             //Tags { "RenderType" = "Opaque"}
 
         Pass 
@@ -52,6 +52,7 @@
             float _HeightCutoff;
             float _HeightFactor;
             float3 _PlanetOrigin;
+            float3 _ShaderOffset;
 
             struct appdata_t 
             {
@@ -90,7 +91,7 @@
             v2f vert(appdata_t i, uint instanceID: SV_InstanceID) {
                 v2f o;
 
-                float4 pos = mul(_Properties[instanceID].mat, i.vertex);
+                float4 pos = mul(_Properties[instanceID].mat, i.vertex) + float4(_ShaderOffset, 0);
                 float3 world_vertex = mul(unity_ObjectToWorld, pos);
                 //float3 world_vertex = mul(unity_ObjectToWorld, i.vertex);
                 float3 bf = normalize(abs(normalize(world_vertex - _PlanetOrigin)));
@@ -116,14 +117,17 @@
                 float2 wind = (samplePosXZ + samplePosXY + samplePosZY) / 3;
                 
                 float heightFactor = i.vertex.y > _HeightCutoff;
-                heightFactor = heightFactor * pow(i.vertex.y + 0.05, _HeightFactor);
-                
+                heightFactor = heightFactor * (pow(i.vertex.y, _HeightFactor));
+                if (i.vertex.y < 0)
+                {
+                    heightFactor = 0;
+                }
                 
                 float2 windSample = -tex2Dlod(_WindMap, float4(wind, 0, 0));
                 
                 //wind = -windSample;
                 
-                float3 positionOffset = mul(unity_ObjectToWorld, float3(windSample.x, 0, windSample.y));//mul(float3(windSample.x, 0, windSample.y), unity_ObjectToWorld);
+                float3 positionOffset =  mul(unity_ObjectToWorld, float3(windSample.x, 0, windSample.y));//mul(float3(windSample.x, 0, windSample.y), unity_ObjectToWorld);
                 
                 pos.xyz += sin(_WaveSpeed * positionOffset) * heightFactor;
 
@@ -132,7 +136,7 @@
                 o.uv = i.uv;
                 o.normal = i.normal;
                 o.worldNormal = normalize(mul(_Properties[instanceID].mat, i.normal));
-                o.world_vertex = mul(unity_ObjectToWorld, i.vertex); 
+                o.world_vertex = mul(_Properties[instanceID].mat, i.vertex); 
                 o.pos = o.vertex;
                 o.tangentWorld = normalize(mul(_Properties[instanceID].mat, i.tangent).xyz);
                 o.binormalWorld = normalize(cross(o.worldNormal, o.tangentWorld));
@@ -149,8 +153,9 @@
                 float3x3 TBN = float3x3(normalize(i.tangentWorld), normalize(i.binormalWorld), normalize(i.worldNormal));
                 TBN = transpose(TBN);
                 float3 worldNormal = mul(TBN, normalMap);
+                worldNormal = mul(unity_ObjectToWorld, worldNormal);
                 i.worldNormal = normalize(worldNormal);
-
+                //return col;
                 float4 color = BlinnPhong(i.worldNormal, i.world_vertex, col);
                 float atten = saturate(LIGHT_ATTENUATION(i) + UNITY_LIGHTMODEL_AMBIENT.rgb);
                 color.rgb *= atten;
@@ -200,10 +205,11 @@
             sampler2D _MainTex;
             float2 _MainTex_ST;
             float4 _Color;
+            float3 _ShaderOffset;
             v2f vert(appdata_t v, uint instanceID : SV_InstanceID)
             {
                 v2f o;
-                float4 pos = mul(_Properties[instanceID].mat, v.vertex);
+                float4 pos = mul(_Properties[instanceID].mat, v.vertex) + float4(_ShaderOffset, 0);
                 float3 world_vertex = mul(unity_ObjectToWorld, pos);
                 float3 bf = normalize(abs(normalize(world_vertex - _PlanetOrigin)));
                 bf /= dot(bf, (float3)1);
@@ -228,8 +234,11 @@
                 float2 wind = (samplePosXZ + samplePosXY + samplePosZY) / 3;
                 
                 float heightFactor = v.vertex.y > _HeightCutoff;
-                heightFactor = heightFactor * pow(v.vertex.y + 0.05, _HeightFactor);
-                
+                heightFactor = heightFactor * pow(v.vertex.y, _HeightFactor);
+                if (v.vertex.y < 0)
+                {
+                    heightFactor = 0;
+                }
                 
                 float2 windSample = -tex2Dlod(_WindMap, float4(wind, 0, 0));
                 
@@ -242,7 +251,9 @@
                 o.worldNormal = normalize(mul(_Properties[instanceID].mat, v.vertex));
                 o.world_vertex = mul(unity_ObjectToWorld, v.vertex);
                 o.pos = o.vertex;
+                o.pos = UnityApplyLinearShadowBias(o.pos);
                 o.uv = v.uv;
+
                 TRANSFER_SHADOW_CASTER(o)
                 return o;
                 //vertex = mul(unity_ObjectToClipPos, vertex);
@@ -254,10 +265,7 @@
             float4 frag(v2f i) : SV_Target
             {
                 fixed4 texcol = tex2D(_MainTex, i.uv);
-                if (_Cutoff > texcol.a)
-                {
-                    discard;
-                }
+                clip(texcol.a - _Cutoff);
                 return 0;
                 //fixed4 texcol = tex2D(_MainTex, i.uv);
                 //clip(texcol.a * _Color.a - _Cutoff);
@@ -267,5 +275,5 @@
             ENDCG
         }
     }
-    //Fallback "Transparent/Cutout/Diffuse"
+    Fallback "Cutout"
 }

@@ -13,13 +13,18 @@ namespace ScatterConfiguratorUtils
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ParallaxConfiguratorMain : MonoBehaviour
     {
-        public static Scatter BodyScatter;
+        public static Dictionary<string, Scatter> BodyScatters;
+        public static int currentIndex = 0;
         private static Rect window = new Rect(100, 100, 450, 200);
         private static bool showTextures = false;
+        private static bool advanceIndex;
+        private static bool advanceSub;
+        public static Scatter currentScatter;
         private static bool showPqs = false;
         private static string lastBodyName;
         private static bool anyValueHasChanged;
         private static bool firstRun = true;
+        public static int currentSubCountIndex;
 
         public static Dictionary<string, ScatterBody> ScatterBodiesOriginal;
 
@@ -34,8 +39,8 @@ namespace ScatterConfiguratorUtils
             CelestialBody currentBody = FlightGlobals.currentMainBody;
             lastBodyName = currentBody.name;
 
-            BodyScatter = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters["Grass"] : null;
-
+            BodyScatters = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters : null;
+            Debug.Log("Body scatters length: " + BodyScatters.Count);
             if (firstRun)
             {
                 firstRun = false;
@@ -48,7 +53,7 @@ namespace ScatterConfiguratorUtils
         {
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.P))
             {
-                if (BodyScatter != null)
+                if (BodyScatters != null)
                     ShowUI = !ShowUI;
                 else
                 {
@@ -82,7 +87,7 @@ namespace ScatterConfiguratorUtils
 
             window = GUILayout.Window(GetInstanceID(), window, DrawWindow, "Parallax Configurator");
         }
-
+        public static bool displayCount = false;
         private static void DrawWindow(int windowID)
         {
             GUILayout.BeginVertical();
@@ -96,33 +101,99 @@ namespace ScatterConfiguratorUtils
 
             }
 
-            BodyScatter.properties.scatterDistribution._Range = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._Range)], BodyScatter.properties.scatterDistribution._Range);
-            BodyScatter.properties.scatterDistribution._PopulationMultiplier = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._PopulationMultiplier)], BodyScatter.properties.scatterDistribution._PopulationMultiplier);
-            BodyScatter.properties.scatterDistribution._SizeNoiseStrength = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._SizeNoiseStrength)], BodyScatter.properties.scatterDistribution._SizeNoiseStrength);
-            BodyScatter.properties.scatterDistribution._SizeNoiseScale = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._SizeNoiseScale)], BodyScatter.properties.scatterDistribution._SizeNoiseScale);
+            if (advanceIndex != GUILayout.Toggle(advanceIndex, "Next Scatter")) //Toggles
+            {
+                advanceIndex = !advanceIndex;
+                window = new Rect(window.position.x, window.position.y, 450, 200);
+            }
+            if (advanceIndex)
+            {
+                currentIndex++;
+                if (currentIndex >= BodyScatters.Keys.Count)
+                {
+                    currentIndex = 0;
+                }
+                currentSubCountIndex = 0;
+                advanceIndex = !advanceIndex;
+                Debug.Log("Index advanced: " + currentIndex);
+            }
+
+
             
-            //BodyScatter.properties.scatterDistribution._SizeNoiseOffset = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._SizeNoiseOffset.x)], BodyScatter.properties.scatterDistribution._SizeNoiseOffset.x);
 
-            BodyScatter.properties.scatterDistribution._MinScale = TextAreaLabelVector(Labels[nameof(BodyScatter.properties.scatterDistribution._MinScale)], BodyScatter.properties.scatterDistribution._MinScale);
-            BodyScatter.properties.scatterDistribution._MaxScale = TextAreaLabelVector(Labels[nameof(BodyScatter.properties.scatterDistribution._MaxScale)], BodyScatter.properties.scatterDistribution._MaxScale);
-            BodyScatter.properties.scatterDistribution._CutoffScale = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._CutoffScale)], BodyScatter.properties.scatterDistribution._CutoffScale);
-            BodyScatter.properties.scatterDistribution._LODRange = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._LODRange)], BodyScatter.properties.scatterDistribution._LODRange);
 
-            BodyScatter.properties.scatterMaterial._MainColor = TextAreaLabelColor(Labels[nameof(BodyScatter.properties.scatterMaterial._MainColor)], BodyScatter.properties.scatterMaterial._MainColor);
-            BodyScatter.properties.scatterMaterial._SubColor = TextAreaLabelColor(Labels[nameof(BodyScatter.properties.scatterMaterial._SubColor)], BodyScatter.properties.scatterMaterial._SubColor);
-            BodyScatter.properties.scatterMaterial._ColorNoiseScale = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterMaterial._ColorNoiseScale)], BodyScatter.properties.scatterMaterial._ColorNoiseScale);
-            BodyScatter.properties.scatterMaterial._ColorNoiseStrength = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterMaterial._ColorNoiseStrength)], BodyScatter.properties.scatterMaterial._ColorNoiseStrength);
+            Debug.Log("Current Index is " + currentIndex);
+            string thisIndex = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray()[currentIndex];
+            Debug.Log("Searching for scatter: " + thisIndex);
+            currentScatter = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[thisIndex];
 
-            BodyScatter.properties.scatterWind._WindSpeed = TextAreaLabelVector(Labels[nameof(BodyScatter.properties.scatterWind._WindSpeed)], BodyScatter.properties.scatterWind._WindSpeed);
+            if (advanceSub != GUILayout.Toggle(advanceSub, "Next Sub")) //Toggles
+            {
+                advanceSub = !advanceSub;
+                window = new Rect(window.position.x, window.position.y, 450, 200);
+            }
+            if (advanceSub)
+            {
+                currentSubCountIndex++;
+                if (currentSubCountIndex >= currentScatter.subObjectCount)
+                {
+                    currentSubCountIndex = 0;
+                }
+                advanceSub = !advanceSub;
+                Debug.Log("Index advanced: " + currentSubCountIndex);
+            }
 
-            BodyScatter.properties.scatterWind._WaveSpeed = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterWind._WaveSpeed)], BodyScatter.properties.scatterWind._WaveSpeed);
-            BodyScatter.properties.scatterWind._WaveAmp = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterWind._WaveAmp)], BodyScatter.properties.scatterWind._WaveAmp);
-            BodyScatter.properties.scatterWind._HeightCutoff = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterWind._HeightCutoff)], BodyScatter.properties.scatterWind._HeightCutoff);
-            BodyScatter.properties.scatterWind._HeightFactor = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterWind._HeightFactor)], BodyScatter.properties.scatterWind._HeightFactor);
 
-            BodyScatter.properties.scatterDistribution.updateRate = (int)TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution.updateRate)], BodyScatter.properties.scatterDistribution.updateRate);
+            if (displayCount != GUILayout.Toggle(displayCount, "Log scatter vertex count")) //Toggles
+            {
+                displayCount = !displayCount;
+                window = new Rect(window.position.x, window.position.y, 450, 200);
+            }
+            if (displayCount)
+            {
+                displayCount = !displayCount;
+                int totalCount = 0;
+                foreach (Scatter scatter in BodyScatters.Values)
+                {
+                    int thisScatterCount = scatter.GetGlobalVertexCount(scatter);
+                    totalCount += thisScatterCount;
+                }
+                ScatterLog.Log("All scatters combined contribute to a total of " + totalCount.ToString("N0") + " vertices being rendered right now");
+            }
 
-            ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"] = BodyScatter;
+
+            Debug.Log("Current scatter name is " + currentScatter.scatterName);
+            currentScatter.properties.scatterDistribution._Range = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._Range)], currentScatter.properties.scatterDistribution._Range);
+            currentScatter.properties.scatterDistribution._PopulationMultiplier = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._PopulationMultiplier)], currentScatter.properties.scatterDistribution._PopulationMultiplier);
+            currentScatter.properties.scatterDistribution._SizeNoiseStrength = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._SizeNoiseStrength)], currentScatter.properties.scatterDistribution._SizeNoiseStrength);
+            currentScatter.properties.scatterDistribution._SizeNoiseScale = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._SizeNoiseScale)], currentScatter.properties.scatterDistribution._SizeNoiseScale);
+            //
+            //currentScatter.properties.scatterDistribution._SizeNoiseOffset = TextAreaLabelFloat(Labels[nameof(BodyScatter.properties.scatterDistribution._SizeNoiseOffset.x)], BodyScatter.properties.scatterDistribution._SizeNoiseOffset.x);
+            //
+            currentScatter.properties.scatterDistribution._MinScale = TextAreaLabelVector(Labels[nameof(currentScatter.properties.scatterDistribution._MinScale)], currentScatter.properties.scatterDistribution._MinScale);
+            currentScatter.properties.scatterDistribution._MaxScale = TextAreaLabelVector(Labels[nameof(currentScatter.properties.scatterDistribution._MaxScale)], currentScatter.properties.scatterDistribution._MaxScale);
+            currentScatter.properties.scatterDistribution._CutoffScale = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._CutoffScale)], currentScatter.properties.scatterDistribution._CutoffScale);
+            //currentScatter.properties.scatterDistribution._LODRange = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution._LODRange)], currentScatter.properties.scatterDistribution._LODRange);
+            currentScatter.properties.scatterMaterial._MainColor = TextAreaLabelColor(Labels[nameof(currentScatter.properties.scatterMaterial._MainColor)], currentScatter.properties.scatterMaterial._MainColor);
+            currentScatter.properties.scatterMaterial._SubColor = TextAreaLabelColor(Labels[nameof(currentScatter.properties.scatterMaterial._SubColor)], currentScatter.properties.scatterMaterial._SubColor);
+            currentScatter.properties.scatterMaterial._ColorNoiseScale = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterMaterial._ColorNoiseScale)], currentScatter.properties.scatterMaterial._ColorNoiseScale);
+            currentScatter.properties.scatterMaterial._ColorNoiseStrength = TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterMaterial._ColorNoiseStrength)], currentScatter.properties.scatterMaterial._ColorNoiseStrength);
+            currentScatter.properties.scatterDistribution.updateRate = (int)TextAreaLabelFloat(Labels[nameof(currentScatter.properties.scatterDistribution.updateRate)], currentScatter.properties.scatterDistribution.updateRate);
+
+            currentScatter.properties.scatterMaterial = SetupMaterialUI(currentScatter.properties.scatterMaterial);
+            if (currentScatter.subObjectCount > 0)
+
+
+
+
+            {
+                currentScatter.subObjects[currentSubCountIndex].properties._Density = TextAreaLabelFloat("SubObject density", currentScatter.subObjects[currentSubCountIndex].properties._Density);
+                currentScatter.subObjects[currentSubCountIndex].properties._NoiseAmount = TextAreaLabelFloat("SubObject NoiseAmount", currentScatter.subObjects[currentSubCountIndex].properties._NoiseAmount);
+                currentScatter.subObjects[currentSubCountIndex].properties._NoiseScale = TextAreaLabelFloat("SubObject NoiseScale", currentScatter.subObjects[currentSubCountIndex].properties._NoiseScale);
+                currentScatter.subObjects[currentSubCountIndex].properties.material = SetupMaterialUI(currentScatter.subObjects[currentSubCountIndex].properties.material);
+            }
+                
+
 
             GUILayout.EndVertical();
 
@@ -142,7 +213,25 @@ namespace ScatterConfiguratorUtils
             }
             GUI.DragWindow();
         }
-
+        private static ScatterMaterial SetupMaterialUI(ScatterMaterial scatterMat)
+        {
+            for (int i = 0; i < scatterMat.Vectors.Keys.Count; i++)
+            {
+                string currentKey = scatterMat.Vectors.Keys.ToArray()[i];
+                scatterMat.Vectors[currentKey] = TextAreaLabelVector(currentKey, scatterMat.Vectors[currentKey]);
+            }
+            for (int i = 0; i < scatterMat.Floats.Keys.Count; i++)
+            {
+                string currentKey = scatterMat.Floats.Keys.ToArray()[i];
+                scatterMat.Floats[currentKey] = TextAreaLabelFloat(currentKey, scatterMat.Floats[currentKey]);
+            }
+            for (int i = 0; i < scatterMat.Colors.Keys.Count; i++)
+            {
+                string currentKey = scatterMat.Colors.Keys.ToArray()[i];
+                scatterMat.Colors[currentKey] = TextAreaLabelColor(currentKey, scatterMat.Colors[currentKey]);
+            }
+            return scatterMat;
+        }
         private static string TextAreaLabelTexture(string label, string value)
         {
             GUILayout.BeginHorizontal();
@@ -167,10 +256,9 @@ namespace ScatterConfiguratorUtils
         }
         private static Vector3 TextAreaLabelVector(string label, Vector3 value)
         {
-            float x = TextAreaLabelFloat(label, value.x);
-            float y = TextAreaLabelFloat(label, value.y);
-            float z = TextAreaLabelFloat(label, value.z);
-            return new Vector3(x, y, z);
+            Color colValue = new Color(value.x, value.y, value.z);
+            Color col = TextAreaLabelColor(label, colValue);
+            return new Vector3(col.r, col.g, col.b);
         }
         private static int TextAreaLabelInt(string label, int value, int minValue, int maxValue)
         {
@@ -204,15 +292,15 @@ namespace ScatterConfiguratorUtils
             
         }
 
-        private static void UpdateShaderValues()
+        public void UpdateShaderValues()
         {
-            
 
-            Scatter scatter = BodyScatter;
+
+            Scatter scatter = currentScatter;
             Debug.Log("Forcing compute update");
-            scatter.ForceComputeUpdate();
+            StartCoroutine(scatter.ForceComputeUpdate(currentScatter));
             Debug.Log("Done!");
-
+            
             PostCompute[] allPostComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
             foreach (PostCompute comp in allPostComputeComponents)
             {
@@ -223,23 +311,13 @@ namespace ScatterConfiguratorUtils
                     {
                         Debug.Log("Component is null??");
                     }
-                    SetAllValues(comp.material);
+                    comp.material = SetAllValues(comp.material);
                 }
             }
         }
-        public static void SetAllValues(Material material)
+        public static Material SetAllValues(Material material)
         {
-            material.SetColor("_Color", new Color(1, 1, 1, 1));
-
-            material.SetFloat("_MaxBrightness", 0.64f);
-
-            material.SetFloat("_WaveSpeed", BodyScatter.properties.scatterWind._WaveSpeed);
-            material.SetFloat("_WaveAmp", BodyScatter.properties.scatterWind._WaveAmp);
-            material.SetFloat("_HeightCutoff", BodyScatter.properties.scatterWind._HeightCutoff);
-            material.SetFloat("_HeightFactor", BodyScatter.properties.scatterWind._HeightFactor);
-
-            material.SetVector("_PlanetOrigin", FlightGlobals.ActiveVessel.transform.position);
-            material.SetVector("_WindSpeed", BodyScatter.properties.scatterWind._WindSpeed);
+            return Utils.SetShaderProperties(material, currentScatter.properties.scatterMaterial);
         }
 
         private static void SaveConfigs(string fileName)
@@ -425,7 +503,7 @@ namespace ScatterConfiguratorUtils
                 return false;
             }
 
-            UpdateShaderValues();
+            //this.UpdateShaderValues();
             return true;
         }
 

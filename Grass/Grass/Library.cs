@@ -17,6 +17,10 @@ namespace Grass
     {
         public override void OnQuadBuilt(PQ quad)
         {
+            if (quad == null || FlightGlobals.currentMainBody == null || FlightGlobals.currentMainBody.pqsController == null)
+            {
+                return;
+            }
             if (quad != null && HighLogic.LoadedScene == GameScenes.FLIGHT && quad.subdivision >= FlightGlobals.currentMainBody.pqsController.maxLevel - 4)
             {
                 QuadMeshes sm = quad.gameObject.AddComponent<QuadMeshes>();
