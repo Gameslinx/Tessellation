@@ -35,7 +35,7 @@ namespace ComputeLoader
         public ComputeBuffer subObjectSlot3;
         public ComputeBuffer subObjectSlot4;
 
-        public PostCompute pc;
+        public PostCompute pc;  //Assign this OUTSIDE of this
 
         public Mesh mesh;
         public int vertCount;
@@ -98,7 +98,6 @@ namespace ComputeLoader
             //mesh = Instantiate(gameObject.GetComponent<MeshFilter>().mesh);
             vertCount = mesh.vertexCount;
             triCount = mesh.triangles.Length;
-            pc = gameObject.GetComponent<PostCompute>();
             distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributePoints"));
             evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
             GeneratePositions();
@@ -108,6 +107,7 @@ namespace ComputeLoader
         }
         public void InitializeAllBuffers()
         {
+            Debug.Log("Initializing for " + scatter.scatterName);
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
 
             Utils.SafetyCheckRelease(countBuffer, "countBuffer");
@@ -489,7 +489,7 @@ namespace ComputeLoader
     }
     public class PostCompute : MonoBehaviour
     {
-
+        public bool active = true;
         public Material material;
         public Material materialFar;
         public Material materialFurther;
@@ -525,7 +525,7 @@ namespace ComputeLoader
 
         private Bounds bounds;
         bool setup = false;
-        bool setupInitial = false;
+        public bool setupInitial = false;
         public int countCheck = 0;
         public int farCountCheck = 0;
         public int furtherCountCheck = 0;
@@ -545,12 +545,38 @@ namespace ComputeLoader
         float subdivisionRange = 0;
 
         public Properties scatterProps;
-        
+        public void SetupAgain(Scatter scatter)
+        {
+            material = new Material(scatter.properties.scatterMaterial.shader);
+
+            //material.SetFloat("_WaveSpeed", 0);
+            //material.SetFloat("_HeightCutoff", -1000);
+            material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
+            scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
+
+
+            materialFar = Instantiate(material);
+            materialFurther = Instantiate(material);
+            if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
+            {
+                materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[0].mainTexName));
+            }
+            if (scatter.properties.scatterDistribution.lods.lods[1].mainTexName != "parent")
+            {
+                materialFurther.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[1].mainTexName));
+            }
+            subObjectMat1 = Utils.GetSubObjectMaterial(scatter, 0);
+            subObjectMat2 = Utils.GetSubObjectMaterial(scatter, 1);
+            subObjectMat3 = Utils.GetSubObjectMaterial(scatter, 2);
+            subObjectMat4 = Utils.GetSubObjectMaterial(scatter, 3);
+            InitializeBuffers();
+        }
         public void Setup(int[] counts, ComputeBuffer[] buffers, Scatter scatter)
         {
             if (!setupInitial)
             {
                 GameObject go = GameDatabase.Instance.GetModel(scatter.model);
+                Debug.Log("Using model: " + scatter.model);
                 Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
                
                 this.mesh = mesh;
@@ -693,6 +719,10 @@ namespace ComputeLoader
         }
         private void Update()
         {
+            if (!active)
+            {
+                return;
+            }
             //UpdateMaterialOffsets();
             UpdateBounds();
             SetPlanetOrigin();
@@ -812,8 +842,14 @@ namespace ComputeLoader
         GameObject newQuad;
         public ScatterBody body;
         bool wasEverSubdivided = false;
+        public ComputeComponent[] comps;
+        public PostCompute[] postComps;
+
         void Start()
         {
+            comps = new ComputeComponent[body.scatters.Values.Count];
+            postComps = new PostCompute[body.scatters.Values.Count];
+            alreadyAdded = new bool[body.scatters.Values.Count];
             InvokeRepeating("CheckRange", 1f, 1f);
             InvokeRepeating("CheckFixedRange", 1f, 1f);
         }
@@ -871,6 +907,7 @@ namespace ComputeLoader
                         comp.subObjectCount = thisScatter.subObjectCount;
                         comp.scatter = thisScatter;
                         PostCompute postComp = newQuad.gameObject.AddComponent<PostCompute>();
+                        comp.pc = postComp;
                     }
                 }
             }
@@ -916,7 +953,7 @@ namespace ComputeLoader
                 
             }
         }
-        bool alreadyAdded = false;
+        bool[] alreadyAdded;
         void CheckFixedRange()
         {
             
@@ -932,7 +969,7 @@ namespace ComputeLoader
                     float distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
                     float limit = thisScatter.properties.subdivisionSettings.range;
                     Vector3 planetNormal = Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
-                    if (distance < limit && alreadyAdded == false && quad != null)
+                    if (distance < limit && alreadyAdded[i] == false && quad != null)
                     {
                         var quadMeshFilter = quad.GetComponent<MeshFilter>();
                         var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
@@ -943,14 +980,19 @@ namespace ComputeLoader
                         comp.scatter = thisScatter;
                         comp.quadSubdivisionDifference = (maxLevelDiff * 2) + 1;
                         PostCompute postComp = quad.gameObject.AddComponent<PostCompute>();
+                        comp.pc = postComp;
+
+                        comps[i] = comp;
+                        postComps[i] = postComp;
+
                         Debug.Log("Added " + thisScatter.scatterName);
                         //quadMeshRenderer.enabled = false;
-                        alreadyAdded = true;
+                        alreadyAdded[i] = true;
                     }
                     else if (distance > limit && quad != null)
                     {
-                        ComputeComponent comp = quad.gameObject.GetComponent<ComputeComponent>();
-                        PostCompute postComp = quad.gameObject.GetComponent<PostCompute>();
+                        ComputeComponent comp = comps[i];// quad.gameObject.GetComponent<ComputeComponent>();
+                        PostCompute postComp = postComps[i];// quad.gameObject.GetComponent<PostCompute>();
                         if (comp != null)
                         {
                             Destroy(comp);
@@ -959,7 +1001,7 @@ namespace ComputeLoader
                         {
                             Destroy(postComp);
                         }
-                        alreadyAdded = false;
+                        alreadyAdded[i] = false;
                     }
                 }
             }

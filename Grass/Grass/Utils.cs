@@ -6,6 +6,7 @@ using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.IO;
 
 namespace ScatterConfiguratorUtils
 {
@@ -162,7 +163,6 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterDistribution._MaxScale),  nameof(scatterBody.properties.scatterDistribution._MaxScale)},
                 {nameof(scatterBody.properties.scatterDistribution._MinScale),  nameof(scatterBody.properties.scatterDistribution._MinScale)},
                 {nameof(scatterBody.properties.scatterDistribution._CutoffScale),  nameof(scatterBody.properties.scatterDistribution._CutoffScale)},
-                {nameof(scatterBody.properties.scatterDistribution.updateRate),  nameof(scatterBody.properties.scatterDistribution.updateRate)},
 
                 {nameof(scatterBody.properties.scatterMaterial._MainColor),  nameof(scatterBody.properties.scatterMaterial._MainColor)},
                 {nameof(scatterBody.properties.scatterMaterial._SubColor),  nameof(scatterBody.properties.scatterMaterial._SubColor)},
@@ -183,8 +183,6 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterDistribution._MaxScale),  nameof(scatterBody.properties.scatterDistribution._MaxScale)},
                 {nameof(scatterBody.properties.scatterDistribution._MinScale),  nameof(scatterBody.properties.scatterDistribution._MinScale)},
                 {nameof(scatterBody.properties.scatterDistribution._CutoffScale),  nameof(scatterBody.properties.scatterDistribution._CutoffScale)},
-                {nameof(scatterBody.properties.scatterDistribution.updateRate),  nameof(scatterBody.properties.scatterDistribution.updateRate)},
-
                 {nameof(scatterBody.properties.scatterMaterial._MainColor),  nameof(scatterBody.properties.scatterMaterial._MainColor)},
                 {nameof(scatterBody.properties.scatterMaterial._SubColor),  nameof(scatterBody.properties.scatterMaterial._SubColor)},
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale)},
@@ -551,6 +549,118 @@ namespace ScatterConfiguratorUtils
             }
 
             return new Color(col[0], col[1], col[2], col[3]);
+        }
+    }
+    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
+    public class ConfigUtil
+    {
+        public static void SaveAllToConfig(string bodyName)
+        {
+            Debug.Log("Starting");
+            bool exists = false;
+            string filePath = KSPUtil.ApplicationRootPath + "GameData/Parallax/Exports/";
+            FileInfo fileInfo = new FileInfo(filePath);
+            if (fileInfo.Directory.Attributes == FileAttributes.Directory)
+            {
+                exists = true;
+            }
+            if (!exists)
+            {
+                ScatterLog.Log("[Exception] File path: " + filePath + " does not exist!");
+                return;
+            }
+            ConfigNode node = new ConfigNode();
+            ScatterBody body = ScatterBodies.scatterBodies[bodyName];
+            ConfigNode parallaxScattersNode = node.AddNode("ParallaxScatters-EXPORTED //Remove -EXPORTED when turning this into a config");
+            parallaxScattersNode.AddValue("body", body.bodyName);
+            string path = filePath + body.bodyName + ".cfg";
+            foreach (string scatterKey in body.scatters.Keys)
+            {
+                Scatter scatter = body.scatters[scatterKey];
+                ConfigNode scatterNode = parallaxScattersNode.AddNode("Scatter");
+                scatterNode.AddValue("name", scatter.scatterName);
+                scatterNode.AddValue("model", scatter.model);
+                scatterNode.AddValue("updateFPS", scatter.updateFPS);
+                ConfigNode subdivisionNode = scatterNode.AddNode("SubdivisionSettings");
+                subdivisionNode.AddValue("subdivisionLevel", scatter.properties.subdivisionSettings.level);
+                subdivisionNode.AddValue("subdivisionRangeMode", scatter.properties.subdivisionSettings.mode.ToString());
+                subdivisionNode.AddValue("subdivisionRange", scatter.properties.subdivisionSettings.range);
+                ConfigNode distributionNode = scatterNode.AddNode("Distribution");
+                Distribution dist = scatter.properties.scatterDistribution;
+                distributionNode.AddValue("_SpawnChance", dist._SpawnChance);
+                distributionNode.AddValue("_Range", dist._Range);
+                distributionNode.AddValue("_PopulationMultiplier", dist._PopulationMultiplier);
+                distributionNode.AddValue("_SizeNoiseStrength", dist._SizeNoiseStrength);
+                distributionNode.AddValue("_SizeNoiseScale", dist._SizeNoiseScale);
+                distributionNode.AddValue("_SizeNoiseOffset", dist._SizeNoiseOffset);
+                distributionNode.AddValue("_MinScale", dist._MinScale);
+                distributionNode.AddValue("_MaxScale", dist._MaxScale);
+                distributionNode.AddValue("_CutoffScale", dist._CutoffScale);
+                distributionNode.AddValue("_SteepPower", dist._SteepPower);
+                distributionNode.AddValue("_SteepContrast", dist._SteepContrast);
+                distributionNode.AddValue("_SteepMidpoint", dist._SteepMidpoint);
+                ConfigNode lodNode = distributionNode.AddNode("LODs");
+                foreach (ParallaxGrass.LOD lod in dist.lods.lods)
+                {
+                    ConfigNode configLOD = lodNode.AddNode("LOD");
+                    configLOD.AddValue("model", lod.modelName);
+                    configLOD.AddValue("_MainTex", lod.mainTexName);
+                    configLOD.AddValue("range", lod.range);
+                }
+                ConfigNode materialNode = scatterNode.AddNode("Material");
+                ScatterMaterial mat = scatter.properties.scatterMaterial;
+                materialNode.AddValue("shader", mat.shader.name);
+                materialNode.AddValue("_MainColor", mat._MainColor);
+                materialNode.AddValue("_SubColor", mat._SubColor);
+                materialNode.AddValue("_ColorNoiseStrength", mat._ColorNoiseStrength);
+                materialNode.AddValue("_ColorNoiseScale", mat._ColorNoiseScale);
+                SaveMaterialNode(materialNode, mat);
+                ConfigNode subObjectsNode = scatterNode.AddNode("SubObjects");
+                foreach (SubObject so in scatter.subObjects)
+                {
+                    ConfigNode soNode = subObjectsNode.AddNode("Object");
+                    soNode.AddValue("name", so.objectName);
+                    soNode.AddValue("model", so.properties.model);
+                    soNode.AddValue("_NoiseScale", so.properties._NoiseScale);
+                    soNode.AddValue("_NoiseAmount", so.properties._NoiseAmount);
+                    soNode.AddValue("_Density", so.properties._Density);
+                    ScatterMaterial soMat = so.properties.material;
+                    ConfigNode soMatNode = soNode.AddNode("Material");
+                    soMatNode.AddValue("shader", soMat.shader.name);
+                    SaveMaterialNode(soMatNode, soMat);
+                }
+            }
+            node.Save(path);
+            
+
+           
+        }
+        public static void SaveMaterialNode(ConfigNode node, ScatterMaterial scatterMaterial)
+        {
+            Dictionary<string, string> textures = scatterMaterial.Textures;
+            Dictionary<string, float> floats = scatterMaterial.Floats;
+            Dictionary<string, Vector3> vectors = scatterMaterial.Vectors;
+            Dictionary<string, Color> colors = scatterMaterial.Colors;
+            string[] texKeys = textures.Keys.ToArray();
+            string[] floatKeys = floats.Keys.ToArray();
+            string[] vectorKeys = vectors.Keys.ToArray();
+            string[] colorKeys = colors.Keys.ToArray();
+            for (int i = 0; i < texKeys.Length; i++)
+            {
+                node.AddValue(texKeys[i], textures[texKeys[i]]);
+            }
+            for (int i = 0; i < floatKeys.Length; i++)
+            {
+                node.AddValue(floatKeys[i], floats[floatKeys[i]]);
+            }
+            for (int i = 0; i < vectorKeys.Length; i++)
+            {
+                node.AddValue(vectorKeys[i], vectors[vectorKeys[i]]);
+            }
+            for (int i = 0; i < colorKeys.Length; i++)
+            {
+                node.AddValue(colorKeys[i], colors[colorKeys[i]]);
+            }
         }
     }
 }

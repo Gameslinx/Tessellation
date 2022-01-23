@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using ComputeLoader;
 using System.Collections;
+using ScatterConfiguratorUtils;
 
 namespace ParallaxGrass
 {
@@ -31,7 +32,6 @@ namespace ParallaxGrass
         public float _SteepPower;
         public float _SteepContrast;
         public float _SteepMidpoint;
-        public int updateRate;
         public float _SpawnChance;
     }
     public struct LODs
@@ -102,36 +102,73 @@ namespace ParallaxGrass
     {
         public string scatterName = "invalidname";
         public string model;
-        public string modelLowLOD;
-        public string modelLowLOD2;
         public float updateFPS = 1;
         public int subObjectCount = 0;
         public Properties properties;
         public SubObject[] subObjects;
+        public bool isVisible = true;
         public Scatter(string name)
         {
             scatterName = name;
         }
-        public IEnumerator ForceComputeUpdate(Scatter currentScatter)
+        public IEnumerator ForceComputeUpdate()
         {
+            
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
             ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
             foreach (ComputeComponent comp in allComputeComponents)
             {
-                if (comp.gameObject.activeSelf && comp.scatter.scatterName == currentScatter.scatterName)
+                if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
                 {
                     Debug.Log("Found ComputeComponent: " + comp.name);
                     if (comp == null)
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.scatter.properties = currentScatter.properties;
-                    comp.updateFPS = currentScatter.properties.scatterDistribution.updateRate;
+                    comp.scatter.properties = properties;
+                    comp.updateFPS = updateFPS;
                     comp.GeneratePositions();
                     comp.InitializeAllBuffers();
                     comp.EvaluatePositions();
                 }
                 yield return null;
+            }
+        }
+        public IEnumerator ForceMaterialUpdate()
+        {
+
+            ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
+            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            foreach (ComputeComponent comp in allComputeComponents)
+            {
+                if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
+                {
+                    PostCompute pc = comp.pc;
+                    Debug.Log("Found PC: " + pc.name);
+                    if (comp == null)
+                    {
+                        Debug.Log("Component is null??");
+                    }
+                    pc.SetupAgain(this);
+                }
+                yield return null;
+            }
+        }
+        public void ModifyScatterVisibility()
+        {
+            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            foreach (ComputeComponent comp in allComputeComponents)
+            {
+                if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
+                {
+                    PostCompute pc = comp.pc;
+                    Debug.Log("Found PC: " + pc.name);
+                    if (comp == null)
+                    {
+                        Debug.Log("Component is null??");
+                    }
+                    pc.active = isVisible;
+                }
             }
         }
         public int GetGlobalVertexCount(Scatter currentScatter)
@@ -241,6 +278,10 @@ namespace ParallaxGrass
         {
             Debug.Log("[ParallaxScatter] " + message);
         }
+        public static void SubLog(string message)
+        {
+            Debug.Log("[ParallaxScatter] \t\t - " + message);
+        }
     }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class HardwareDetection : MonoBehaviour
@@ -284,7 +325,7 @@ namespace ParallaxGrass
                 string bodyName = globalNodes[i].config.GetValue("body");
                 ScatterBody body = new ScatterBody(bodyName);
                 ScatterBodies.scatterBodies.Add(bodyName, body);
-                ScatterLog.Log("Parsing " + bodyName);
+                ScatterLog.Log("Parsing body: " + bodyName);
                 for (int b = 0; b < globalNodes[i].config.nodes.Count; b++)
                 {
                     ConfigNode rootNode = globalNodes[i].config;
@@ -302,6 +343,7 @@ namespace ParallaxGrass
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = scatterNode.GetValue("name");
+            ScatterLog.Log("Parsing scatter: " + scatterName);
             Scatter scatter = new Scatter(scatterName);
             Properties props = new Properties();
             scatter.model = scatterNode.GetValue("model");
@@ -360,7 +402,7 @@ namespace ParallaxGrass
             for (int i = 0; i < nodes.Length; i++)
             {
                 string configShaderName = nodes[i].config.GetValue("name");
-                ScatterLog.Log("Parsing shader: " + configShaderName);
+                ScatterLog.Log("Loading shader from shader bank: " + configShaderName);
                 if (configShaderName == shaderName)
                 {
                     ConfigNode propertiesNode = nodes[i].config.GetNode("Properties");
@@ -386,7 +428,7 @@ namespace ParallaxGrass
                 material.Textures = new Dictionary<string, string>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Textures.Add(values[i], null);
                 }
             }
@@ -395,7 +437,7 @@ namespace ParallaxGrass
                 material.Floats = new Dictionary<string, float>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Floats.Add(values[i], 0);
                 }
             }
@@ -404,7 +446,7 @@ namespace ParallaxGrass
                 material.Vectors = new Dictionary<string, Vector3>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Vectors.Add(values[i], Vector3.zero);
                 }
             }
@@ -413,43 +455,43 @@ namespace ParallaxGrass
                 material.Colors = new Dictionary<string, Color>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.Log("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Colors.Add(values[i], Color.magenta);
                 }
             }
             else
             {
-                ScatterLog.Log("Unable to determine type");
+                ScatterLog.SubLog("Unable to determine type");
             }
             return material;
         }
         public ScatterMaterial SetShaderValues(ConfigNode materialNode, ScatterMaterial material)
         {
             string[] textureKeys = material.Textures.Keys.ToArray();
-            
+            ScatterLog.Log("Setting shader values: ");
             for (int i = 0; i < material.Textures.Keys.Count; i++)
             {
-                ScatterLog.Log("Parsing " + textureKeys[i] + " as " + materialNode.GetValue(textureKeys[i]));
+                ScatterLog.SubLog("Parsing " + textureKeys[i] + " as " + materialNode.GetValue(textureKeys[i]));
                 material.Textures[textureKeys[i]] = materialNode.GetValue(textureKeys[i]);
             }
             string[] floatKeys = material.Floats.Keys.ToArray();
             for (int i = 0; i < material.Floats.Keys.Count; i++)
             {
-                ScatterLog.Log("Parsing " + floatKeys[i] + " as " + materialNode.GetValue(floatKeys[i]));
+                ScatterLog.SubLog("Parsing " + floatKeys[i] + " as " + materialNode.GetValue(floatKeys[i]));
                 material.Floats[floatKeys[i]] = float.Parse(materialNode.GetValue(floatKeys[i]));
             }
             string[] vectorKeys = material.Vectors.Keys.ToArray();
             for (int i = 0; i < material.Vectors.Keys.Count; i++)
             {
                 string configValue = materialNode.GetValue(vectorKeys[i]);
-                ScatterLog.Log("Parsing " + vectorKeys[i] + " as " + materialNode.GetValue(vectorKeys[i]));
+                ScatterLog.SubLog("Parsing " + vectorKeys[i] + " as " + materialNode.GetValue(vectorKeys[i]));
                 material.Vectors[vectorKeys[i]] = ParseVector(configValue);
             }
             string[] colorKeys = material.Colors.Keys.ToArray();
             for (int i = 0; i < material.Colors.Keys.Count; i++)
             {
                 string configValue = materialNode.GetValue(colorKeys[i]);
-                ScatterLog.Log("Parsing " + colorKeys[i] + " as " + materialNode.GetValue(colorKeys[i]));
+                ScatterLog.SubLog("Parsing " + colorKeys[i] + " as " + materialNode.GetValue(colorKeys[i]));
                 material.Colors[colorKeys[i]] = ParseColor(configValue);
             }
             return material;
@@ -538,12 +580,12 @@ namespace ParallaxGrass
             bool succeeded = scatter.TryGetValue(valueName, ref data);
             if (!succeeded)
             {
-                ScatterLog.Log("[Exception] Unable to get the value of " + valueName);
+                ScatterLog.SubLog("[Exception] Unable to get the value of " + valueName);
                 return null;
             }
             else
             {
-                ScatterLog.Log("Parsed " + valueName + " as: " + data);
+                ScatterLog.SubLog("Parsed " + valueName + " as: " + data);
             }
             return data;
         }
@@ -557,7 +599,7 @@ namespace ParallaxGrass
         {
             if (data == null)
             {
-                ScatterLog.Log("Null value, returning 0");
+                ScatterLog.SubLog("Null value, returning 0");
                 return 0;
             }
             return float.Parse(data);
@@ -566,7 +608,7 @@ namespace ParallaxGrass
         {
             if (data == null)
             {
-                ScatterLog.Log("Null value, returning 0");
+                ScatterLog.SubLog("Null value, returning 0");
             }
             string cleanString = data.Replace(" ", string.Empty);
             string[] components = cleanString.Split(',');
