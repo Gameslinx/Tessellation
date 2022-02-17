@@ -7,6 +7,7 @@ using UnityEngine;
 using ParallaxGrass;
 using UnityEngine.UI;
 using ComputeLoader;
+using Grass;
 
 namespace ScatterConfiguratorUtils
 {
@@ -29,15 +30,23 @@ namespace ScatterConfiguratorUtils
         private static readonly Dictionary<string, PropertyInfo> TextureProperties = new Dictionary<string, PropertyInfo>();
         public static bool ShowUI { get; set; }
         public static ChangeType currentChangeType;
+        public static bool revertTerrainMaterial = false;
+        public static bool revertDistributionMaterial = false;
         private static Dictionary<string, string> Labels => Utils.LabelFromVar;
+        private static bool displayDeviance;
+        private static bool displayDistribution;
+        private static bool showNoiseDistribution;
         public enum ChangeType
         {
             Distribution,
+            Rebuild,
             Material,
             Subdivision,
             Base,
             None,
-            Visibility
+            Visibility,
+            TerrainMaterial,
+            DistributionMaterial
         }
         public void Start()
         {
@@ -50,6 +59,11 @@ namespace ScatterConfiguratorUtils
 
         public void Update()
         {
+            if (Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.L))
+            {
+                ScatterLog.Log("Switching to 1 camera");
+                Utils.oneCamera = !Utils.oneCamera;
+            }
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.P))
             {
                 if (BodyScatters != null)
@@ -151,6 +165,7 @@ namespace ScatterConfiguratorUtils
         static bool showSubObject = false;
         private static void GetScatterProperties(Scatter scatter, GUIStyle alignment)
         {
+            //bool displayDeviance = false;
             if (GUILayout.Button("Display Distribution Settings"))
             {
                 showDistribution = !showDistribution;
@@ -161,6 +176,42 @@ namespace ScatterConfiguratorUtils
             }
             if (showDistribution)
             {
+                if (GUILayout.Button("Show Distribution Noise"))
+                {
+                    displayDistribution = !displayDistribution;
+                    if (!displayDistribution)
+                    {
+                        revertDistributionMaterial = true;
+                        anyValueHasChanged = true;
+                        currentChangeType = ChangeType.DistributionMaterial;
+                        Debug.Log("Revert time");
+                    }
+                    if (displayDistribution)
+                    {
+                        //Update all quads with this material
+                        revertDistributionMaterial = false;
+                        anyValueHasChanged = true;
+                        currentChangeType = ChangeType.DistributionMaterial;
+                    }
+                }
+                if (GUILayout.Button("Show Normal Deviancy"))
+                {
+                    displayDeviance = !displayDeviance;
+                    if (!displayDeviance)
+                    {
+                        revertTerrainMaterial = true;
+                        anyValueHasChanged = true;
+                        currentChangeType = ChangeType.TerrainMaterial;
+                        Debug.Log("Revert time");
+                    }
+                    if (displayDeviance)
+                    {
+                        //Update all quads with this material
+                        revertTerrainMaterial = false;
+                        anyValueHasChanged = true;
+                        currentChangeType = ChangeType.TerrainMaterial;
+                    }
+                }
                 Distribution props = scatter.properties.scatterDistribution;
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Distribution Settings", alignment, GUILayout.ExpandWidth(true));
@@ -168,16 +219,34 @@ namespace ScatterConfiguratorUtils
                 props._Range = TextAreaLabelFloat("Max Range", props._Range, ChangeType.Distribution);
                 props._SpawnChance = TextAreaLabelFloat("Spawn Chance", props._SpawnChance, ChangeType.Distribution);
                 props._SizeNoiseStrength = TextAreaLabelFloat("Size Noise Strength", props._SizeNoiseStrength, ChangeType.Distribution);
-                props._SizeNoiseScale = TextAreaLabelFloat("Size Noise Scale", props._SizeNoiseScale, ChangeType.Distribution);
-                props._SizeNoiseOffset.x = TextAreaLabelFloat("Size Noise Offset", props._SizeNoiseOffset.x, ChangeType.Distribution);
                 props._MinScale = TextAreaLabelVector("Min Scale", props._MinScale, ChangeType.Distribution);
                 props._MaxScale = TextAreaLabelVector("Max Scale", props._MaxScale, ChangeType.Distribution);
                 props._CutoffScale = TextAreaLabelFloat("Min Size Cutoff Scale", props._CutoffScale, ChangeType.Distribution);
                 props._SteepPower = TextAreaLabelFloat("Steep Power", props._SteepPower, ChangeType.Distribution);
                 props._SteepContrast = TextAreaLabelFloat("Steep Contrast", props._SteepContrast, ChangeType.Distribution);
                 props._SteepMidpoint = TextAreaLabelFloat("Steep Midpoint", props._SteepMidpoint, ChangeType.Distribution);
+                props._MaxNormalDeviance = TextAreaLabelFloat("Max Normal Deviance", props._MaxNormalDeviance, ChangeType.Distribution);
                 //GUILayout.EndVertical();
                 scatter.properties.scatterDistribution = props;
+            }
+            if (GUILayout.Button("Display Noise Settings"))
+            {
+                showNoiseDistribution = !showNoiseDistribution;
+                if (!showNoiseDistribution)
+                {
+                    window.height = absoluteSize.height;
+                }
+            }
+            if (showNoiseDistribution)
+            {
+                DistributionNoise props = scatter.properties.scatterDistribution.noise;
+                props._Frequency = TextAreaLabelFloat("Frequency", props._Frequency, ChangeType.Rebuild);
+                props._Persistence = TextAreaLabelFloat("Persistence", props._Persistence, ChangeType.Rebuild);
+                props._Lacunarity = TextAreaLabelFloat("_Lacunarity", props._Lacunarity, ChangeType.Rebuild);
+                props._Octaves = TextAreaLabelFloat("_Octaves", props._Octaves, ChangeType.Rebuild);
+                props._Seed = (int)TextAreaLabelFloat("_Seed", props._Seed, ChangeType.Rebuild);
+                props._NoiseType = (int)TextAreaLabelFloat("_NoiseType", props._NoiseType, ChangeType.Rebuild);
+                scatter.properties.scatterDistribution.noise = props;
             }
             if (GUILayout.Button("Display Material Settings"))
             {
@@ -250,6 +319,11 @@ namespace ScatterConfiguratorUtils
                 string currentKey = scatterMat.Vectors.Keys.ToArray()[i];
                 scatterMat.Vectors[currentKey] = TextAreaLabelVector(currentKey, scatterMat.Vectors[currentKey], ChangeType.Material);
             }
+            for (int i = 0; i < scatterMat.Scales.Keys.Count; i++)
+            {
+                string currentKey = scatterMat.Scales.Keys.ToArray()[i];
+                scatterMat.Scales[currentKey] = TextAreaLabelVector2D(currentKey, scatterMat.Scales[currentKey], ChangeType.Material);
+            }
             for (int i = 0; i < scatterMat.Floats.Keys.Count; i++)
             {
                 string currentKey = scatterMat.Floats.Keys.ToArray()[i];
@@ -264,6 +338,16 @@ namespace ScatterConfiguratorUtils
         }
         static void CreateSaveButton()
         {
+            if (GUILayout.Button("Get Total Scene Vertices"))
+            {
+                int totalCount = 0;
+                for (int i = 0; i < BodyScatters.Keys.Count; i++)
+                {
+                    Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
+                    totalCount += currentScatter.GetGlobalVertexCount(thisScatter);
+                }
+                ScatterLog.Log("Total vertices in the scene right now: " + totalCount);
+            }
             if (GUILayout.Button("Save " + FlightGlobals.currentMainBody.name + "'s Scatters To Config"))
             {
                 ConfigUtil.SaveAllToConfig(FlightGlobals.currentMainBody.name);
@@ -343,6 +427,16 @@ namespace ScatterConfiguratorUtils
 
             return newValue;
         }
+        private static Vector3 TextAreaLabelVector(string label, Vector3 value, ChangeType type)
+        {
+            Vector3 newValue = InputFields.VectorField(label, value);
+            if (newValue != value)
+            {
+                anyValueHasChanged = true;
+                currentChangeType = type;
+            }
+            return newValue;
+        }
         private static float TextAreaLabelFloat(string label, float value, ChangeType type)
         {
             GUILayout.BeginHorizontal();
@@ -357,11 +451,23 @@ namespace ScatterConfiguratorUtils
 
             return newValue;
         }
-        private static Vector3 TextAreaLabelVector(string label, Vector3 value, ChangeType type)
+        //private static Vector3 TextAreaLabelVector(string label, Vector3 value, ChangeType type)
+        //{
+        //    Color colValue = new Color(value.x, value.y, value.z);
+        //    Color col = TextAreaLabelColor(label, colValue, type);
+        //    return new Vector3(col.r, col.g, col.b);
+        //}
+
+        private static Vector2 TextAreaLabelVector2D(string label, Vector2 value, ChangeType type)
         {
-            Color colValue = new Color(value.x, value.y, value.z);
-            Color col = TextAreaLabelColor(label, colValue, type);
-            return new Vector3(col.r, col.g, col.b);
+            Vector3 val = InputFields.VectorField(label, new Vector3(value.x, value.y, 0));
+            Vector2 newValue = new Vector2(val.x, val.y);
+            if (newValue != value)
+            {
+                anyValueHasChanged = true;
+                currentChangeType = type;
+            }
+            return newValue;
         }
         private static int TextAreaLabelInt(string label, int value, int minValue, int maxValue)
         {
@@ -395,6 +501,13 @@ namespace ScatterConfiguratorUtils
             if (type == ChangeType.Distribution)
             {
                 ForceFullUpdate(currentScatter);
+
+            }
+            if (type == ChangeType.Rebuild)
+            {
+                FlightGlobals.currentMainBody.pqsController.RebuildSphere();
+                //ForceFullUpdate(currentScatter);
+
             }
             if (type == ChangeType.Material)
             {
@@ -407,6 +520,14 @@ namespace ScatterConfiguratorUtils
             if (type == ChangeType.Visibility)
             {
                 UpdateVisibility(currentScatter);
+            }
+            if (type == ChangeType.TerrainMaterial)
+            {
+                ForceTerrainMaterialUpdate(currentScatter, revertTerrainMaterial);
+            }
+            if (type == ChangeType.DistributionMaterial)
+            {
+                ForceDistributionMaterialUpdate(currentScatter, revertDistributionMaterial);
             }
         }
         private static void SaveDefaultVars()
@@ -429,6 +550,17 @@ namespace ScatterConfiguratorUtils
             ScatterLog.Log("Forcing a full update on " + scatter);
             StartCoroutine(scatter.ForceComputeUpdate());
             
+        }
+        public void ForceTerrainMaterialUpdate(Scatter scatter, bool revert)
+        {
+            Material deviancyMat = new Material(ScatterShaderHolder.GetShader("Custom/NormalDeviancyViewer"));
+            deviancyMat.SetFloat("_NormalDeviancy", currentScatter.properties.scatterDistribution._MaxNormalDeviance);
+            StartCoroutine(scatter.SwitchQuadMaterial(deviancyMat, revert, scatter));
+        }
+        public void ForceDistributionMaterialUpdate(Scatter scatter, bool revert)
+        {
+            Material distributionViewer = new Material(ScatterShaderHolder.GetShader("Custom/VertexColor"));
+            StartCoroutine(scatter.SwitchQuadMaterial(distributionViewer, revert, scatter));
         }
         public void UpdateVisibility(Scatter scatter)
         {

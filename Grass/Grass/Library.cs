@@ -13,41 +13,7 @@ using UnityEngine;
 
 namespace Grass
 {
-    public class PQSMod_ParallaxScatter : PQSMod
-    {
-        public override void OnQuadBuilt(PQ quad)
-        {
-            if (quad == null || FlightGlobals.currentMainBody == null || FlightGlobals.currentMainBody.pqsController == null)
-            {
-                return;
-            }
-            if (quad != null && HighLogic.LoadedScene == GameScenes.FLIGHT && quad.subdivision >= FlightGlobals.currentMainBody.pqsController.maxLevel - 4)
-            {
-                QuadMeshes sm = quad.gameObject.AddComponent<QuadMeshes>();
-                sm.body = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name];
-                sm.quad = quad;
-            }
-        }
-        public override void OnQuadDestroy(PQ quad)
-        {
-            QuadMeshes subComp = quad.gameObject.GetComponent<QuadMeshes>();
-            if (subComp != null)
-            {
-                Destroy(subComp);
-                Debug.Log("Destroyed subdivision manager component via destroy override");
-            }
-        }
-    }
-    [RequireConfigType(ConfigType.Node)]
-    public class ParallaxScatter : ModLoader<PQSMod_ParallaxScatter>
-    {
-        [ParserTarget("order", Optional = true)]
-        public NumericParser<int> order
-        {
-            get { return Mod.order; }
-            set { Mod.order = int.MaxValue - 1; }
-        }
-    }
+    
     public static class MeshHelper
     {
         static List<Vector3> vertices;
@@ -242,6 +208,7 @@ namespace Grass
         {
             if (level < 2)
                 return;
+            float time = Time.realtimeSinceStartup;
             while (level > 1)
             {
                 // remove prime factor 3
@@ -261,7 +228,7 @@ namespace Grass
                 if (level > 3)
                     level++;
             }
-
+            Debug.Log("Subdivision time took " + (Time.realtimeSinceStartup - time + "ms"));
         }
     }
 }

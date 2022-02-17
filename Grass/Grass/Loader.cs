@@ -8,8 +8,10 @@ using UnityEngine;
 using ComputeLoader;
 using System.Collections;
 using ScatterConfiguratorUtils;
+using ParallaxGrass;
+using LibNoise;
 
-namespace ParallaxGrass
+namespace Grass
 {
     public struct Properties
     {
@@ -18,14 +20,23 @@ namespace ParallaxGrass
         public SubdivisionProperties subdivisionSettings;
         public int subObjectCount;
     }
+    public struct DistributionNoise
+    {
+        public float _Frequency;                //Size of noise
+        public float _Lacunarity;
+        public float _Persistence;
+        public float _Octaves;
+        public int _Seed;
+        public NoiseQuality _NoiseQuality;
+        public int _NoiseType;  //0 perlin, 1 rmf, 2 billow
+    }
     public struct Distribution
     {
+        public DistributionNoise noise;
         public LODs lods;
         public float _Range;                    //How far from the camera to render at the max graphics setting
         public float _PopulationMultiplier;     //How many scatters to render
         public float _SizeNoiseStrength;        //Strength of perlin noise - How varied the scatter size is
-        public float _SizeNoiseScale;           //Size of perlin noise
-        public Vector3 _SizeNoiseOffset;        //Offset the perlin noise
         public Vector3 _MinScale;               //Smallest scatter size
         public Vector3 _MaxScale;               //Largest scatter size
         public float _CutoffScale;              //Minimum scale at which, below that scale, the scatter is not placed
@@ -33,6 +44,8 @@ namespace ParallaxGrass
         public float _SteepContrast;
         public float _SteepMidpoint;
         public float _SpawnChance;
+        public float _MaxNormalDeviance;
+        public float _MaxSubdivisionRange;
     }
     public struct LODs
     {
@@ -50,6 +63,7 @@ namespace ParallaxGrass
         public Dictionary<string, string> Textures;
         public Dictionary<string, float> Floats;
         public Dictionary<string, Vector3> Vectors;
+        public Dictionary<string, Vector2> Scales;
         public Dictionary<string, Color> Colors;
 
         public Shader shader;
@@ -103,6 +117,7 @@ namespace ParallaxGrass
         public string scatterName = "invalidname";
         public string model;
         public float updateFPS = 1;
+        public bool alignToTerrainNormal = false;
         public int subObjectCount = 0;
         public Properties properties;
         public SubObject[] subObjects;
@@ -113,27 +128,135 @@ namespace ParallaxGrass
         }
         public IEnumerator ForceComputeUpdate()
         {
-            
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
-            foreach (ComputeComponent comp in allComputeComponents)
+            QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
+            Debug.Log("Updating " + allQuadComps.Length + " components...");
+            int counter = 0;
+            int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
+            string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
+            int index = 0;
+            for (int i = 0; i < scatterCount; i++)
             {
-                if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
+                string key = keys[i];
+                if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
                 {
-                    Debug.Log("Found ComputeComponent: " + comp.name);
-                    if (comp == null)
-                    {
-                        Debug.Log("Component is null??");
-                    }
-                    comp.scatter.properties = properties;
-                    comp.updateFPS = updateFPS;
-                    comp.GeneratePositions();
-                    comp.InitializeAllBuffers();
-                    comp.EvaluatePositions();
+                    index = i;
                 }
-                yield return null;
+            }
+
+            foreach (QuadComp quadComp in allQuadComps)
+            {
+                counter++;
+                if (quadComp.comps != null)
+                {
+                    ComputeComponent cc = quadComp.comps[index];
+                    if (cc != null)
+                    {
+                        cc.scatter.properties = properties;
+                        cc.updateFPS = updateFPS;
+                        if (cc.mesh == null)
+                        {
+                            Debug.Log("Null mesh on ComputeComponent detected, instantiating quad mesh (again?)");
+                            if (quadComp.quad != null)
+                            {
+                                cc.mesh = GameObject.Instantiate(quadComp.quad.GetComponent<MeshFilter>().mesh);
+                            }
+                            else { Debug.Log("Quad itself is null"); }
+                        }
+                        cc.Start();
+                    }
+                }
+                if (counter % 20 == 0)
+                {
+                    yield return null;
+                }
+            }
+            
+            //ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            ////int counter = 0;
+            //foreach (ComputeComponent comp in allComputeComponents)
+            //{
+            //    counter++;
+            //    if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
+            //    {
+            //        if (comp == null)
+            //        {
+            //            Debug.Log("Component is null??");
+            //        }
+            //        comp.scatter.properties = properties;
+            //        comp.updateFPS = updateFPS;
+            //        comp.Start();
+            //        //comp.GeneratePositions();
+            //        //comp.InitializeAllBuffers();
+            //        //comp.EvaluatePositions();
+            //    }
+            //    if (counter % 20 == 0)
+            //    {
+            //        yield return null;
+            //    }
+            //}
+        }
+        public IEnumerator SwitchQuadMaterial(Material mat, bool revert, Scatter scatter)
+        {
+            
+            QuadComp[] allQMComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
+            int counter = 0;
+            foreach (QuadComp comp in allQMComps)
+            {
+                counter++;
+                if (comp.gameObject.activeSelf && !revert)
+                {
+                    Debug.Log("Instantiating");
+                    PQ quad = comp.quad;
+                    GameObject go = new GameObject();
+                    go.name = quad.name + "-INST";
+                    go.transform.position = quad.transform.position;
+                    go.transform.rotation = quad.transform.rotation;
+                    go.transform.localScale = quad.transform.localScale;
+                    var newQMF = go.AddComponent<MeshFilter>();
+                    newQMF.mesh = GameObject.Instantiate(quad.mesh);
+                    float[] data = PQSMod_ScatterDistribute.scatterData.distributionData[scatter.scatterName].data[quad.name];
+                    Color[] colors = new Color[data.Length];
+                    Color32[] colors32 = new Color32[data.Length];
+                    for (int i = 0; i < quad.mesh.colors.Length; i++)
+                    {
+                        if (data != null)
+                        {
+                            colors[i] = new Color(data[i], data[i], data[i]);
+                            colors32[i] = new Color(data[i], data[i], data[i]);
+                        }
+                        else
+                        {
+                            Debug.Log("Null lol");
+                        }
+                    }
+                    newQMF.mesh.colors = colors;
+                    newQMF.mesh.colors32 = colors32;
+                    go.GetComponent<MeshFilter>().mesh = newQMF.mesh;
+                    var newQMR = go.AddComponent<MeshRenderer>();
+            
+                    newQMR.material = mat;
+                    go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                    go.SetActive(true);
+                }
+                if (revert)
+                {
+                    Debug.Log("Reverting");
+                    PQ quad = comp.quad;
+                    GameObject go = GameObject.Find(quad.name + "-INST");
+                    if (go != null)
+                    {
+                        comp.DestroyGO(go);
+                    }
+                }
+                if (counter % 20 == 0)
+                {
+                    yield return null;
+                }
+                
             }
         }
+        
         public IEnumerator ForceMaterialUpdate()
         {
 
@@ -335,11 +458,12 @@ namespace ParallaxGrass
                     ConfigNode windNode = scatterNode.GetNode("Wind");
                     ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
                     ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
-                    ParseNewBody(scatterNode, distributionNode, materialNode, windNode, subdivisionSettingsNode, subObjectNode, bodyName);
+                    ConfigNode distributionNoiseNode = scatterNode.GetNode("DistributionNoise");
+                    ParseNewBody(scatterNode, distributionNoiseNode, distributionNode, materialNode, windNode, subdivisionSettingsNode, subObjectNode, bodyName);
                 }
             }
         }
-        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
+        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNoiseNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = scatterNode.GetValue("name");
@@ -347,13 +471,57 @@ namespace ParallaxGrass
             Scatter scatter = new Scatter(scatterName);
             Properties props = new Properties();
             scatter.model = scatterNode.GetValue("model");
+            string alignToNormal = "";
+            bool requiresNormal = scatterNode.TryGetValue("alignToTerrainNormal", ref alignToNormal);
+            if (requiresNormal) { scatter.alignToTerrainNormal = bool.Parse(alignToNormal); } else { scatter.alignToTerrainNormal = false;}
             props.scatterDistribution = ParseDistribution(distributionNode);
+            props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode);
             props.scatterMaterial = ParseMaterial(materialNode, false);
             props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
             scatter.properties = props;
             scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
             scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS"));
             body.scatters.Add(scatterName, scatter);
+        }
+        public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode)
+        {
+            DistributionNoise distribution = new DistributionNoise();
+            distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency"));
+            distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity"));
+            distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence"));
+            distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves"));
+            distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed"));
+            string noiseType = ParseVar(distributionNode, "_NoiseType");
+            switch (noiseType)
+            {
+                default: distribution._NoiseType = 0;
+                    break;
+                case "RidgedMultifractal": distribution._NoiseType = 1;
+                    break;
+                case "Billow" : distribution._NoiseType = 2;
+                    break;
+                case "1":
+                    distribution._NoiseType = 1;
+                    break;
+                case "2":
+                    distribution._NoiseType = 2;
+                    break;
+            }
+            string noiseQuality = ParseVar(distributionNode, "_NoiseQuality");
+            switch (noiseQuality)
+            {
+                default:
+                    distribution._NoiseQuality = NoiseQuality.Standard;
+                    break;
+                case "Low":
+                    distribution._NoiseQuality = NoiseQuality.Low;
+                    break;
+                case "High":
+                    distribution._NoiseQuality = NoiseQuality.High;
+                    break;
+            }
+
+            return distribution;
         }
         public Distribution ParseDistribution(ConfigNode distributionNode)
         {
@@ -362,13 +530,11 @@ namespace ParallaxGrass
             distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range"));
             distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier"));
             distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength"));
-            distribution._SizeNoiseScale = ParseFloat(ParseVar(distributionNode, "_SizeNoiseScale"));
             distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale"));
             distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower"));
             distribution._SteepContrast = ParseFloat(ParseVar(distributionNode, "_SteepContrast"));
             distribution._SteepMidpoint = ParseFloat(ParseVar(distributionNode, "_SteepMidpoint"));
-
-            distribution._SizeNoiseOffset = ParseVector(ParseVar(distributionNode, "_SizeNoiseOffset"));
+            distribution._MaxNormalDeviance = ParseFloat(ParseVar(distributionNode, "_NormalDeviance"));
             distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale"));
             distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale"));
 
@@ -409,10 +575,12 @@ namespace ParallaxGrass
                     ConfigNode texturesNode = propertiesNode.GetNode("Textures");
                     ConfigNode floatsNode = propertiesNode.GetNode("Floats");
                     ConfigNode vectorsNode = propertiesNode.GetNode("Vectors");
+                    ConfigNode scalesNode = propertiesNode.GetNode("Scales");
                     ConfigNode colorsNode = propertiesNode.GetNode("Colors");
                     material = ParseNodeType(texturesNode, typeof(string), material);
                     material = ParseNodeType(floatsNode, typeof(float), material);
                     material = ParseNodeType(vectorsNode, typeof(Vector3), material);
+                    material = ParseNodeType(scalesNode, typeof(Vector2), material);
                     material = ParseNodeType(colorsNode, typeof(Color), material);
                     material = SetShaderValues(materialNode, material);
 
@@ -448,6 +616,15 @@ namespace ParallaxGrass
                 {
                     ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Vectors.Add(values[i], Vector3.zero);
+                }
+            }
+            else if (type == typeof(Vector2))
+            {
+                material.Scales = new Dictionary<string, Vector2>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
+                    material.Scales.Add(values[i], Vector2.zero);
                 }
             }
             else if (type == typeof(Color))
@@ -486,6 +663,13 @@ namespace ParallaxGrass
                 string configValue = materialNode.GetValue(vectorKeys[i]);
                 ScatterLog.SubLog("Parsing " + vectorKeys[i] + " as " + materialNode.GetValue(vectorKeys[i]));
                 material.Vectors[vectorKeys[i]] = ParseVector(configValue);
+            }
+            string[] scaleKeys = material.Scales.Keys.ToArray();
+            for (int i = 0; i < material.Scales.Keys.Count; i++)
+            {
+                string configValue = materialNode.GetValue(scaleKeys[i]);
+                ScatterLog.SubLog("Parsing " + scaleKeys[i] + " as " + materialNode.GetValue(scaleKeys[i]));
+                material.Scales[scaleKeys[i]] = ParseVector2D(configValue);
             }
             string[] colorKeys = material.Colors.Keys.ToArray();
             for (int i = 0; i < material.Colors.Keys.Count; i++)
@@ -594,6 +778,12 @@ namespace ParallaxGrass
             string cleanString = data.Replace(" ", string.Empty);
             string[] components = cleanString.Split(',');
             return new Vector3(float.Parse(components[0]), float.Parse(components[1]), float.Parse(components[2]));
+        }
+        public Vector2 ParseVector2D(string data)
+        {
+            string cleanString = data.Replace(" ", string.Empty);
+            string[] components = cleanString.Split(',');
+            return new Vector2(float.Parse(components[0]), float.Parse(components[1]));
         }
         public float ParseFloat(string data)
         {

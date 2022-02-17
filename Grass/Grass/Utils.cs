@@ -7,11 +7,15 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.IO;
+using Grass;
+using LibNoise;
 
 namespace ScatterConfiguratorUtils
 {
     public class Utils
     {
+        public static bool oneCamera = false;
+        public static Vector3 initialPlanetRelative = Vector3.zero;
         public static void DestroyComputeBufferSafe(ComputeBuffer buffer)
         {
             if (buffer != null)
@@ -95,7 +99,6 @@ namespace ScatterConfiguratorUtils
             
             if (index >= scatter.subObjectCount)
             {
-                Debug.Log("Returning standard shader for index " + index);
                 return new Material(Shader.Find("Standard"));
             }
             else
@@ -129,10 +132,12 @@ namespace ScatterConfiguratorUtils
             Dictionary<string, string> textures = scatterMaterial.Textures;
             Dictionary<string, float> floats = scatterMaterial.Floats;
             Dictionary<string, Vector3> vectors = scatterMaterial.Vectors;
+            Dictionary<string, Vector2> scales = scatterMaterial.Scales;
             Dictionary<string, Color> colors = scatterMaterial.Colors;
             string[] texKeys = textures.Keys.ToArray();
             string[] floatKeys = floats.Keys.ToArray();
             string[] vectorKeys = vectors.Keys.ToArray();
+            string[] scaleKeys = scales.Keys.ToArray();
             string[] colorKeys = colors.Keys.ToArray();
             for (int i = 0; i < texKeys.Length; i++)
             {
@@ -146,6 +151,10 @@ namespace ScatterConfiguratorUtils
             {
                 mat.SetVector(vectorKeys[i], vectors[vectorKeys[i]]);
             }
+            for (int i = 0; i < scaleKeys.Length; i++)
+            {
+                mat.SetTextureScale(scaleKeys[i].Replace("Scale", string.Empty), scales[scaleKeys[i]]);    //_MainTex|Scale|
+            }
             for (int i = 0; i < colorKeys.Length; i++)
             {
                 mat.SetColor(colorKeys[i], colors[colorKeys[i]]);
@@ -158,8 +167,14 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterDistribution._Range),  nameof(scatterBody.properties.scatterDistribution._Range)},
                 {nameof(scatterBody.properties.scatterDistribution._PopulationMultiplier),  nameof(scatterBody.properties.scatterDistribution._PopulationMultiplier)},
                 {nameof(scatterBody.properties.scatterDistribution._SizeNoiseStrength),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseStrength)},
-                {nameof(scatterBody.properties.scatterDistribution._SizeNoiseScale),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseScale)},
-                {nameof(scatterBody.properties.scatterDistribution._SizeNoiseOffset),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseOffset)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Frequency),  nameof(scatterBody.properties.scatterDistribution.noise._Frequency)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Persistence),  nameof(scatterBody.properties.scatterDistribution.noise._Persistence)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Lacunarity),  nameof(scatterBody.properties.scatterDistribution.noise._Lacunarity)},
+
+                {nameof(scatterBody.properties.scatterDistribution.noise._Octaves),  nameof(scatterBody.properties.scatterDistribution.noise._Octaves)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Seed),  nameof(scatterBody.properties.scatterDistribution.noise._Seed)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._NoiseType),  nameof(scatterBody.properties.scatterDistribution.noise._NoiseType)},
+
                 {nameof(scatterBody.properties.scatterDistribution._MaxScale),  nameof(scatterBody.properties.scatterDistribution._MaxScale)},
                 {nameof(scatterBody.properties.scatterDistribution._MinScale),  nameof(scatterBody.properties.scatterDistribution._MinScale)},
                 {nameof(scatterBody.properties.scatterDistribution._CutoffScale),  nameof(scatterBody.properties.scatterDistribution._CutoffScale)},
@@ -178,8 +193,13 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterDistribution._Range),  nameof(scatterBody.properties.scatterDistribution._Range)},
                 {nameof(scatterBody.properties.scatterDistribution._PopulationMultiplier),  nameof(scatterBody.properties.scatterDistribution._PopulationMultiplier)},
                 {nameof(scatterBody.properties.scatterDistribution._SizeNoiseStrength),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseStrength)},
-                {nameof(scatterBody.properties.scatterDistribution._SizeNoiseScale),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseScale)},
-                {nameof(scatterBody.properties.scatterDistribution._SizeNoiseOffset),  nameof(scatterBody.properties.scatterDistribution._SizeNoiseOffset)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Frequency),  nameof(scatterBody.properties.scatterDistribution.noise._Frequency)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Persistence),  nameof(scatterBody.properties.scatterDistribution.noise._Persistence)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Lacunarity),  nameof(scatterBody.properties.scatterDistribution.noise._Lacunarity)},
+
+                {nameof(scatterBody.properties.scatterDistribution.noise._Octaves),  nameof(scatterBody.properties.scatterDistribution.noise._Octaves)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._Seed),  nameof(scatterBody.properties.scatterDistribution.noise._Seed)},
+                {nameof(scatterBody.properties.scatterDistribution.noise._NoiseType),  nameof(scatterBody.properties.scatterDistribution.noise._NoiseType)},
                 {nameof(scatterBody.properties.scatterDistribution._MaxScale),  nameof(scatterBody.properties.scatterDistribution._MaxScale)},
                 {nameof(scatterBody.properties.scatterDistribution._MinScale),  nameof(scatterBody.properties.scatterDistribution._MinScale)},
                 {nameof(scatterBody.properties.scatterDistribution._CutoffScale),  nameof(scatterBody.properties.scatterDistribution._CutoffScale)},
@@ -212,6 +232,10 @@ namespace ScatterConfiguratorUtils
         private static string activeTexFieldLastValue = "";
         private static string activeTexFieldString = "";
 
+        private static float activeVectorXStringLV = 0;
+        private static float activeVectorYStringLV = 0;
+        private static float activeVectorZStringLV = 0;
+
         private static readonly GUIStyle TexStyle = new GUIStyle(GUI.skin.textArea) { wordWrap = true };
         private static readonly GUIStyle ResetButtonStyle = new GUIStyle(GUI.skin.button) { fontSize = 9 };
         private static readonly GUIStyle FloatStyle = new GUIStyle(GUI.skin.textArea);
@@ -220,6 +244,49 @@ namespace ScatterConfiguratorUtils
         /// <summary>
         /// Float input field for in-game cfg editing. Behaves exactly like UnityEditor.EditorGUILayout.FloatField
         /// </summary>
+        /// 
+        public static Vector3 VectorField(Vector3 value)
+        {
+            // Get rect and control for this float field for identification
+            Rect pos = GUILayoutUtility.GetRect(new GUIContent(value.x.ToString(CultureInfo.InvariantCulture)),
+                GUI.skin.label, GUILayout.ExpandWidth(false), GUILayout.MinWidth(50));
+            pos.x -= 110;
+            Rect pos2 = pos;
+            pos2.x += 55;
+            Rect pos3 = pos2;
+            pos3.x += 55;
+
+
+            string str = value.x.ToString(CultureInfo.InvariantCulture);
+            string str2 = value.y.ToString(CultureInfo.InvariantCulture);
+            string str3 = value.z.ToString(CultureInfo.InvariantCulture);
+
+            // pass it in the text field
+            string strValue = GUI.TextField(pos, str, FloatStyle);
+            string strValue2 = GUI.TextField(pos2, str2, FloatStyle);
+            string strValue3 = GUI.TextField(pos3, str3, FloatStyle);
+            // Update stored value if this one is recorded
+
+
+            // Try Parse if value got changed. If the string could not be parsed, ignore it and keep last value
+            bool parsed = true;
+            if (strValue + ", " + strValue2 + ", " + strValue3 != value.x.ToString(CultureInfo.InvariantCulture))
+            {
+                parsed = float.TryParse(strValue, out float newValue);
+                if (parsed)
+                    value.x = activeVectorXStringLV = newValue;
+                parsed = float.TryParse(strValue2, out float newValue2);
+                if (parsed)
+                    value.y = activeVectorYStringLV = newValue2;
+                parsed = float.TryParse(strValue3, out float newValue3);
+                if (parsed)
+                    value.z = activeVectorZStringLV = newValue3;
+            }
+
+            activeFieldID = -1;
+
+            return value;
+        }
         public static float FloatField(float value)
         {
             // Get rect and control for this float field for identification
@@ -479,7 +546,18 @@ namespace ScatterConfiguratorUtils
             GUILayout.EndHorizontal();
             return value;
         }
-        
+        public static Vector3 VectorField(string label, Vector3 value)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label + " [float] ", GUILayout.ExpandWidth(true));
+            GUILayout.FlexibleSpace();
+
+            value = VectorField(value);
+
+
+            GUILayout.EndHorizontal();
+            return new Vector3(value.x, value.y, value.z);
+        }
     }
     public static class Parsers
     {
@@ -581,26 +659,37 @@ namespace ScatterConfiguratorUtils
                 scatterNode.AddValue("name", scatter.scatterName);
                 scatterNode.AddValue("model", scatter.model);
                 scatterNode.AddValue("updateFPS", scatter.updateFPS);
+                scatterNode.AddValue("alignToTerrainNormal", scatter.alignToTerrainNormal);
                 ConfigNode subdivisionNode = scatterNode.AddNode("SubdivisionSettings");
                 subdivisionNode.AddValue("subdivisionLevel", scatter.properties.subdivisionSettings.level);
                 subdivisionNode.AddValue("subdivisionRangeMode", scatter.properties.subdivisionSettings.mode.ToString());
                 subdivisionNode.AddValue("subdivisionRange", scatter.properties.subdivisionSettings.range);
+                ConfigNode distNoiseNode = scatterNode.AddNode("DistributionNoise");
+                DistributionNoise noiseDist = scatter.properties.scatterDistribution.noise;
+                distNoiseNode.AddValue("_Frequency", noiseDist._Frequency);
+                distNoiseNode.AddValue("_Persistence", noiseDist._Persistence);
+                distNoiseNode.AddValue("_Lacunarity", noiseDist._Lacunarity);
+                distNoiseNode.AddValue("_Octaves", noiseDist._Octaves);
+                distNoiseNode.AddValue("_Seed", noiseDist._Seed);
+                distNoiseNode.AddValue("_NoiseType", noiseDist._NoiseType);
+                if (noiseDist._NoiseQuality == NoiseQuality.Low) { distNoiseNode.AddValue("_NoiseQuality", "Low"); }
+                if (noiseDist._NoiseQuality == NoiseQuality.Standard) { distNoiseNode.AddValue("_NoiseQuality", "Standard"); }
+                if (noiseDist._NoiseQuality == NoiseQuality.High) { distNoiseNode.AddValue("_NoiseQuality", "High"); }
                 ConfigNode distributionNode = scatterNode.AddNode("Distribution");
                 Distribution dist = scatter.properties.scatterDistribution;
                 distributionNode.AddValue("_SpawnChance", dist._SpawnChance);
                 distributionNode.AddValue("_Range", dist._Range);
                 distributionNode.AddValue("_PopulationMultiplier", dist._PopulationMultiplier);
                 distributionNode.AddValue("_SizeNoiseStrength", dist._SizeNoiseStrength);
-                distributionNode.AddValue("_SizeNoiseScale", dist._SizeNoiseScale);
-                distributionNode.AddValue("_SizeNoiseOffset", dist._SizeNoiseOffset);
                 distributionNode.AddValue("_MinScale", dist._MinScale);
                 distributionNode.AddValue("_MaxScale", dist._MaxScale);
                 distributionNode.AddValue("_CutoffScale", dist._CutoffScale);
                 distributionNode.AddValue("_SteepPower", dist._SteepPower);
                 distributionNode.AddValue("_SteepContrast", dist._SteepContrast);
                 distributionNode.AddValue("_SteepMidpoint", dist._SteepMidpoint);
+                distributionNode.AddValue("_NormalDeviance", dist._MaxNormalDeviance);
                 ConfigNode lodNode = distributionNode.AddNode("LODs");
-                foreach (ParallaxGrass.LOD lod in dist.lods.lods)
+                foreach (Grass.LOD lod in dist.lods.lods)
                 {
                     ConfigNode configLOD = lodNode.AddNode("LOD");
                     configLOD.AddValue("model", lod.modelName);
@@ -640,10 +729,12 @@ namespace ScatterConfiguratorUtils
             Dictionary<string, string> textures = scatterMaterial.Textures;
             Dictionary<string, float> floats = scatterMaterial.Floats;
             Dictionary<string, Vector3> vectors = scatterMaterial.Vectors;
+            Dictionary<string, Vector2> scales = scatterMaterial.Scales;
             Dictionary<string, Color> colors = scatterMaterial.Colors;
             string[] texKeys = textures.Keys.ToArray();
             string[] floatKeys = floats.Keys.ToArray();
             string[] vectorKeys = vectors.Keys.ToArray();
+            string[] scaleKeys = scales.Keys.ToArray();
             string[] colorKeys = colors.Keys.ToArray();
             for (int i = 0; i < texKeys.Length; i++)
             {
@@ -656,6 +747,10 @@ namespace ScatterConfiguratorUtils
             for (int i = 0; i < vectorKeys.Length; i++)
             {
                 node.AddValue(vectorKeys[i], vectors[vectorKeys[i]]);
+            }
+            for (int i = 0; i < scaleKeys.Length; i++)
+            {
+                node.AddValue(scaleKeys[i], scales[scaleKeys[i]]);
             }
             for (int i = 0; i < colorKeys.Length; i++)
             {

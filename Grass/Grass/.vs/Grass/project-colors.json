@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "bccd2727-7feb-41c2-bfc9-e78454b6a726": {
+      "ProjectGuid": "bccd2727-7feb-41c2-bfc9-e78454b6a726",
+      "DisplayName": "Grass",
+      "ColorIndex": 0
+    }
+  },
+  "NextColorIndex": 1
+}

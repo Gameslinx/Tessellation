@@ -42,6 +42,8 @@
     <Compile Include="Library.cs" />
     <Compile Include="Compute.cs" />
     <Compile Include="Loader.cs" />
+    <Compile Include="PQSMod_ParallaxScatter.cs" />
+    <Compile Include="PQSMod_ScatterDistribute.cs" />
     <Compile Include="ScatterUI.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
