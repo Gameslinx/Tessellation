@@ -63,25 +63,27 @@ namespace Grass
             for (int i = 0; i < scatters.Values.Count; i++)
             {
                 string scatterName = scatters.Keys.ToArray()[i];
-                DistributionData data = new DistributionData();
-                data.frequency = scatters[scatterName].properties.scatterDistribution.noise._Frequency;
-                data.lacunarity = scatters[scatterName].properties.scatterDistribution.noise._Lacunarity;
-                data.persistence = scatters[scatterName].properties.scatterDistribution.noise._Persistence;
-                data.octaves = (int)scatters[scatterName].properties.scatterDistribution.noise._Octaves;
-                data.seed = (int)scatters[scatterName].properties.scatterDistribution.noise._Seed;
-                data.data = new Dictionary<string, float[]>();
-                data.noiseType = (PQSMod_VertexHeightNoise.NoiseType)scatters[scatterName].properties.scatterDistribution.noise._NoiseType;
-                data.noiseQuality = scatters[scatterName].properties.scatterDistribution.noise._NoiseQuality;
-                data.noiseMap = GetNoiseType(data.noiseType, data);
-                if (!scatterData.distributionData.ContainsKey(scatterName))
+                if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent) 
                 {
-                    scatterData.distributionData.Add(scatterName, data);
+                    DistributionData data = new DistributionData();
+                    data.frequency = scatters[scatterName].properties.scatterDistribution.noise._Frequency;
+                    data.lacunarity = scatters[scatterName].properties.scatterDistribution.noise._Lacunarity;
+                    data.persistence = scatters[scatterName].properties.scatterDistribution.noise._Persistence;
+                    data.octaves = (int)scatters[scatterName].properties.scatterDistribution.noise._Octaves;
+                    data.seed = (int)scatters[scatterName].properties.scatterDistribution.noise._Seed;
+                    data.data = new Dictionary<string, float[]>();
+                    data.noiseType = (PQSMod_VertexHeightNoise.NoiseType)scatters[scatterName].properties.scatterDistribution.noise._NoiseType;
+                    data.noiseQuality = scatters[scatterName].properties.scatterDistribution.noise._NoiseQuality;
+                    data.noiseMap = GetNoiseType(data.noiseType, data);
+                    if (!scatterData.distributionData.ContainsKey(scatterName))
+                    {
+                        scatterData.distributionData.Add(scatterName, data);
+                    }
+                    else
+                    {
+                        scatterData.distributionData[scatterName] = data;
+                    }
                 }
-                else
-                {
-                    scatterData.distributionData[scatterName] = data;
-                }
-                
             }
 
             //noiseType = PQSMod_VertexHeightNoise.NoiseType.Perlin;
@@ -121,12 +123,14 @@ namespace Grass
             for (int i = 0; i < scatters.Values.Count; i++)
             {
                 string scatterName = scatters.Keys.ToArray()[i];
-                DistributionData data = scatterData.distributionData[scatterName];
-                if (!data.data.ContainsKey(quad.name))
+                if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
                 {
-                    data.data.Add(quad.name, new float[225]);
+                    DistributionData data = scatterData.distributionData[scatterName];
+                    if (!data.data.ContainsKey(quad.name))
+                    {
+                        data.data.Add(quad.name, new float[225]);
+                    }
                 }
-                
             }
             //distributionData.Add(quad.name, new float[225]);
             
@@ -146,12 +150,15 @@ namespace Grass
             {
                 
                 string scatterName = scatters.Keys.ToArray()[i];
-                DistributionData distData = scatterData.distributionData[scatterName];
-                double noise = distData.noiseMap.GetValue(data.directionFromCenter) * 0.5 + 0.5;
-                //Debug.Log(noise);
-                distData.data[data.buildQuad.name][data.vertIndex] = (float)noise;
-                //Debug.Log("Double: " + data.directionFromCenter.ToString("F20"));
-                //Debug.Log("Float: " + ((Vector3)(data.directionFromCenter)).ToString("F20"));
+                if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
+                {
+                    DistributionData distData = scatterData.distributionData[scatterName];
+                    double noise = distData.noiseMap.GetValue(data.directionFromCenter) * 0.5 + 0.5;
+                    //Debug.Log(noise);
+                    distData.data[data.buildQuad.name][data.vertIndex] = (float)noise;
+                    //Debug.Log("Double: " + data.directionFromCenter.ToString("F20"));
+                    //Debug.Log("Float: " + ((Vector3)(data.directionFromCenter)).ToString("F20"));
+                }
             }
             //double noise = (this.noiseMap.GetValue(data.directionFromCenter));
             //distributionData[data.buildQuad.name][data.vertIndex] = (float)noise;
@@ -168,12 +175,14 @@ namespace Grass
             for (int i = 0; i < scatters.Values.Count; i++)
             {
                 string scatterName = scatters.Keys.ToArray()[i];
-                DistributionData distData = scatterData.distributionData[scatterName];
-                if (distData.data.ContainsKey(quad.name))
+                if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
                 {
-                    distData.data.Remove(quad.name);
+                    DistributionData distData = scatterData.distributionData[scatterName];
+                    if (distData.data.ContainsKey(quad.name))
+                    {
+                        distData.data.Remove(quad.name);
+                    }
                 }
-                
             }
             //if (distributionData.ContainsKey(quad.name))
             //{

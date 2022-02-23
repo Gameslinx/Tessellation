@@ -22,6 +22,7 @@ namespace Grass
     }
     public struct DistributionNoise
     {
+        public DistributionNoiseMode noiseMode;
         public float _Frequency;                //Size of noise
         public float _Lacunarity;
         public float _Persistence;
@@ -29,6 +30,13 @@ namespace Grass
         public int _Seed;
         public NoiseQuality _NoiseQuality;
         public int _NoiseType;  //0 perlin, 1 rmf, 2 billow
+
+        public float _SizeNoiseScale;
+        public float _ColorNoiseScale;
+        public float _SizeNoiseOffset;
+
+        public int _MaxStacks;
+        public float _StackSeparation;
     }
     public struct Distribution
     {
@@ -46,6 +54,8 @@ namespace Grass
         public float _SpawnChance;
         public float _MaxNormalDeviance;
         public float _MaxSubdivisionRange;
+        public float _MinAltitude;
+        public float _MaxAltitude;
     }
     public struct LODs
     {
@@ -70,13 +80,18 @@ namespace Grass
         public Color _MainColor;
         public Color _SubColor;
         public float _ColorNoiseStrength;
-        public float _ColorNoiseScale;
     }
     public struct SubdivisionProperties
     {
         public SubdivisionMode mode;
         public float range;
         public int level;
+    }
+    public enum DistributionNoiseMode
+    {
+        Persistent,
+        NonPersistent,
+        VerticalStack
     }
     public enum SubdivisionMode
     {
@@ -107,9 +122,12 @@ namespace Grass
     {
         public Dictionary<string, Scatter> scatters = new Dictionary<string, Scatter>();
         public string bodyName = "invalidname";
-        public ScatterBody(string name)
+        public int minimumSubdivision = 6;
+        public ScatterBody(string name, string minSub)
         {
             bodyName = name;
+            bool converted = int.TryParse(minSub, out minimumSubdivision);
+            if (!converted) { ScatterLog.SubLog("[Exception] Unable to get the value of minimumSubdivision"); minimumSubdivision = 6; }
         }
     }
     public class Scatter
@@ -120,6 +138,7 @@ namespace Grass
         public bool alignToTerrainNormal = false;
         public int subObjectCount = 0;
         public Properties properties;
+        public UnityEngine.Rendering.ShadowCastingMode shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         public SubObject[] subObjects;
         public bool isVisible = true;
         public Scatter(string name)
@@ -257,24 +276,41 @@ namespace Grass
             }
         }
         
-        public IEnumerator ForceMaterialUpdate()
+        public IEnumerator ForceMaterialUpdate(Scatter scatter)
         {
 
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
-            foreach (ComputeComponent comp in allComputeComponents)
+            QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
+            Debug.Log("Updating " + allQuadComps.Length + " components...");
+            int counter = 0;
+            int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
+            string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
+            int index = 0;
+            for (int i = 0; i < scatterCount; i++)
             {
-                if (comp.gameObject.activeSelf && comp.scatter.scatterName == scatterName)
+                string key = keys[i];
+                if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
                 {
-                    PostCompute pc = comp.pc;
-                    Debug.Log("Found PC: " + pc.name);
-                    if (comp == null)
-                    {
-                        Debug.Log("Component is null??");
-                    }
-                    pc.SetupAgain(this);
+                    index = i;
                 }
-                yield return null;
+            }
+
+            foreach (QuadComp quadComp in allQuadComps)
+            {
+                counter++;
+                if (quadComp.comps != null)
+                {
+                    PostCompute pc = quadComp.postComps[index];
+                    if (pc != null)
+                    {
+                        pc.scatterProps = properties;
+                        pc.SetupAgain(scatter);
+                    }
+                }
+                if (counter % 20 == 0)
+                {
+                    yield return null;
+                }
             }
         }
         public void ModifyScatterVisibility()
@@ -363,6 +399,29 @@ namespace Grass
             ScatterLog.Log("Total amount of vertices for this scatter being rendered right now: " + totalVertCount.ToString("N0"));
             return totalVertCount;
         }
+        public float GetPlanetVRAMUsage(Scatter currentScatter)
+        {
+            if (currentScatter == null)
+            {
+                ScatterLog.Log("The next scatter is null!");
+                return 0;
+            }
+            int[] objectCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
+            int[] vertCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
+            ScreenMessages.PostScreenMessage("WARNING: Getting total VRAM usage!");
+            ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            float scatterRAMUsage = 0;
+            foreach (ComputeComponent cc in allComputeComponents)
+            {
+                if (cc.vRAMinMb != 0 && cc.scatter.scatterName == currentScatter.scatterName)
+                {
+                    scatterRAMUsage += cc.vRAMinMb;
+                }
+
+            }
+            ScatterLog.Log("Finished counting VRAM for " + currentScatter.scatterName + ": " + scatterRAMUsage + " mb");
+            return scatterRAMUsage;
+        }
         public static int CountAll(int[] objs, int[] verts)
         {
             int total = 0;
@@ -446,7 +505,8 @@ namespace Grass
             for (int i = 0; i < globalNodes.Length; i++)
             {
                 string bodyName = globalNodes[i].config.GetValue("body");
-                ScatterBody body = new ScatterBody(bodyName);
+                string minSubdiv = globalNodes[i].config.GetValue("minimumSubdivision");
+                ScatterBody body = new ScatterBody(bodyName, minSubdiv);
                 ScatterBodies.scatterBodies.Add(bodyName, body);
                 ScatterLog.Log("Parsing body: " + bodyName);
                 for (int b = 0; b < globalNodes[i].config.nodes.Count; b++)
@@ -471,6 +531,9 @@ namespace Grass
             Scatter scatter = new Scatter(scatterName);
             Properties props = new Properties();
             scatter.model = scatterNode.GetValue("model");
+            string forcedFull = "";
+            bool forcedFullShadows = scatterNode.TryGetValue("shadowMode", ref forcedFull);
+            if (forcedFullShadows && forcedFull == "forcedFull") { scatter.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
             string alignToNormal = "";
             bool requiresNormal = scatterNode.TryGetValue("alignToTerrainNormal", ref alignToNormal);
             if (requiresNormal) { scatter.alignToTerrainNormal = bool.Parse(alignToNormal); } else { scatter.alignToTerrainNormal = false;}
@@ -486,39 +549,65 @@ namespace Grass
         public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode)
         {
             DistributionNoise distribution = new DistributionNoise();
-            distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency"));
-            distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity"));
-            distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence"));
-            distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves"));
-            distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed"));
-            string noiseType = ParseVar(distributionNode, "_NoiseType");
-            switch (noiseType)
+            string noiseMode = ParseVar(distributionNode, "mode");
+            distribution._MaxStacks = 1;
+            distribution._StackSeparation = 1;
+            if (noiseMode == "nonPersistent") { distribution.noiseMode = DistributionNoiseMode.NonPersistent; }
+            else if (noiseMode == "verticalStack") { distribution.noiseMode = DistributionNoiseMode.VerticalStack; }
+            else { distribution.noiseMode = DistributionNoiseMode.Persistent; }
+            if (distribution.noiseMode == DistributionNoiseMode.Persistent || distribution.noiseMode == DistributionNoiseMode.VerticalStack)
             {
-                default: distribution._NoiseType = 0;
-                    break;
-                case "RidgedMultifractal": distribution._NoiseType = 1;
-                    break;
-                case "Billow" : distribution._NoiseType = 2;
-                    break;
-                case "1":
-                    distribution._NoiseType = 1;
-                    break;
-                case "2":
-                    distribution._NoiseType = 2;
-                    break;
+                distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency"));
+                distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity"));
+                distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence"));
+                distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves"));
+                distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed"));
+                string noiseType = ParseVar(distributionNode, "_NoiseType");
+                switch (noiseType)
+                {
+                    default:
+                        distribution._NoiseType = 0;
+                        break;
+                    case "RidgedMultifractal":
+                        distribution._NoiseType = 1;
+                        break;
+                    case "Billow":
+                        distribution._NoiseType = 2;
+                        break;
+                    case "1":
+                        distribution._NoiseType = 1;
+                        break;
+                    case "2":
+                        distribution._NoiseType = 2;
+                        break;
+                }
+                string noiseQuality = ParseVar(distributionNode, "_NoiseQuality");
+                switch (noiseQuality)
+                {
+                    default:
+                        distribution._NoiseQuality = NoiseQuality.Standard;
+                        break;
+                    case "Low":
+                        distribution._NoiseQuality = NoiseQuality.Low;
+                        break;
+                    case "High":
+                        distribution._NoiseQuality = NoiseQuality.High;
+                        break;
+                }
+                distribution._SizeNoiseScale = 0;
+                distribution._ColorNoiseScale = 0;
+                distribution._SizeNoiseOffset = 0;
+                if (distribution.noiseMode == DistributionNoiseMode.VerticalStack)
+                {
+                    distribution._MaxStacks = (int)ParseFloat(ParseVar(distributionNode, "_MaxStacks"));
+                    distribution._StackSeparation = (int)ParseFloat(ParseVar(distributionNode, "_StackSeparation"));
+                }
             }
-            string noiseQuality = ParseVar(distributionNode, "_NoiseQuality");
-            switch (noiseQuality)
+            else
             {
-                default:
-                    distribution._NoiseQuality = NoiseQuality.Standard;
-                    break;
-                case "Low":
-                    distribution._NoiseQuality = NoiseQuality.Low;
-                    break;
-                case "High":
-                    distribution._NoiseQuality = NoiseQuality.High;
-                    break;
+                distribution._SizeNoiseScale = ParseFloat(ParseVar(distributionNode, "_SizeNoiseScale"));
+                distribution._ColorNoiseScale = ParseFloat(ParseVar(distributionNode, "_ColorNoiseScale"));
+                distribution._SizeNoiseOffset = ParseFloat(ParseVar(distributionNode, "_SizeNoiseOffset"));
             }
 
             return distribution;
@@ -537,7 +626,8 @@ namespace Grass
             distribution._MaxNormalDeviance = ParseFloat(ParseVar(distributionNode, "_NormalDeviance"));
             distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale"));
             distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale"));
-
+            distribution._MinAltitude = ParseFloat(ParseVar(distributionNode, "_MinAltitude"));
+            distribution._MaxAltitude = ParseFloat(ParseVar(distributionNode, "_MaxAltitude"));
             distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance"));
 
             ConfigNode lodNode = distributionNode.GetNode("LODs");
@@ -692,7 +782,7 @@ namespace Grass
                 material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor"));
                 material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor"));
 
-                material._ColorNoiseScale = ParseFloat(ParseVar(materialNode, "_ColorNoiseScale"));
+                
                 material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength"));
             }
 

@@ -153,11 +153,42 @@ namespace ScatterConfiguratorUtils
             GUILayout.EndVertical();
             GUI.DragWindow();
         }
+        static bool alignToTerrainNormal = false;
+        static bool forceFullShadows = false;
         private static void GetBaseScatterProps(Scatter scatter)
         {
             scatter.scatterName = TextAreaLabelString("Name", scatter.scatterName, ChangeType.Base);
             scatter.updateFPS = TextAreaLabelFloat("Update Rate (FPS)", scatter.updateFPS, ChangeType.Base);
             scatter.model = TextAreaLabelModel("Model", scatter.model, ChangeType.Base);
+            alignToTerrainNormal = scatter.alignToTerrainNormal;
+            alignToTerrainNormal = GUILayout.Toggle(alignToTerrainNormal, "Align To Terrain Normal");
+            if (scatter.alignToTerrainNormal != alignToTerrainNormal)
+            {
+                Debug.Log(alignToTerrainNormal);
+                scatter.alignToTerrainNormal = alignToTerrainNormal;
+                currentChangeType = ChangeType.Distribution;
+                anyValueHasChanged = true;
+            }
+            bool scatterIsForcingShadows = false;
+            if (scatter.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.On) { forceFullShadows = true; scatterIsForcingShadows = true; }
+            
+            //forceFullShadows = scatter.forceFullShadows;
+            forceFullShadows = GUILayout.Toggle(forceFullShadows, "Align To Terrain Normal");
+            if (scatterIsForcingShadows != forceFullShadows)
+            {
+                Debug.Log(forceFullShadows);
+                scatterIsForcingShadows = forceFullShadows;
+                currentChangeType = ChangeType.Distribution;
+                anyValueHasChanged = true;
+                if (scatterIsForcingShadows)
+                {
+                    scatter.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                }
+                else
+                {
+                    scatter.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+            }
         }
         static bool showDistribution = false;
         static bool showMaterial = false;
@@ -226,6 +257,8 @@ namespace ScatterConfiguratorUtils
                 props._SteepContrast = TextAreaLabelFloat("Steep Contrast", props._SteepContrast, ChangeType.Distribution);
                 props._SteepMidpoint = TextAreaLabelFloat("Steep Midpoint", props._SteepMidpoint, ChangeType.Distribution);
                 props._MaxNormalDeviance = TextAreaLabelFloat("Max Normal Deviance", props._MaxNormalDeviance, ChangeType.Distribution);
+                props._MinAltitude = TextAreaLabelFloat("Min Altitude", props._MinAltitude, ChangeType.Distribution);
+                props._MaxAltitude = TextAreaLabelFloat("Max Altitude", props._MaxAltitude, ChangeType.Distribution);
                 //GUILayout.EndVertical();
                 scatter.properties.scatterDistribution = props;
             }
@@ -240,12 +273,26 @@ namespace ScatterConfiguratorUtils
             if (showNoiseDistribution)
             {
                 DistributionNoise props = scatter.properties.scatterDistribution.noise;
-                props._Frequency = TextAreaLabelFloat("Frequency", props._Frequency, ChangeType.Rebuild);
-                props._Persistence = TextAreaLabelFloat("Persistence", props._Persistence, ChangeType.Rebuild);
-                props._Lacunarity = TextAreaLabelFloat("_Lacunarity", props._Lacunarity, ChangeType.Rebuild);
-                props._Octaves = TextAreaLabelFloat("_Octaves", props._Octaves, ChangeType.Rebuild);
-                props._Seed = (int)TextAreaLabelFloat("_Seed", props._Seed, ChangeType.Rebuild);
-                props._NoiseType = (int)TextAreaLabelFloat("_NoiseType", props._NoiseType, ChangeType.Rebuild);
+                if (props.noiseMode == DistributionNoiseMode.Persistent || props.noiseMode == DistributionNoiseMode.VerticalStack)
+                {
+                    props._Frequency = TextAreaLabelFloat("Frequency", props._Frequency, ChangeType.Rebuild);
+                    props._Persistence = TextAreaLabelFloat("Persistence", props._Persistence, ChangeType.Rebuild);
+                    props._Lacunarity = TextAreaLabelFloat("Lacunarity", props._Lacunarity, ChangeType.Rebuild);
+                    props._Octaves = TextAreaLabelFloat("Octaves", props._Octaves, ChangeType.Rebuild);
+                    props._Seed = (int)TextAreaLabelFloat("Seed", props._Seed, ChangeType.Rebuild);
+                    props._NoiseType = (int)TextAreaLabelFloat("NoiseType", props._NoiseType, ChangeType.Rebuild);
+                    if (props.noiseMode == DistributionNoiseMode.VerticalStack)
+                    {
+                        props._MaxStacks = (int)TextAreaLabelFloat("Max Stacks", props._MaxStacks, ChangeType.Distribution);
+                        props._StackSeparation = TextAreaLabelFloat("Stack Separation", props._StackSeparation, ChangeType.Distribution);
+                    }
+                }
+                else if (props.noiseMode == DistributionNoiseMode.NonPersistent)
+                {
+                    props._SizeNoiseScale = TextAreaLabelFloat("Size Noise Scale", props._SizeNoiseScale, ChangeType.Distribution);
+                    props._ColorNoiseScale = TextAreaLabelFloat("Color Noise Scale", props._ColorNoiseScale, ChangeType.Distribution);
+                    props._SizeNoiseOffset = TextAreaLabelFloat("Size Noise Offset", props._SizeNoiseOffset, ChangeType.Distribution);
+                }
                 scatter.properties.scatterDistribution.noise = props;
             }
             if (GUILayout.Button("Display Material Settings"))
@@ -262,6 +309,7 @@ namespace ScatterConfiguratorUtils
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Material Settings", alignment, GUILayout.ExpandWidth(true));
                 props = SetupMaterialUI(props);
+                props._ColorNoiseStrength = TextAreaLabelFloat("Planet Radius", props._ColorNoiseStrength, ChangeType.Distribution);
                 scatter.properties.scatterMaterial = props;
                 //GUILayout.EndVertical();
             }
@@ -348,10 +396,21 @@ namespace ScatterConfiguratorUtils
                 }
                 ScatterLog.Log("Total vertices in the scene right now: " + totalCount);
             }
+            if (GUILayout.Button("Get Total Scene VRAM"))
+            {
+                float totalCount = 0;
+                for (int i = 0; i < BodyScatters.Keys.Count; i++)
+                {
+                    Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
+                    totalCount += currentScatter.GetPlanetVRAMUsage(thisScatter);
+                }
+                ScatterLog.Log("Total VRAM usage in the scene right now: " + totalCount);
+            }
             if (GUILayout.Button("Save " + FlightGlobals.currentMainBody.name + "'s Scatters To Config"))
             {
                 ConfigUtil.SaveAllToConfig(FlightGlobals.currentMainBody.name);
             }
+            
         }
         static void CreateAdvanceButton(string name, ref int toAdvance, int length, float widthPerc, bool add)
         {
@@ -374,6 +433,8 @@ namespace ScatterConfiguratorUtils
             if (add && GUILayout.Button(name, GUILayout.Width(absoluteSize.width * widthPerc)))
             {
                 toAdvance++;
+                alignToTerrainNormal = false;
+                forceFullShadows = false;
                 if (toAdvance > length - 1)
                 {
                     toAdvance = 0;
@@ -530,20 +591,10 @@ namespace ScatterConfiguratorUtils
                 ForceDistributionMaterialUpdate(currentScatter, revertDistributionMaterial);
             }
         }
-        private static void SaveDefaultVars()
-        {
-
-            //Setup scatter stuff
-        }
-
-        private static void GetPropertyInfos()
-        {
-            
-        }
         public void ForceMaterialUpdate(Scatter scatter)
         {
             ScatterLog.Log("Forcing a material update on " + scatter);
-            StartCoroutine(scatter.ForceMaterialUpdate());
+            StartCoroutine(scatter.ForceMaterialUpdate(scatter));
         }
         public void ForceFullUpdate(Scatter scatter)
         {

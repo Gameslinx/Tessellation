@@ -181,7 +181,6 @@ namespace ScatterConfiguratorUtils
 
                 {nameof(scatterBody.properties.scatterMaterial._MainColor),  nameof(scatterBody.properties.scatterMaterial._MainColor)},
                 {nameof(scatterBody.properties.scatterMaterial._SubColor),  nameof(scatterBody.properties.scatterMaterial._SubColor)},
-                {nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale)},
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength)},
 
                  //{nameof(scatterBody.properties.scatterDistribution._LODRange),  nameof(scatterBody.properties.scatterDistribution._LODRange)}
@@ -205,7 +204,6 @@ namespace ScatterConfiguratorUtils
                 {nameof(scatterBody.properties.scatterDistribution._CutoffScale),  nameof(scatterBody.properties.scatterDistribution._CutoffScale)},
                 {nameof(scatterBody.properties.scatterMaterial._MainColor),  nameof(scatterBody.properties.scatterMaterial._MainColor)},
                 {nameof(scatterBody.properties.scatterMaterial._SubColor),  nameof(scatterBody.properties.scatterMaterial._SubColor)},
-                {nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseScale)},
                 {nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength),  nameof(scatterBody.properties.scatterMaterial._ColorNoiseStrength)},
 
 
@@ -666,15 +664,25 @@ namespace ScatterConfiguratorUtils
                 subdivisionNode.AddValue("subdivisionRange", scatter.properties.subdivisionSettings.range);
                 ConfigNode distNoiseNode = scatterNode.AddNode("DistributionNoise");
                 DistributionNoise noiseDist = scatter.properties.scatterDistribution.noise;
-                distNoiseNode.AddValue("_Frequency", noiseDist._Frequency);
-                distNoiseNode.AddValue("_Persistence", noiseDist._Persistence);
-                distNoiseNode.AddValue("_Lacunarity", noiseDist._Lacunarity);
-                distNoiseNode.AddValue("_Octaves", noiseDist._Octaves);
-                distNoiseNode.AddValue("_Seed", noiseDist._Seed);
-                distNoiseNode.AddValue("_NoiseType", noiseDist._NoiseType);
-                if (noiseDist._NoiseQuality == NoiseQuality.Low) { distNoiseNode.AddValue("_NoiseQuality", "Low"); }
-                if (noiseDist._NoiseQuality == NoiseQuality.Standard) { distNoiseNode.AddValue("_NoiseQuality", "Standard"); }
-                if (noiseDist._NoiseQuality == NoiseQuality.High) { distNoiseNode.AddValue("_NoiseQuality", "High"); }
+                distNoiseNode.AddValue("mode", noiseDist.noiseMode.ToString());
+                if (noiseDist.noiseMode == DistributionNoiseMode.Persistent)
+                {
+                    distNoiseNode.AddValue("_Frequency", noiseDist._Frequency);
+                    distNoiseNode.AddValue("_Persistence", noiseDist._Persistence);
+                    distNoiseNode.AddValue("_Lacunarity", noiseDist._Lacunarity);
+                    distNoiseNode.AddValue("_Octaves", noiseDist._Octaves);
+                    distNoiseNode.AddValue("_Seed", noiseDist._Seed);
+                    distNoiseNode.AddValue("_NoiseType", noiseDist._NoiseType);
+                    if (noiseDist._NoiseQuality == NoiseQuality.Low) { distNoiseNode.AddValue("_NoiseQuality", "Low"); }
+                    if (noiseDist._NoiseQuality == NoiseQuality.Standard) { distNoiseNode.AddValue("_NoiseQuality", "Standard"); }
+                    if (noiseDist._NoiseQuality == NoiseQuality.High) { distNoiseNode.AddValue("_NoiseQuality", "High"); }
+                }
+                else
+                {
+                    distNoiseNode.AddValue("_SizeNoiseScale", noiseDist._SizeNoiseScale);
+                    distNoiseNode.AddValue("_ColorNoiseScale", noiseDist._ColorNoiseScale);
+                    distNoiseNode.AddValue("_SizeNoiseOffset", noiseDist._SizeNoiseOffset);
+                }
                 ConfigNode distributionNode = scatterNode.AddNode("Distribution");
                 Distribution dist = scatter.properties.scatterDistribution;
                 distributionNode.AddValue("_SpawnChance", dist._SpawnChance);
@@ -702,7 +710,6 @@ namespace ScatterConfiguratorUtils
                 materialNode.AddValue("_MainColor", mat._MainColor);
                 materialNode.AddValue("_SubColor", mat._SubColor);
                 materialNode.AddValue("_ColorNoiseStrength", mat._ColorNoiseStrength);
-                materialNode.AddValue("_ColorNoiseScale", mat._ColorNoiseScale);
                 SaveMaterialNode(materialNode, mat);
                 ConfigNode subObjectsNode = scatterNode.AddNode("SubObjects");
                 foreach (SubObject so in scatter.subObjects)

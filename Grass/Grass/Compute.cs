@@ -58,6 +58,7 @@ namespace ComputeLoader
         public int objectCount = 0;
         public bool started = false;
         public float[] distributionNoise;
+        public float vRAMinMb = 0;
         
         struct PositionData
         {
@@ -107,11 +108,23 @@ namespace ComputeLoader
             }
             vertCount = mesh.vertexCount;
             triCount = mesh.triangles.Length;
-            distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributePoints"));
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
+            {
+                distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributeNearest"));
+            }
+            else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent)
+            {
+                distribute = Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
+            }
+            else
+            {
+                distribute = Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
+            }
             evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
             GeneratePositions();
             started = true;
         }
+        bool initialized = false;
         public void InitializeAllBuffers()
         {
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
@@ -125,17 +138,25 @@ namespace ComputeLoader
             Utils.SafetyCheckRelease(subObjectSlot3, "subObjectSlot3");
             Utils.SafetyCheckRelease(subObjectSlot4, "subObjectSlot4");
 
-
+            int maxStacks = scatter.properties.scatterDistribution.noise._MaxStacks;
             countBuffer = Utils.SetupComputeBufferSafe(7, sizeof(int), ComputeBufferType.IndirectArguments);
-            grassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
-            farGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
-            furtherGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
+            grassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            farGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            furtherGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            int count = (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks;
+            //Debug.Log("Counts: " + count);
+            //Debug.Log("Tricount: " + triCount);
+            //Debug.Log("PopMult: " + scatter.properties.scatterDistribution._PopulationMultiplier);
+            //Debug.Log("QSD: " + quadSubdivisionDifference);
+            //Debug.Log("Scatter: " + scatter.scatterName);
+            //Debug.Log("Memory footprint per buffer: " + (((float)count * GrassData.Size()) / (1024 * 1024)) + " mb");
+            subObjectSlot1 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot2 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot3 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            subObjectSlot4 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
 
-
-            subObjectSlot1 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot2 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot3 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot4 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, GrassData.Size(), ComputeBufferType.Append);
+            float totalMemory = (GrassData.Size() * count * 8) + (7 * sizeof(int)) + (vertCount * 12) + (vertCount * 12) + (distributionNoise.Length * sizeof(float));
+            vRAMinMb = totalMemory / (1024 * 1024);
 
             evaluate.SetBuffer(evaluatePoints, "Grass", grassBuffer);
             evaluate.SetBuffer(evaluatePoints, "Positions", grassPositionBuffer);
@@ -145,6 +166,8 @@ namespace ComputeLoader
             evaluate.SetBuffer(evaluatePoints, "SubObjects2", subObjectSlot2);
             evaluate.SetBuffer(evaluatePoints, "SubObjects3", subObjectSlot3);
             evaluate.SetBuffer(evaluatePoints, "SubObjects4", subObjectSlot4);
+           
+            initialized = true;
         }
         Vector3d previousTerrainOffset = Vector3d.zero;
         void Update()
@@ -157,6 +180,16 @@ namespace ComputeLoader
             //    timeSinceLastUpdate = 0;
             //    previousTerrainOffset = FloatingOrigin.TerrainShaderOffset;
             //}
+            if (quad == null)
+            {
+                Debug.Log("Quad null");
+            }
+            if (scatter == null)
+            {
+                Debug.Log("Scatter is null");
+                quad.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+                Debug.Log("Swapped material");
+            }
             bool isTime = CheckTheTime(scatter.updateFPS);
             if (isTime && FlightGlobals.ActiveVessel.speed > 0.05f && started && objectCount > 0)
             {
@@ -247,7 +280,7 @@ namespace ComputeLoader
             Utils.SafetyCheckRelease(positionCountBuffer, "mesh triangle buffer");
             positionBuffer = Utils.SetupComputeBufferSafe(vertCount, 12, ComputeBufferType.Structured);
             normalBuffer = Utils.SetupComputeBufferSafe(normals.Length, 12, ComputeBufferType.Structured);
-            grassPositionBuffer = Utils.SetupComputeBufferSafe((tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference, PositionData.Size(), ComputeBufferType.Append);
+            grassPositionBuffer = Utils.SetupComputeBufferSafe((tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * scatter.properties.scatterDistribution.noise._MaxStacks, PositionData.Size(), ComputeBufferType.Append);
             triangleBuffer = Utils.SetupComputeBufferSafe(tris.Length, sizeof(int), ComputeBufferType.Structured);                  //quad subdiv diff ^
             noiseBuffer = Utils.SetupComputeBufferSafe(distributionNoise.Length, sizeof(float), ComputeBufferType.Structured);
             positionCountBuffer = Utils.SetupComputeBufferSafe(1, sizeof(int), ComputeBufferType.IndirectArguments);
@@ -269,10 +302,20 @@ namespace ComputeLoader
             distribute.SetInt("_MaxCount", (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
             distribute.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
             distribute.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
+            distribute.SetFloat("minAltitude", scatter.properties.scatterDistribution._MinAltitude);
+            distribute.SetFloat("maxAltitude", scatter.properties.scatterDistribution._MaxAltitude);
+            distribute.SetFloat("grassSizeNoiseScale", scatter.properties.scatterDistribution.noise._SizeNoiseScale);
+            distribute.SetFloat("grassSizeNoiseOffset", scatter.properties.scatterDistribution.noise._SizeNoiseOffset);
             distribute.SetVector("grassColorMain", scatter.properties.scatterMaterial._MainColor);//scatter.properties.scatterMaterial._MainColor);
             distribute.SetVector("grassColorSub", scatter.properties.scatterMaterial._SubColor);
             distribute.SetFloat("grassColorNoiseStrength", scatter.properties.scatterMaterial._ColorNoiseStrength);
-            distribute.SetFloat("grassColorNoiseScale", scatter.properties.scatterMaterial._ColorNoiseScale);
+            distribute.SetFloat("grassColorNoiseScale", scatter.properties.scatterDistribution.noise._ColorNoiseScale);
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.VerticalStack)
+            {
+                distribute.SetFloat("_StackSeparation", scatter.properties.scatterDistribution.noise._StackSeparation);
+                distribute.SetInt("_VerticalMult", scatter.properties.scatterDistribution.noise._MaxStacks);
+            }
+
 
             distribute.SetFloat("grassCutoffScale", scatter.properties.scatterDistribution._CutoffScale);
             distribute.SetFloat("grassSizeNoiseStrength", scatter.properties.scatterDistribution._SizeNoiseStrength);
@@ -291,11 +334,10 @@ namespace ComputeLoader
             distribute.SetFloat("subObjectSpawnRadius3", GetSubObjectProperty("subObjectSpawnRadius", 2));
             distribute.SetFloat("subObjectSpawnChance3", GetSubObjectProperty("subObjectSpawnChance", 2));
 
+
+           
             distribute.SetFloat("_MaxNormalDeviance", scatter.properties.scatterDistribution._MaxNormalDeviance);
 
-            distribute.SetVector("frameVec1", (Vector3)FlightGlobals.currentMainBody.BodyFrame.X);
-            distribute.SetVector("frameVec2", (Vector3)FlightGlobals.currentMainBody.BodyFrame.Y);
-            distribute.SetVector("frameVec3", (Vector3)FlightGlobals.currentMainBody.BodyFrame.Z);
             distribute.SetFloat("_PlanetRadius", (float)FlightGlobals.currentMainBody.Radius);
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             distribute.SetMatrix("_WorldToPlanet", FlightGlobals.currentMainBody.gameObject.transform.worldToLocalMatrix);
@@ -318,9 +360,10 @@ namespace ComputeLoader
            
 
 
-            distribute.Dispatch(distributeKernel, Mathf.CeilToInt((((float)tris.Length) / 3f)), 1, 1);
+            distribute.Dispatch(distributeKernel, Mathf.CeilToInt((((float)tris.Length) / 3f) / 32f), scatter.properties.scatterDistribution.noise._MaxStacks, 1);
             ComputeBuffer.CopyCount(grassPositionBuffer, positionCountBuffer, 0);
             AsyncGPUReadback.Request(positionCountBuffer, AwaitDistributeReadback);
+            currentlyReadingDist = true;
             //int[] count = new int[] { 0 };
             //positionCountBuffer.GetData(count);
             //objectCount = count[0];
@@ -340,12 +383,25 @@ namespace ComputeLoader
             {
                 return;
             }
-
+            currentlyReadingDist = false;
             EvaluatePositions();
         }
+        bool currentlyReadingDist = false;
+        bool currentlyReadingEv = false;
         public void EvaluatePositions()
         {
-            //ReleaseEvaluationBuffers();
+            if (initialized == false) { Debug.Log("Not initialized yet..."); }
+            if (currentlyReadingDist || currentlyReadingEv) { Debug.Log("Currently reading something"); return; }
+            if (objectCount == 0) { return; }
+            if (grassBuffer == null)
+            {
+                Debug.Log("Buffer null");
+            }
+            if (!grassBuffer.IsValid())             //Someone else is gonna need to help me on this. Buffers are initialized without error but fail here on some seemingly random quads
+            {
+                Destroy(this);
+                return;
+            }
             grassBuffer.SetCounterValue(0);
             farGrassBuffer.SetCounterValue(0);
             furtherGrassBuffer.SetCounterValue(0);
@@ -353,7 +409,7 @@ namespace ComputeLoader
             subObjectSlot2.SetCounterValue(0);
             subObjectSlot3.SetCounterValue(0);
             subObjectSlot4.SetCounterValue(0);
-
+            
             
             evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
             evaluate.SetVector("_CameraPos", FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
@@ -366,7 +422,7 @@ namespace ComputeLoader
             evaluate.SetVector("_ThisPos", transform.position);
             evaluate.SetInt("_MaxCount", objectCount);  //quadsubdif?
                                                         //and V
-            evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount)), 1, 1);
+            evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1);
 
             ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
             ComputeBuffer.CopyCount(farGrassBuffer, countBuffer, 4);
@@ -376,7 +432,7 @@ namespace ComputeLoader
             ComputeBuffer.CopyCount(subObjectSlot3, countBuffer, 20);
             ComputeBuffer.CopyCount(subObjectSlot4, countBuffer, 24);
             AsyncGPUReadback.Request(countBuffer, AwaitEvaluateReadback);
-
+            currentlyReadingEv = true;
             //int[] count = new int[] { 0, 0, 0, 0, 0, 0, 0 };
             //countBuffer.GetData(count);
             //pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
@@ -389,6 +445,7 @@ namespace ComputeLoader
                 return;
             }
             int[] count = req.GetData<int>(0).ToArray();
+            currentlyReadingEv = false;
             pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
         }
         public float GetSubObjectProperty(string property, int index)
@@ -435,6 +492,7 @@ namespace ComputeLoader
                 grassBuffer.Release();
             }
         }
+        bool everDestroyed = false;
         void OnDestroy()
         {
 
@@ -455,6 +513,7 @@ namespace ComputeLoader
             Utils.DestroyComputeBufferSafe(positionCountBuffer);
             Destroy(pc);
         }
+        bool everDisabled = false;
         void OnDisable()
         {
             Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
@@ -478,7 +537,6 @@ namespace ComputeLoader
 
     public class PostCompute : MonoBehaviour
     {
-        public bool notBuilt = true;
         public bool active = true;
         public Material material;
         public Material materialFar;
@@ -537,6 +595,7 @@ namespace ComputeLoader
         public string quadName;
 
         public Properties scatterProps;
+        UnityEngine.Rendering.ShadowCastingMode shadowCastingMode;
         public void SetupAgain(Scatter scatter)
         {
             material = new Material(scatter.properties.scatterMaterial.shader);
@@ -545,12 +604,7 @@ namespace ComputeLoader
             //material.SetFloat("_HeightCutoff", -1000);
             material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
             scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
-            if (notBuilt)
-            {
-                material = new Material(Shader.Find("Standard"));
-                material.color = new Color(1, 0, 0, 1);
-            }
-
+            shadowCastingMode = scatter.shadowCastingMode;
             materialFar = Instantiate(material);
             materialFurther = Instantiate(material);
             if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
@@ -573,25 +627,19 @@ namespace ComputeLoader
             {
                 GameObject go = GameDatabase.Instance.GetModel(scatter.model);
                 Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
-               
                 this.mesh = mesh;
                 go = GameDatabase.Instance.GetModel(scatter.properties.scatterDistribution.lods.lods[0].modelName);
                 farMesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
                 go = GameDatabase.Instance.GetModel(scatter.properties.scatterDistribution.lods.lods[1].modelName);
                 furtherMesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
-
                 material = new Material(scatter.properties.scatterMaterial.shader);
                 subObjectMesh1 = Utils.GetSubObjectMesh(scatter, 0, out subVertexCount1);
                 subObjectMesh2 = Utils.GetSubObjectMesh(scatter, 1, out subVertexCount2);
                 subObjectMesh3 = Utils.GetSubObjectMesh(scatter, 2, out subVertexCount3);
                 subObjectMesh4 = Utils.GetSubObjectMesh(scatter, 3, out subVertexCount4);
-
-                //material.SetFloat("_WaveSpeed", 0);
-                //material.SetFloat("_HeightCutoff", -1000);
                 material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
                 scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
-
-                
+                shadowCastingMode = scatter.shadowCastingMode;
                 materialFar = Instantiate(material);
                 materialFurther = Instantiate(material);
                 if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
@@ -606,18 +654,18 @@ namespace ComputeLoader
                 subObjectMat2 = Utils.GetSubObjectMaterial(scatter, 1);
                 subObjectMat3 = Utils.GetSubObjectMaterial(scatter, 2);
                 subObjectMat4 = Utils.GetSubObjectMaterial(scatter, 3);
-                //materialFar.SetFloat("_Cutoff", 0.5f);
-                //materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == "Parallax_StockTextures/_Scatters/grassuv5"));
-
                 subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
-
+                subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2));
                 vertexCount = mesh.vertexCount;
                 farVertexCount = farMesh.vertexCount;
                 furtherVertexCount = furtherMesh.vertexCount;
-
                 setupInitial = true;
             }
-            bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange + 1));
+            try
+            {
+                bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange));
+            }
+            catch(Exception ex) { Destroy(this); }
             countCheck = counts[0];
             farCountCheck = counts[1];
             furtherCountCheck = counts[2];
@@ -625,7 +673,6 @@ namespace ComputeLoader
             subCount2 = counts[4];
             subCount3 = counts[5];
             subCount4 = counts[6];
-
             mainNear = buffers[0];
             mainFar = buffers[1];
             mainFurther = buffers[2];
@@ -633,7 +680,6 @@ namespace ComputeLoader
             sub2 = buffers[4];
             sub3 = buffers[5];
             sub4 = buffers[6];
-
             InitializeBuffers();
         }
 
@@ -725,7 +771,7 @@ namespace ComputeLoader
             }
             if (furtherCountCheck != 0)
             {
-                Graphics.DrawMeshInstancedIndirect(furtherMesh, 0, materialFurther, bounds, furtherArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.Off, false, gameObject.layer);
+                Graphics.DrawMeshInstancedIndirect(furtherMesh, 0, materialFurther, bounds, furtherArgsBuffer, 0, null, shadowCastingMode, true, gameObject.layer);
             }
             if (subCount1 != 0)
             {
