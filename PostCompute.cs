@@ -34,7 +34,7 @@ namespace ComputeLoader
         private ComputeBuffer subArgs4;
 
 
-        private ComputeBuffer mainNear;
+        public ComputeBuffer mainNear;
         private ComputeBuffer mainFar;
         private ComputeBuffer mainFurther;
         private ComputeBuffer sub1;
@@ -139,6 +139,7 @@ namespace ComputeLoader
             try
             {
                 bounds = new Bounds(transform.position, Vector3.one * (subdivisionRange));
+                SetPlanetOrigin();
             }
             catch(Exception ex) { Destroy(this); }
             mainNear = buffers[0];
@@ -159,37 +160,37 @@ namespace ComputeLoader
             uint[] args = new uint[0];
             uint[] farArgs = new uint[0];
             uint[] furtherArgs = new uint[0];
-
+            if (argsBuffer != null) { argsBuffer.Release(); }
             args = Utils.GenerateArgs(mesh);
             argsBuffer = Utils.SetupComputeBufferSafe(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             argsBuffer.SetData(args);
-            
 
+            if (farArgsBuffer != null) { farArgsBuffer.Release(); }
             farArgs = Utils.GenerateArgs(farMesh);
             farArgsBuffer = Utils.SetupComputeBufferSafe(1, farArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             farArgsBuffer.SetData(farArgs);
-            
 
+            if (furtherArgsBuffer != null) { furtherArgsBuffer.Release(); }
             furtherArgs = Utils.GenerateArgs(furtherMesh);
             furtherArgsBuffer = Utils.SetupComputeBufferSafe(1, furtherArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             furtherArgsBuffer.SetData(furtherArgs);
-            
 
+            if (subArgs1 != null) { subArgs1.Release(); }
             subArgsSlot1 = Utils.GenerateArgs(subObjectMesh1);
             subArgs1 = Utils.SetupComputeBufferSafe(1, subArgsSlot1.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             subArgs1.SetData(subArgsSlot1);
-            
 
+            if (subArgs2 != null) { subArgs2.Release(); }
             subArgsSlot2 = Utils.GenerateArgs(subObjectMesh2);
             subArgs2 = Utils.SetupComputeBufferSafe(1, subArgsSlot2.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             subArgs2.SetData(subArgsSlot2);
-            
 
+            if (subArgs3 != null) { subArgs3.Release(); }
             subArgsSlot3 = Utils.GenerateArgs(subObjectMesh3);
             subArgs3 = Utils.SetupComputeBufferSafe(1, subArgsSlot3.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             subArgs3.SetData(subArgsSlot3);
-            
 
+            if (subArgs4 != null) { subArgs4.Release(); }
             subArgsSlot4 = Utils.GenerateArgs(subObjectMesh4);
             subArgs4 = Utils.SetupComputeBufferSafe(1, subArgsSlot4.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             subArgs4.SetData(subArgsSlot4);
@@ -228,6 +229,14 @@ namespace ComputeLoader
         
         private void Update()
         {
+            if (!active)
+            {
+                return;
+            }
+            if (mesh != null)
+            {
+                Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, gameObject.layer);
+            }
             if (farMesh != null)
             {
                 Graphics.DrawMeshInstancedIndirect(farMesh, 0, materialFar, bounds, farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, gameObject.layer);
@@ -252,10 +261,7 @@ namespace ComputeLoader
             {
                 Graphics.DrawMeshInstancedIndirect(subObjectMesh4, 0, subObjectMat4, bounds, subArgs4, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, gameObject.layer);
             }
-            if (mesh != null)
-            {
-                Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, gameObject.layer);
-            }
+            
         }
         private void SetPlanetOrigin()
         {
@@ -264,36 +270,43 @@ namespace ComputeLoader
             {
                 material.SetVector("_PlanetOrigin", planetOrigin);
                 material.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                material.SetVector("_ThisPos", transform.position);
             }
             if (materialFar != null && materialFar.HasProperty("_PlanetOrigin"))
             {
                 materialFar.SetVector("_PlanetOrigin", planetOrigin);
                 materialFar.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                materialFar.SetVector("_ThisPos", transform.position);
             }
             if (materialFurther != null && materialFurther.HasProperty("_PlanetOrigin"))
             {
                 materialFurther.SetVector("_PlanetOrigin", planetOrigin);
                 materialFurther.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                materialFurther.SetVector("_ThisPos", transform.position);
             }
             if (subObjectMat1 != null && subObjectMat1.HasProperty("_PlanetOrigin"))
             {
                 subObjectMat1.SetVector("_PlanetOrigin", planetOrigin);
                 subObjectMat1.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                subObjectMat1.SetVector("_ThisPos", transform.position);
             }
             if (subObjectMat2 != null && subObjectMat2.HasProperty("_PlanetOrigin"))
             {
                 subObjectMat2.SetVector("_PlanetOrigin", planetOrigin);
                 subObjectMat2.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                subObjectMat2.SetVector("_ThisPos", transform.position);
             }
             if (subObjectMat3 != null && subObjectMat3.HasProperty("_PlanetOrigin"))
             {
                 subObjectMat3.SetVector("_PlanetOrigin", planetOrigin);
                 subObjectMat3.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                subObjectMat3.SetVector("_ThisPos", transform.position);
             }
             if (subObjectMat4 != null && subObjectMat4.HasProperty("_PlanetOrigin"))
             {
                 subObjectMat4.SetVector("_PlanetOrigin", planetOrigin);
                 subObjectMat4.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                subObjectMat4.SetVector("_ThisPos", transform.position);
             }
         }
         private void UpdateBounds(Vector3d offset)

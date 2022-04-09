@@ -706,6 +706,7 @@ namespace ScatterConfiguratorUtils
                     configLOD.AddValue("model", lod.modelName);
                     configLOD.AddValue("_MainTex", lod.mainTexName);
                     configLOD.AddValue("range", lod.range);
+                    configLOD.AddValue("billboard", lod.isBillboard);
                 }
                 ConfigNode materialNode = scatterNode.AddNode("Material");
                 ScatterMaterial mat = scatter.properties.scatterMaterial;

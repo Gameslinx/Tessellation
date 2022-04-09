@@ -173,36 +173,31 @@ namespace ComputeLoader
         }
         Vector3d previousTerrainOffset = Vector3d.zero;
         float timeSinceLastRead = 0;
+        int count = 0;
         void Update()
         {
-            //return;
-            //return;
-            //if (FloatingOrigin.TerrainShaderOffset != previousTerrainOffset)
-            //{
-            //    EvaluatePositions();
-            //    timeSinceLastUpdate = 0;
-            //    previousTerrainOffset = FloatingOrigin.TerrainShaderOffset;
-            //}
             if (quad == null)
             {
                 Debug.Log("Quad null");
+                return;
             }
             if (scatter == null)
             {
                 Debug.Log("Scatter is null");
                 quad.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
                 Debug.Log("Swapped material");
+                return;
             }
-            
+            if (!RangeCheck()) { return; }
             //if (currentlyReadingEv == false)
             //{
             //    Debug.Log(scatter.scatterName + "Time since last: " + timeSinceLastRead);
             //    timeSinceLastRead = 0;
-                //EvaluatePositions();
+            //EvaluatePositions();
             //}
             //else { timeSinceLastRead += Time.deltaTime; }
             bool isTime = CheckTheTime(scatter.updateFPS);
-            if (isTime && FlightGlobals.ActiveVessel.speed > 0.05f && started && objectCount > 0)
+            if (isTime && FlightGlobals.ActiveVessel.speed > 0.05f && started)
             {
                 //GeneratePositions();
                 EvaluatePositions();
@@ -210,33 +205,33 @@ namespace ComputeLoader
             
         }
         float timeSinceLastSoftUpdate = 0;
-        void FixedUpdate()
-        {
-            return;
-            if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
-            {
-                float targetDeltaTime = 1.0f / softUpdateRate;
-                float deltaTime = Time.deltaTime;
-                if (timeSinceLastSoftUpdate >= targetDeltaTime)
-                {
-                    timeSinceLastSoftUpdate = 0;
-                    bool isTimeForSoft = CheckTheSoftTime();
-                    if (isTimeForSoft && FlightGlobals.ActiveVessel.speed < 100f && objectCount > 0)
-                    {
-
-                        EvaluatePositions();
-
-                    }
-                }
-                else
-                {
-                    timeSinceLastSoftUpdate += Time.deltaTime;
-                }
-                
-                
-
-            }
-        }
+        //void FixedUpdate()
+        //{
+        //    return;
+        //    if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
+        //    {
+        //        float targetDeltaTime = 1.0f / softUpdateRate;
+        //        float deltaTime = Time.deltaTime;
+        //        if (timeSinceLastSoftUpdate >= targetDeltaTime)
+        //        {
+        //            timeSinceLastSoftUpdate = 0;
+        //            bool isTimeForSoft = CheckTheSoftTime();
+        //            if (isTimeForSoft && FlightGlobals.ActiveVessel.speed < 100f && objectCount > 0)
+        //            {
+        //
+        //                EvaluatePositions();
+        //
+        //            }
+        //        }
+        //        else
+        //        {
+        //            timeSinceLastSoftUpdate += Time.deltaTime;
+        //        }
+        //        
+        //        
+        //
+        //    }
+        //}
         float softUpdateRate = 1;
         float timeSinceLastUpdate = 0;
         float distanceSinceLastUpdate = 0;
@@ -321,7 +316,7 @@ namespace ComputeLoader
             distribute.SetVector("grassColorSub", scatter.properties.scatterMaterial._SubColor);
             distribute.SetFloat("grassColorNoiseStrength", scatter.properties.scatterMaterial._ColorNoiseStrength);
             distribute.SetFloat("grassColorNoiseScale", scatter.properties.scatterDistribution.noise._ColorNoiseScale);
-            distribute.SetFloat("_Seed", scatter.properties.scatterDistribution._Seed);
+            distribute.SetFloat("seed", scatter.properties.scatterDistribution._Seed);
             if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.VerticalStack)
             {
                 distribute.SetFloat("_StackSeparation", scatter.properties.scatterDistribution.noise._StackSeparation);
@@ -415,6 +410,8 @@ namespace ComputeLoader
                 Destroy(this);
                 return;
             }
+            //if (!RangeCheck()) { return; }
+
             grassBuffer.SetCounterValue(0);
             farGrassBuffer.SetCounterValue(0);
             furtherGrassBuffer.SetCounterValue(0);
@@ -435,22 +432,28 @@ namespace ComputeLoader
             evaluate.SetVector("_ThisPos", transform.position);
             evaluate.SetInt("_MaxCount", objectCount);  //quadsubdif?
                                                         //and V
-            evaluate.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+            evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
             evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1);
 
-            //ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
-            //ComputeBuffer.CopyCount(farGrassBuffer, countBuffer, 4);
-            //ComputeBuffer.CopyCount(furtherGrassBuffer, countBuffer, 8);
-            //ComputeBuffer.CopyCount(subObjectSlot1, countBuffer, 12);
-            //ComputeBuffer.CopyCount(subObjectSlot2, countBuffer, 16);
-            //ComputeBuffer.CopyCount(subObjectSlot3, countBuffer, 20);
-            //ComputeBuffer.CopyCount(subObjectSlot4, countBuffer, 24);
             pc.Setup(new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
-            //AsyncGPUReadback.Request(countBuffer, AwaitEvaluateReadback);
-            //currentlyReadingEv = true;
-            //int[] count = new int[] { 0, 0, 0, 0, 0, 0, 0 };
-            //countBuffer.GetData(count);
-            //pc.Setup(count, new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
+        }
+        private bool RangeCheck() //If the max scatter range exceeds the compute shader range, why even evaluate it?
+        {
+            if (objectCount == 0) { pc.active = false; return false; }
+            float distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
+            float subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel))) / 2;
+            subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2)); //MULTIPLIED BY 2
+            if (distance - subdivisionRange > scatter.properties.scatterDistribution._Range)
+            {
+                pc.active = false;  //Stop updating quads that don't need updating
+                return false;
+            }
+            else
+            {
+                pc.active = true;
+                return true;
+            }
+            
         }
         //private void AwaitEvaluateReadback(AsyncGPUReadbackRequest req)
         //{
@@ -490,24 +493,6 @@ namespace ComputeLoader
                 }
             }
         }
-        void ReleasePositionBuffers()
-        {
-            if (positionBuffer != null && triangleBuffer != null && grassPositionBuffer != null)
-            {
-                positionBuffer.Release();
-                triangleBuffer.Release();
-                grassPositionBuffer.Release();
-            }
-        }
-        void ReleaseEvaluationBuffers()
-        {
-            if (countBuffer != null && grassBuffer != null)
-            {
-                countBuffer.Release();
-                grassBuffer.Release();
-            }
-        }
-        bool everDestroyed = false;
         void OnDestroy()
         {
 

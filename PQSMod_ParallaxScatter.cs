@@ -31,7 +31,7 @@ namespace ParallaxGrass
             string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
             float maxDist = 0;
             int count = 0;
-            
+
             for (int i = 0; i < quadComps.Length; i++)
             {
                 for (int b = 0; b < keys.Length; b++)
@@ -44,7 +44,7 @@ namespace ParallaxGrass
                         count++;
                     }
                 }
-                
+
             }
             Debug.Log("There are " + quadComps.Length + " quads loaded");
             Debug.Log("There are an estimated " + count + " CCs loaded");
@@ -52,36 +52,35 @@ namespace ParallaxGrass
             Debug.Log("There are " + ccs.Length + " CCs loaded");
             PostCompute[] pcs = Resources.FindObjectsOfTypeAll<PostCompute>();
             Debug.Log("There are " + pcs.Length + " PCs loaded");
-            
-        }
-        void Update()
-        {
-            //UpdateQuads();
-            //Iterate();
-            //Iterate2();
+
         }
         public void UpdateQuads()
         {
             //while(true) //1 quad in the queue per frame, for eternity
             //{
-                string[] keys = quads.Keys.ToArray();
-                for (int i = 0; i < keys.Length; i++)
+            string[] keys = quads.Keys.ToArray();
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (quads.ContainsKey(keys[i]))
                 {
-                    if (quads.ContainsKey(keys[i]))
-                    {
-                        QuadComp quad = quads[keys[i]];
-                        //quad.OnUpdate();
-                        
-                    }
-                    if (i % 20 == 0)
-                    {
-                        //yield return null;
-                    }
+                    QuadComp quad = quads[keys[i]];
+                    //quad.OnUpdate();
+
                 }
+                if (i % 20 == 0)
+                {
+                    //yield return null;
+                }
+            }
             //}
         }
     }
-    
+    public static class Timings
+    {
+        public static WaitForSeconds framerate = new WaitForSeconds(2);
+        public static WaitForEndOfFrame frameEnd = new WaitForEndOfFrame();
+        public static WaitForSeconds shortWait = new WaitForSeconds(0.025f);
+    }
     public class QuadComp : MonoBehaviour
     {
         int scatterCount = 0;
@@ -92,6 +91,16 @@ namespace ParallaxGrass
         public PostCompute[] postComps;
         public string[] keys;
         public float nearestSubdivisionLimit;
+        float rangeLimit;
+
+        public ScatterBody thisScatterBody;
+        public Mesh mesh;
+        public Mesh subdividedMesh;
+        public void Start()
+        {
+            useGUILayout = false;
+            
+        }
         public void Begin()
         {
 
@@ -115,15 +124,22 @@ namespace ParallaxGrass
             comps = new ComputeComponent[scatterCount];
             postComps = new PostCompute[scatterCount];
             nearestSubdivisionLimit = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel))) + 50;
+            thisScatterBody = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name];
+            rangeLimit = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
+            mesh = Instantiate(quad.GetComponent<MeshFilter>().sharedMesh);
             StartCoroutine(OnUpdate());
         }
         bool[] alreadyAdded;
         bool firstRun = true;
+        int count = 0;
         public IEnumerator OnUpdate()
         {
-            yield return new WaitForEndOfFrame();
+            yield return Timings.frameEnd;
+            
+            
             while (true)
             {
+                count++;
                 if (quad == null)
                 {
                     Debug.Log("Quad is null tf");
@@ -135,16 +151,17 @@ namespace ParallaxGrass
                 if (FlightGlobals.ActiveVessel != null)
                 {
                     //Subdivide by the maximum subdivision setting
+                    
                     SubdivideQuad();
                     for (int i = 0; i < keys.Length; i++)
                     {
-                        Scatter thisScatter = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[keys[i]];
+                        Scatter thisScatter = thisScatterBody.scatters[keys[i]];
                         //Debug.Log("Scatter: " + thisScatter.scatterName);
                         float distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
                         float limit = GetRangeLimit(thisScatter);
                         if (alreadyAdded[i] == false && distance <= limit && quad.isVisible)
                         {
-                            mesh = Instantiate(quad.GetComponent<MeshFilter>().sharedMesh);
+                            
                             if (thisScatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
                             {
                                 SetupFixedScatter(thisScatter, quad, i);
@@ -161,15 +178,13 @@ namespace ParallaxGrass
                             alreadyAdded[i] = false;
                         }
                     }
-                    
-
                 }
                 if (firstRun)
                 {
                     firstRun = false;
-                    yield return new WaitForSeconds(0.025f);
+                    yield return Timings.shortWait;
                 }
-                yield return new WaitForSeconds(0.333f);
+                yield return Timings.framerate;
             }
 
         }
@@ -187,20 +202,19 @@ namespace ParallaxGrass
                 return scatter.properties.subdivisionSettings.range;
             }
             else
-            { 
-                return (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
+            {
+                return rangeLimit;
             }
         }
-        public Mesh mesh;
-        public Mesh subdividedMesh;
+        
         void SetupFixedScatter(Scatter thisScatter, PQ quad, int index)
         {
             if (quad == null)
             {
                 Debug.Log("quad null innit lol");
             }
-            var quadMeshFilter = quad.GetComponent<MeshFilter>();
-            var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
+            //var quadMeshFilter = quad.GetComponent<MeshFilter>();
+            //var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
             
             ComputeComponent comp = quad.gameObject.AddComponent<ComputeComponent>();
             comp.mesh = mesh;
@@ -280,8 +294,8 @@ namespace ParallaxGrass
             {
                 Debug.Log("quad null innit lol");
             }
-            var quadMeshFilter = quad.GetComponent<MeshFilter>();
-            var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
+            //var quadMeshFilter = quad.GetComponent<MeshFilter>();
+            //var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
 
             ComputeComponent comp = quad.gameObject.AddComponent<ComputeComponent>();
             comp.mesh = subdividedMesh;
