@@ -228,7 +228,6 @@ namespace Grass
                 if (level > 3)
                     level++;
             }
-            Debug.Log("Subdivision time took " + (Time.realtimeSinceStartup - time + "ms"));
         }
     }
 }

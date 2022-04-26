@@ -229,6 +229,9 @@ namespace ScatterConfiguratorUtils
         private static string activeTexFieldLastValue = "";
         private static string activeTexFieldString = "";
 
+        private static float activeSliderFieldLastValue = 0;
+        private static string activeSliderFieldString = "";
+
         private static float activeVectorXStringLV = 0;
         private static float activeVectorYStringLV = 0;
         private static float activeVectorZStringLV = 0;
@@ -403,7 +406,63 @@ namespace ScatterConfiguratorUtils
 
             return value;
         }
+        public static float SliderField(float value, float min, float max)
+        {
+            // Get rect and control for this float field for identification
+            Rect pos = GUILayoutUtility.GetRect(new GUIContent(value.ToString()), GUI.skin.label,
+                GUILayout.ExpandWidth(false), GUILayout.MinWidth(220));
+            int colorFieldID = GUIUtility.GetControlID("SliderField".GetHashCode(), FocusType.Keyboard, pos) + 1;
+            if (colorFieldID == 0)
+                return value;
 
+            // has the value been recorded?
+            bool recorded = activeFieldID == colorFieldID;
+            // is the field being edited?
+            bool active = colorFieldID == GUIUtility.keyboardControl;
+
+            if (active && recorded && activeSliderFieldLastValue != value)
+            {
+                // Value has been modified externally
+                activeSliderFieldLastValue = value;
+                activeSliderFieldString = value.ToString();
+            }
+
+            // Get stored string for the text field if this one is recorded
+            string str = recorded ? activeSliderFieldString : value.ToString();
+
+            // pass it in the text field
+            string strValue = GUI.HorizontalSlider(pos, value, min, max).ToString("F4");
+
+            // Update stored value if this one is recorded
+            if (recorded)
+                activeSliderFieldString = strValue;
+
+            // Try Parse if value got changed. If the string could not be parsed, ignore it and keep last value
+            bool parsed = true;
+            if (strValue != value.ToString())
+            {
+                parsed = float.TryParse(strValue, out float newValue);
+                if (parsed)
+                    value = activeSliderFieldLastValue = newValue;
+            }
+
+            if (active && !recorded)
+            {
+                // Gained focus this frame
+                activeFieldID = colorFieldID;
+                activeSliderFieldString = strValue;
+                activeSliderFieldLastValue = value;
+            }
+            else if (!active && recorded)
+            {
+                // Lost focus this frame
+                activeFieldID = -1;
+                if (!parsed)
+                    value = strValue.ForceParseFloat();
+            }
+
+            return value;
+        }
         /// <summary>
         /// Special-purpose Text input field for in-game editing. Meant for dds or png textures' paths.
         /// Check if texture file exists before applying the value.
@@ -525,7 +584,18 @@ namespace ScatterConfiguratorUtils
             GUILayout.EndHorizontal();
             return value;
         }
+        public static float SliderField(string label, float value, float min, float max)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label + " [" + value.ToString() + "] ", GUILayout.ExpandWidth(true));
+            GUILayout.FlexibleSpace();
 
+            value = SliderField(value, min, max);
+
+
+            GUILayout.EndHorizontal();
+            return value;
+        }
         /// <summary>
         /// Texture path input field with label. Displays the label on the left, and the input field on the right.
         /// </summary>
@@ -657,6 +727,8 @@ namespace ScatterConfiguratorUtils
                 scatterNode.AddValue("name", scatter.scatterName);
                 scatterNode.AddValue("model", scatter.model);
                 scatterNode.AddValue("updateFPS", scatter.updateFPS);
+                scatterNode.AddValue("cullingRange", scatter.cullingRange);
+                scatterNode.AddValue("cullingLimit", scatter.cullingLimit);
                 scatterNode.AddValue("alignToTerrainNormal", scatter.alignToTerrainNormal);
                 ConfigNode subdivisionNode = scatterNode.AddNode("SubdivisionSettings");
                 subdivisionNode.AddValue("subdivisionLevel", scatter.properties.subdivisionSettings.level);
@@ -699,6 +771,7 @@ namespace ScatterConfiguratorUtils
                 distributionNode.AddValue("_NormalDeviance", dist._MaxNormalDeviance);
                 distributionNode.AddValue("_MinAltitude", dist._MinAltitude);
                 distributionNode.AddValue("_MaxAltitude", dist._MaxAltitude);
+                distributionNode.AddValue("_RangePow", dist._RangePow);
                 ConfigNode lodNode = distributionNode.AddNode("LODs");
                 foreach (Grass.LOD lod in dist.lods.lods)
                 {

@@ -4,6 +4,7 @@ using Kopernicus.ConfigParser.Enumerations;
 using Kopernicus.Configuration.ModLoader;
 using LibNoise;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -85,7 +86,6 @@ namespace Grass
                     }
                 }
             }
-
             //noiseType = PQSMod_VertexHeightNoise.NoiseType.Perlin;
             //frequency = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution._Frequency;
             //lacunarity = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution._Lacunarity;
@@ -192,7 +192,6 @@ namespace Grass
         }
         public override void OnQuadBuilt(PQ quad)
         {
-            Debug.Log("Quad building took: " + (Time.realtimeSinceStartup - initialTime) + " seconds");
             //Debug.Log("Built: " + quad.name + " with value: " + distributionData[quad.name][0]);
             ////Debug.Log("min: " + min);
             ////Debug.Log("max: " + max);
@@ -207,6 +206,7 @@ namespace Grass
             //}
             
         }
+    
     }
     [RequireConfigType(ConfigType.Node)]
     public class ScatterDistribute : ModLoader<PQSMod_ScatterDistribute>

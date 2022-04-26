@@ -23,19 +23,11 @@ namespace ComputeLoader
         public ComputeBuffer grassPositionBuffer;
         public ComputeBuffer triangleBuffer;
         public ComputeBuffer noiseBuffer;
-        public ComputeBuffer countBuffer;
         public ComputeBuffer positionCountBuffer;
         public ComputeBuffer normalBuffer;
 
-        public ComputeBuffer grassBuffer;
-        public ComputeBuffer farGrassBuffer;    //For the grass further away from the camera - Much lower LOD
-        public ComputeBuffer furtherGrassBuffer;
-        public ComputeBuffer subObjectSlot1;
-        public ComputeBuffer subObjectSlot2;
-        public ComputeBuffer subObjectSlot3;
-        public ComputeBuffer subObjectSlot4;
-
-        public PostCompute pc;  //Assign this OUTSIDE of this
+        public ComputeBuffer indirectArgs;
+        //public PostCompute pc;  //Assign this OUTSIDE of this
 
         public Mesh mesh;
         public int vertCount;
@@ -57,6 +49,10 @@ namespace ComputeLoader
         public bool started = false;
         public float[] distributionNoise;
         public float vRAMinMb = 0;
+        public int maxMemory = 0;
+        public bool doEvaluate = true;
+
+        PQSMod_ScatterManager pqsMod;
         
         struct PositionData
         {
@@ -88,9 +84,47 @@ namespace ComputeLoader
                     sizeof(float);          // time
             }
         }
+        CameraManager.CameraMode lastCameraMode;
+        public void OnCameraChange(CameraManager.CameraMode mode)
+        {
+            Debug.Log("Camera mode changed");
+            if (mode == CameraManager.CameraMode.IVA)
+            {
+                GeneratePositions();    //Must regenerate based on terrain shader offset, which is reset for some reason
+                lastCameraMode = CameraManager.CameraMode.IVA;
+                
+            }
+            if (mode == CameraManager.CameraMode.Flight && lastCameraMode == CameraManager.CameraMode.IVA)
+            {
+                GeneratePositions();
+            }
+        }
+        public void OnEnable()
+        {
+            GameEvents.OnCameraChange.Add(OnCameraChange);
+        }
         public void Start()
         {
-            pc.quadName = quad.name;
+            //Debug.Log("OnEnable");
+            //Debug.Log("Length is " + ActiveBuffers.mods.Count);
+            for (int i = 0; i < ActiveBuffers.mods.Count; i++)
+            {
+                if (ActiveBuffers.mods[i] == null) { Debug.Log("Is null??"); }
+                if (ActiveBuffers.mods[i].scatterName == scatter.scatterName)
+                {
+                    pqsMod = ActiveBuffers.mods[i];
+                    if (pqsMod == null) { Debug.Log("Null PQSMod"); }
+                    
+                }
+            }
+            if (scatter == null) { Debug.Log("Scatter null?"); }
+            if (scatter.scatterName == null) { Debug.Log("Name null?"); }
+            //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);  //Get corresponding mod here
+            //Debug.Log("the bruh");
+            //if (pqsMod == null) { Debug.Log("Null PQSMod"); }
+
+            
+            //Debug.Log("the bruh 2");
             //quadSubdivisionDifference = 1;
             RealStart();
             //mesh = Instantiate(gameObject.GetComponent<MeshFilter>().mesh);
@@ -103,9 +137,7 @@ namespace ComputeLoader
             //yield return new WaitForEndOfFrame();  //Prevent floating objects while quad is still repositioning
             if (mesh == null)
             {
-                Debug.Log("[Exception] Quad mesh is null (ComputeComponent RealStart())");
-                quad.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
-                quad.GetComponent<MeshRenderer>().material.SetColor("_Color", new Color(1, 0, 1));
+                Destroy(this);
                 return;
             }
             vertCount = mesh.vertexCount;
@@ -131,79 +163,33 @@ namespace ComputeLoader
         {
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
 
-            Utils.SafetyCheckRelease(countBuffer, "countBuffer");
-            Utils.SafetyCheckRelease(grassBuffer, "grassBuffer");
-            Utils.SafetyCheckRelease(farGrassBuffer, "farGrassBuffer");
-            Utils.SafetyCheckRelease(furtherGrassBuffer, "furtherGrassBuffer");
-            Utils.SafetyCheckRelease(subObjectSlot1, "subObjectSlot1");
-            Utils.SafetyCheckRelease(subObjectSlot2, "subObjectSlot2");
-            Utils.SafetyCheckRelease(subObjectSlot3, "subObjectSlot3");
-            Utils.SafetyCheckRelease(subObjectSlot4, "subObjectSlot4");
-
             int maxStacks = scatter.properties.scatterDistribution.noise._MaxStacks;
-            countBuffer = Utils.SetupComputeBufferSafe(7, sizeof(int), ComputeBufferType.IndirectArguments);
-            grassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
-            farGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
-            furtherGrassBuffer = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
+            if (!Buffers.activeBuffers.ContainsKey(scatter.scatterName))
+            {
+                Debug.Log("Not contained");
+            }
+
             int count = (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks;
-            //Debug.Log("Counts: " + count);
-            //Debug.Log("Tricount: " + triCount);
-            //Debug.Log("PopMult: " + scatter.properties.scatterDistribution._PopulationMultiplier);
-            //Debug.Log("QSD: " + quadSubdivisionDifference);
-            //Debug.Log("Scatter: " + scatter.scatterName);
-            //Debug.Log("Memory footprint per buffer: " + (((float)count * GrassData.Size()) / (1024 * 1024)) + " mb");
-            subObjectSlot1 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot2 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot3 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
-            subObjectSlot4 = Utils.SetupComputeBufferSafe((triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks, GrassData.Size(), ComputeBufferType.Append);
 
             float totalMemory = (GrassData.Size() * count * 8) + (7 * sizeof(int)) + (vertCount * 12) + (vertCount * 12) + (distributionNoise.Length * sizeof(float));
             vRAMinMb = totalMemory / (1024 * 1024);
-
-            evaluate.SetBuffer(evaluatePoints, "Grass", grassBuffer);
+            if (Buffers.activeBuffers[scatter.scatterName].buffer == null) { Debug.Log("Buffer is null lol"); }
+            evaluate.SetBuffer(evaluatePoints, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
             evaluate.SetBuffer(evaluatePoints, "Positions", grassPositionBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FarGrass", farGrassBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", furtherGrassBuffer);
-            evaluate.SetBuffer(evaluatePoints, "SubObjects1", subObjectSlot1);
-            evaluate.SetBuffer(evaluatePoints, "SubObjects2", subObjectSlot2);
-            evaluate.SetBuffer(evaluatePoints, "SubObjects3", subObjectSlot3);
-            evaluate.SetBuffer(evaluatePoints, "SubObjects4", subObjectSlot4);
+            evaluate.SetBuffer(evaluatePoints, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
+            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
            
             initialized = true;
+        }
+        public void ReInitializeAllBuffers()
+        {
+            evaluate.SetBuffer(evaluatePoints, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
+            evaluate.SetBuffer(evaluatePoints, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
+            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
         }
         Vector3d previousTerrainOffset = Vector3d.zero;
         float timeSinceLastRead = 0;
         int count = 0;
-        void Update()
-        {
-            if (quad == null)
-            {
-                Debug.Log("Quad null");
-                return;
-            }
-            if (scatter == null)
-            {
-                Debug.Log("Scatter is null");
-                quad.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
-                Debug.Log("Swapped material");
-                return;
-            }
-            if (!RangeCheck()) { return; }
-            //if (currentlyReadingEv == false)
-            //{
-            //    Debug.Log(scatter.scatterName + "Time since last: " + timeSinceLastRead);
-            //    timeSinceLastRead = 0;
-            //EvaluatePositions();
-            //}
-            //else { timeSinceLastRead += Time.deltaTime; }
-            bool isTime = CheckTheTime(scatter.updateFPS);
-            if (isTime && FlightGlobals.ActiveVessel.speed > 0.05f && started)
-            {
-                //GeneratePositions();
-                EvaluatePositions();
-            }
-            
-        }
         float timeSinceLastSoftUpdate = 0;
         //void FixedUpdate()
         //{
@@ -273,11 +259,25 @@ namespace ComputeLoader
             }
             else { return false; }
         }
+        bool alreadyIncreasedMemory = false;
+        
         public void GeneratePositions()
         {
+            if (mesh == null) { return; }
             Vector3[] verts = mesh.vertices;
             int[] tris = mesh.triangles;
             Vector3[] normals = mesh.normals;
+
+            //First we need to adjust the memory usage for the output buffer
+
+            maxMemory = (tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * scatter.properties.scatterDistribution.noise._MaxStacks;
+            //if (!alreadyIncreasedMemory) { pqsMod.requiredMemory += maxMemory; }
+            alreadyIncreasedMemory = true;
+            //pqsMod.OnBufferLengthUpdated();
+
+            //Now generate
+
+            
             Utils.SafetyCheckRelease(positionBuffer, "position buffer");
             Utils.SafetyCheckRelease(grassPositionBuffer, "grass position buffer");
             Utils.SafetyCheckRelease(normalBuffer, "normal buffer");
@@ -295,7 +295,7 @@ namespace ComputeLoader
             triangleBuffer.SetData(tris);
             noiseBuffer.SetData(distributionNoise);
             normalBuffer.SetData(normals);
-
+            
             int distributeKernel = distribute.FindKernel("DistributePoints");
             grassPositionBuffer.SetCounterValue(0);
             distribute.SetInt("_PopulationMultiplier", (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference); //quadsubdiv diff
@@ -304,7 +304,8 @@ namespace ComputeLoader
             distribute.SetInt("_VertCount", vertCount);
             distribute.SetVector("_PlanetNormal", Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position));
             distribute.SetVector("_ThisPos", transform.position);
-            distribute.SetVector("_ShaderOffset", -(Vector3)FloatingOrigin.TerrainShaderOffset);
+            distribute.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
+
             distribute.SetInt("_MaxCount", (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
             distribute.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
             distribute.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
@@ -365,7 +366,6 @@ namespace ComputeLoader
             distribute.SetBuffer(distributeKernel, "Noise", noiseBuffer);
             distribute.SetBuffer(distributeKernel, "Positions", grassPositionBuffer);
             distribute.SetBuffer(distributeKernel, "Normals", normalBuffer);
-           
 
 
             distribute.Dispatch(distributeKernel, Mathf.CeilToInt((((float)tris.Length) / 3f) / 32f), scatter.properties.scatterDistribution.noise._MaxStacks, 1);
@@ -389,9 +389,14 @@ namespace ComputeLoader
             InitializeAllBuffers();
             if (objectCount == 0)
             {
+                currentlyReadingDist = false;
                 return;
             }
             currentlyReadingDist = false;
+
+            //ComputeBuffer.CopyCount(grassPositionBuffer, indirectArgs, 0);
+            pqsMod.OnForceEvaluate += DispatchEvaluate;
+            pqsMod.OnBufferLengthUpdated += ReInitializeAllBuffers;
             EvaluatePositions();
         }
         bool currentlyReadingDist = false;
@@ -401,59 +406,74 @@ namespace ComputeLoader
             if (initialized == false) { Debug.Log("Not initialized yet..."); }
             if (currentlyReadingDist) { Debug.Log("Currently reading something"); return; }
             if (objectCount == 0) { return; }
-            if (grassBuffer == null)
+            if (!doEvaluate) { return; }
+
+            if (Buffers.activeBuffers[scatter.scatterName].buffer == null)
             {
                 Debug.Log("Buffer null");
             }
-            if (!grassBuffer.IsValid())             //Someone else is gonna need to help me on this. Buffers are initialized without error but fail here on some seemingly random quads
+            if (!Buffers.activeBuffers[scatter.scatterName].buffer.IsValid())             //Someone else is gonna need to help me on this. Buffers are initialized without error but fail here on some seemingly random quads
             {
+                Debug.Log("Invalid, destroying");
                 Destroy(this);
                 return;
             }
-            //if (!RangeCheck()) { return; }
+            if (indirectArgs != null) { indirectArgs.Release(); }
+            indirectArgs = new ComputeBuffer(1, sizeof(int) * 3, ComputeBufferType.IndirectArguments);
+            int[] workGroups = new int[] { Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1 };
+            indirectArgs.SetData(workGroups);
 
-            grassBuffer.SetCounterValue(0);
-            farGrassBuffer.SetCounterValue(0);
-            furtherGrassBuffer.SetCounterValue(0);
-            subObjectSlot1.SetCounterValue(0);
-            subObjectSlot2.SetCounterValue(0);
-            subObjectSlot3.SetCounterValue(0);
-            subObjectSlot4.SetCounterValue(0);
-            
-            
             evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
-            evaluate.SetVector("_CameraPos", FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
-
+            evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);// FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
+            evaluate.SetVector("_CraftPos", FlightGlobals.ActiveVessel.transform.position);
+            if (scatter.useSurfacePos) { evaluate.SetVector("_CameraPos", ActiveBuffers.surfacePos); }
 
             evaluate.SetFloat("_LODPerc", scatter.properties.scatterDistribution.lods.lods[0].range / scatter.properties.scatterDistribution._Range);    //At what range does the LOD change to the low one?
             evaluate.SetFloat("_LOD2Perc", scatter.properties.scatterDistribution.lods.lods[1].range / scatter.properties.scatterDistribution._Range);
 
-            evaluate.SetVector("_ShaderOffset", -(Vector3)FloatingOrigin.TerrainShaderOffset);
+            evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
             evaluate.SetVector("_ThisPos", transform.position);
             evaluate.SetInt("_MaxCount", objectCount);  //quadsubdif?
                                                         //and V
             evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
-            evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1);
+            evaluate.SetFloat("_Pow", scatter.properties.scatterDistribution._RangePow);
+            evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);             //Frustum culling
+            evaluate.SetFloat("_CullLimit", scatter.cullingLimit);
+            float cullingRangePerc = scatter.cullingRange / scatter.properties.scatterDistribution._Range;
+            evaluate.SetFloat("_CullStartRange", cullingRangePerc);
 
-            pc.Setup(new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
+
+            evaluate.DispatchIndirect(evaluatePoints, indirectArgs, 0);
+            //evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1);
+
+            //ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
+            //int[] count = new int[1] { 0 };
+            //countBuffer.GetData(count);
+            //int counter = count[0];
+            //GrassData[] data = new GrassData[counter];
+            //grassBuffer.GetData(data);
+            //Debug.Log("Evaluate retrieved - Length of data: " + data.Length);
+            //Debug.Log("Matrix from data " + data[0].mat.ToString("F3"));
+            //
+            //Debug.Log("Evaluate dispatched");
+            //ActiveBuffers.activeBuffers[scatter.scatterName].buffer = grassBuffer;
+            //ActiveBuffers.activeBuffers[scatter.scatterName].farBuffer = farGrassBuffer;
+            //ActiveBuffers.activeBuffers[scatter.scatterName].furtherBuffer = furtherGrassBuffer;
+            //pc.Setup(new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
         }
-        private bool RangeCheck() //If the max scatter range exceeds the compute shader range, why even evaluate it?
+        public void DispatchEvaluate()
         {
-            if (objectCount == 0) { pc.active = false; return false; }
-            float distance = Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, quad.transform.position);
-            float subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel))) / 2;
-            subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2)); //MULTIPLIED BY 2
-            if (distance - subdivisionRange > scatter.properties.scatterDistribution._Range)
-            {
-                pc.active = false;  //Stop updating quads that don't need updating
-                return false;
-            }
-            else
-            {
-                pc.active = true;
-                return true;
-            }
-            
+            if (initialized == false) { Debug.Log("Not initialized yet..."); }
+            if (currentlyReadingDist) { Debug.Log("Currently reading something"); return; }
+            if (objectCount == 0) { return; }
+            evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
+            evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);
+            evaluate.SetVector("_CraftPos", FlightGlobals.ActiveVessel.transform.position);
+            evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
+            if (scatter.useSurfacePos) { evaluate.SetVector("_CameraPos", ActiveBuffers.surfacePos); }
+            //Debug.Log("Evaluating");
+            evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);
+            evaluate.DispatchIndirect(evaluatePoints, indirectArgs, 0);
         }
         //private void AwaitEvaluateReadback(AsyncGPUReadbackRequest req)
         //{
@@ -496,42 +516,31 @@ namespace ComputeLoader
         void OnDestroy()
         {
 
-            Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
+            //Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
             Utils.DestroyComputeBufferSafe(positionBuffer);
             Utils.DestroyComputeBufferSafe(normalBuffer);
             Utils.DestroyComputeBufferSafe(triangleBuffer);
             Utils.DestroyComputeBufferSafe(noiseBuffer);
             Utils.DestroyComputeBufferSafe(grassPositionBuffer);
-            Utils.DestroyComputeBufferSafe(countBuffer);
-            Utils.DestroyComputeBufferSafe(grassBuffer);
-            Utils.DestroyComputeBufferSafe(farGrassBuffer);
-            Utils.DestroyComputeBufferSafe(furtherGrassBuffer);
-            Utils.DestroyComputeBufferSafe(subObjectSlot1);
-            Utils.DestroyComputeBufferSafe(subObjectSlot2);
-            Utils.DestroyComputeBufferSafe(subObjectSlot3);
-            Utils.DestroyComputeBufferSafe(subObjectSlot4);
             Utils.DestroyComputeBufferSafe(positionCountBuffer);
-            Destroy(pc);
+            Utils.DestroyComputeBufferSafe(indirectArgs);
         }
         bool everDisabled = false;
         void OnDisable()
         {
-            Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
+            //Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
             Utils.DestroyComputeBufferSafe(positionBuffer);
             Utils.DestroyComputeBufferSafe(normalBuffer);
             Utils.DestroyComputeBufferSafe(triangleBuffer);
             Utils.DestroyComputeBufferSafe(noiseBuffer);
             Utils.DestroyComputeBufferSafe(grassPositionBuffer);
-            Utils.DestroyComputeBufferSafe(countBuffer);
-            Utils.DestroyComputeBufferSafe(grassBuffer);
-            Utils.DestroyComputeBufferSafe(farGrassBuffer);
-            Utils.DestroyComputeBufferSafe(furtherGrassBuffer);
-            Utils.DestroyComputeBufferSafe(subObjectSlot1);
-            Utils.DestroyComputeBufferSafe(subObjectSlot2);
-            Utils.DestroyComputeBufferSafe(subObjectSlot3);
-            Utils.DestroyComputeBufferSafe(subObjectSlot4);
             Utils.DestroyComputeBufferSafe(positionCountBuffer);
-            Destroy(pc);
+            Utils.DestroyComputeBufferSafe(indirectArgs);
+            //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);  //Get corresponding mod here
+            pqsMod.OnForceEvaluate -= DispatchEvaluate;
+            pqsMod.OnBufferLengthUpdated -= ReInitializeAllBuffers;
+            //pqsMod.requiredMemory -= maxMemory;
+            GameEvents.OnCameraChange.Remove(OnCameraChange);
         }
     }
     

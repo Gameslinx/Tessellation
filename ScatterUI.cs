@@ -46,7 +46,9 @@ namespace ScatterConfiguratorUtils
             None,
             Visibility,
             TerrainMaterial,
-            DistributionMaterial
+            DistributionMaterial,
+            Memory,
+            Evaluate
         }
         public void Start()
         {
@@ -196,6 +198,16 @@ namespace ScatterConfiguratorUtils
         static bool showSubObject = false;
         private static void GetScatterProperties(Scatter scatter, GUIStyle alignment)
         {
+            Properties mainProps = scatter.properties;
+            Distribution distProps = scatter.properties.scatterDistribution;
+            mainProps.memoryMultiplier = TextAreaLabelSlider("Memory Multiplier", scatter.properties.memoryMultiplier, 0, 100, ChangeType.Memory);
+            scatter.cullingRange = (int)TextAreaLabelFloat("Culling Range", scatter.cullingRange, ChangeType.Evaluate);
+            scatter.cullingLimit = (int)TextAreaLabelFloat("Culling Limit", scatter.cullingLimit, ChangeType.Evaluate);
+            scatter.properties = mainProps;
+            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
+            pqsMod.quadCount = (int)mainProps.memoryMultiplier;
+            //currentChangeType = ChangeType.Memory;
+            //anyValueHasChanged = true;
             //bool displayDeviance = false;
             if (GUILayout.Button("Display Distribution Settings"))
             {
@@ -243,24 +255,25 @@ namespace ScatterConfiguratorUtils
                         currentChangeType = ChangeType.TerrainMaterial;
                     }
                 }
-                Distribution props = scatter.properties.scatterDistribution;
+                
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Distribution Settings", alignment, GUILayout.ExpandWidth(true));
-                props._PopulationMultiplier = TextAreaLabelFloat("Population Multiplier", props._PopulationMultiplier, ChangeType.Distribution);
-                props._Range = TextAreaLabelFloat("Max Range", props._Range, ChangeType.Distribution);
-                props._SpawnChance = TextAreaLabelFloat("Spawn Chance", props._SpawnChance, ChangeType.Distribution);
-                props._SizeNoiseStrength = TextAreaLabelFloat("Size Noise Strength", props._SizeNoiseStrength, ChangeType.Distribution);
-                props._MinScale = TextAreaLabelVector("Min Scale", props._MinScale, ChangeType.Distribution);
-                props._MaxScale = TextAreaLabelVector("Max Scale", props._MaxScale, ChangeType.Distribution);
-                props._CutoffScale = TextAreaLabelFloat("Min Size Cutoff Scale", props._CutoffScale, ChangeType.Distribution);
-                props._SteepPower = TextAreaLabelFloat("Steep Power", props._SteepPower, ChangeType.Distribution);
-                props._SteepContrast = TextAreaLabelFloat("Steep Contrast", props._SteepContrast, ChangeType.Distribution);
-                props._SteepMidpoint = TextAreaLabelFloat("Steep Midpoint", props._SteepMidpoint, ChangeType.Distribution);
-                props._MaxNormalDeviance = TextAreaLabelFloat("Max Normal Deviance", props._MaxNormalDeviance, ChangeType.Distribution);
-                props._MinAltitude = TextAreaLabelFloat("Min Altitude", props._MinAltitude, ChangeType.Distribution);
-                props._MaxAltitude = TextAreaLabelFloat("Max Altitude", props._MaxAltitude, ChangeType.Distribution);
+                distProps._PopulationMultiplier = TextAreaLabelFloat("Population Multiplier", distProps._PopulationMultiplier, ChangeType.Distribution);
+                distProps._Range = TextAreaLabelFloat("Max Range", distProps._Range, ChangeType.Distribution);
+                distProps._RangePow = TextAreaLabelFloat("Range Fade Power", distProps._RangePow, ChangeType.Distribution);
+                distProps._SpawnChance = TextAreaLabelFloat("Spawn Chance", distProps._SpawnChance, ChangeType.Distribution);
+                distProps._SizeNoiseStrength = TextAreaLabelFloat("Size Noise Strength", distProps._SizeNoiseStrength, ChangeType.Distribution);
+                distProps._MinScale = TextAreaLabelVector("Min Scale", distProps._MinScale, ChangeType.Distribution);
+                distProps._MaxScale = TextAreaLabelVector("Max Scale", distProps._MaxScale, ChangeType.Distribution);
+                distProps._CutoffScale = TextAreaLabelFloat("Min Size Cutoff Scale", distProps._CutoffScale, ChangeType.Distribution);
+                distProps._SteepPower = TextAreaLabelFloat("Steep Power", distProps._SteepPower, ChangeType.Distribution);
+                distProps._SteepContrast = TextAreaLabelFloat("Steep Contrast", distProps._SteepContrast, ChangeType.Distribution);
+                distProps._SteepMidpoint = TextAreaLabelFloat("Steep Midpoint", distProps._SteepMidpoint, ChangeType.Distribution);
+                distProps._MaxNormalDeviance = TextAreaLabelFloat("Max Normal Deviance", distProps._MaxNormalDeviance, ChangeType.Distribution);
+                distProps._MinAltitude = TextAreaLabelFloat("Min Altitude", distProps._MinAltitude, ChangeType.Distribution);
+                distProps._MaxAltitude = TextAreaLabelFloat("Max Altitude", distProps._MaxAltitude, ChangeType.Distribution);
                 //GUILayout.EndVertical();
-                scatter.properties.scatterDistribution = props;
+                scatter.properties.scatterDistribution = distProps;
             }
             if (GUILayout.Button("Display Noise Settings"))
             {
@@ -394,7 +407,7 @@ namespace ScatterConfiguratorUtils
                 for (int i = 0; i < BodyScatters.Keys.Count; i++)
                 {
                     Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
-                    totalCount += currentScatter.GetGlobalVertexCount(thisScatter);
+                    //totalCount += currentScatter.GetGlobalVertexCount(thisScatter);
                 }
                 ScatterLog.Log("Total vertices in the scene right now: " + totalCount);
             }
@@ -404,7 +417,7 @@ namespace ScatterConfiguratorUtils
                 for (int i = 0; i < BodyScatters.Keys.Count; i++)
                 {
                     Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
-                    totalCount += currentScatter.GetPlanetVRAMUsage(thisScatter);
+                    //totalCount += currentScatter.GetPlanetVRAMUsage(thisScatter);
                 }
                 ScatterLog.Log("Total VRAM usage in the scene right now: " + totalCount);
             }
@@ -459,6 +472,19 @@ namespace ScatterConfiguratorUtils
                 currentChangeType = type;
             }
                 
+
+            return newValue;
+        }
+        private static float TextAreaLabelSlider(string label, float value, float min, float max, ChangeType type)
+        {
+            //GUILayout.BeginHorizontal();
+            float newValue = InputFields.SliderField(label, value, min, max);
+            //GUILayout.EndHorizontal();
+            if (newValue != value)
+            {
+                anyValueHasChanged = true;
+                currentChangeType = type;
+            }
 
             return newValue;
         }
@@ -592,6 +618,16 @@ namespace ScatterConfiguratorUtils
             {
                 ForceDistributionMaterialUpdate(currentScatter, revertDistributionMaterial);
             }
+            if (type == ChangeType.Memory)
+            {
+                PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == currentScatter.scatterName);
+                pqsMod.scatter = currentScatter;
+                pqsMod.CreateBuffers();
+            }
+            if (type == ChangeType.Evaluate)
+            {
+                ForceFullUpdate(currentScatter);
+            }
         }
         public void ForceMaterialUpdate(Scatter scatter)
         {
@@ -601,6 +637,9 @@ namespace ScatterConfiguratorUtils
         public void ForceFullUpdate(Scatter scatter)
         {
             ScatterLog.Log("Forcing a full update on " + scatter);
+            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
+            ScatterLog.Log("Attempting to stop OnUpdate coroutine for " + scatter.scatterName);
+            ScatterLog.Log("Stopped");
             StartCoroutine(scatter.ForceComputeUpdate());
             
         }

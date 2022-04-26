@@ -19,10 +19,14 @@ namespace ParallaxGrass
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class QuadQueue : MonoBehaviour
     {
+        
         public static Dictionary<string, QuadComp> quads = new Dictionary<string, QuadComp>();
         int arrayIndex = 0;
         void Start()
         {
+            FloatingOrigin.ResetTerrainShaderOffset();
+            FloatingOrigin.TerrainShaderOffset = Vector3.zero;
+            DoStart();
             InvokeRepeating("DoStart", 0f, 10f);
         }
         void DoStart()
@@ -49,9 +53,13 @@ namespace ParallaxGrass
             Debug.Log("There are " + quadComps.Length + " quads loaded");
             Debug.Log("There are an estimated " + count + " CCs loaded");
             ComputeComponent[] ccs = Resources.FindObjectsOfTypeAll<ComputeComponent>();
+            //for (int i = 0; i < ccs.Length; i++)
+            //{
+            //    ccs[i].GeneratePositions();
+            //}
             Debug.Log("There are " + ccs.Length + " CCs loaded");
-            PostCompute[] pcs = Resources.FindObjectsOfTypeAll<PostCompute>();
-            Debug.Log("There are " + pcs.Length + " PCs loaded");
+            //PostCompute[] pcs = Resources.FindObjectsOfTypeAll<PostCompute>();
+            //Debug.Log("There are " + pcs.Length + " PCs loaded");
 
         }
         public void UpdateQuads()
@@ -77,7 +85,7 @@ namespace ParallaxGrass
     }
     public static class Timings
     {
-        public static WaitForSeconds framerate = new WaitForSeconds(2);
+        public static WaitForSeconds framerate = new WaitForSeconds(0.33f);
         public static WaitForEndOfFrame frameEnd = new WaitForEndOfFrame();
         public static WaitForSeconds shortWait = new WaitForSeconds(0.025f);
     }
@@ -113,7 +121,7 @@ namespace ParallaxGrass
             {
                 return;
             }
-            Debug.Log("Awake");
+            //Debug.Log("Awake");
             scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
             alreadyAdded = new bool[scatterCount];
             for (int i = 0; i < alreadyAdded.Length; i++)
@@ -228,11 +236,11 @@ namespace ParallaxGrass
             int maxLevel = quad.sphereRoot.maxLevel;
             int maxLevelDiff = maxLevel - quad.subdivision;
             comp.quadSubdivisionDifference = (maxLevelDiff * 3) + 1;
-            PostCompute postComp = quad.gameObject.AddComponent<PostCompute>();
-            comp.pc = postComp;
+            //PostCompute postComp = quad.gameObject.AddComponent<PostCompute>();
+            //comp.pc = postComp;
             comp.quad = quad;
             comps[index] = comp;
-            postComps[index] = postComp;
+            //postComps[index] = postComp;
             
             //alreadyAdded[i] = true;
         }
@@ -251,7 +259,7 @@ namespace ParallaxGrass
             Vector3 planetNormal = Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
             if (distance < nearestSubdivisionLimit && alreadySubdivided == false && quad != null)
             {
-                Debug.Log("Subdividing");
+                //Debug.Log("Subdividing");
                 var quadMeshFilter = quad.GetComponent<MeshFilter>();
                 var quadMeshRenderer = quad.GetComponent<MeshRenderer>();
 
@@ -311,11 +319,11 @@ namespace ParallaxGrass
             int maxLevel = quad.sphereRoot.maxLevel;
             int maxLevelDiff = maxLevel - quad.subdivision;
             comp.quadSubdivisionDifference = (maxLevelDiff * 3) + 1;
-            PostCompute postComp = quad.gameObject.AddComponent<PostCompute>();
-            comp.pc = postComp;
+            //PostCompute postComp = quad.gameObject.AddComponent<PostCompute>();
+            //comp.pc = postComp;
             comp.quad = quad;
             comps[index] = comp;
-            postComps[index] = postComp;
+            //postComps[index] = postComp;
         }
         public void RemoveFixedScatter(PQ quad, int index)
         {
@@ -327,12 +335,12 @@ namespace ParallaxGrass
             if (comps[index] != null)
             {
                 if (comps[index].mesh != null) { Destroy(comps[index].mesh); }
-                Debug.Log("Destroying comp with scatter: " + comps[index].scatter.scatterName);
+                //Debug.Log("Destroying comp with scatter: " + comps[index].scatter.scatterName);
                 Destroy(comps[index]);
             }
             if (postComps[index] != null)
             {
-                Destroy(postComps[index]);
+                //Destroy(postComps[index]);
             }
         }
         public void RemoveAllFixedScatters(PQ quad)
@@ -352,7 +360,7 @@ namespace ParallaxGrass
                 }
                 if (postComps[index] != null)
                 {
-                    Destroy(postComps[index]);
+                    //Destroy(postComps[index]);
                 }
             }
         }
