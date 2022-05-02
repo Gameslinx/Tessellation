@@ -92,10 +92,13 @@ namespace Grass
         public BufferList(int memory, int stride)
         {
             Dispose();
+            mergeBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             buffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             farBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             furtherBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
         }
+        public ComputeBuffer mergeBuffer;
+
         public ComputeBuffer buffer;
         public ComputeBuffer farBuffer;
         public ComputeBuffer furtherBuffer;
@@ -105,9 +108,14 @@ namespace Grass
             farBuffer.SetCounterValue(counter);
             furtherBuffer.SetCounterValue(counter);
         }
+        public void SetMergeCounterValue(uint counter)
+        {
+            mergeBuffer.SetCounterValue(counter);
+        }
         public void Release()
         {
             Debug.Log("Releasing buffers");
+            if (mergeBuffer != null) { mergeBuffer.Release(); }
             if (buffer != null) { buffer.Release(); }
             if (farBuffer != null) { farBuffer.Release(); }
             if (furtherBuffer != null) { furtherBuffer.Release(); }
@@ -115,17 +123,14 @@ namespace Grass
         public void Dispose()
         {
             Debug.Log("Disposing buffers");
+            if (mergeBuffer != null) { mergeBuffer.Dispose(); }
+            if (buffer != null) { buffer.Dispose(); }
             if (farBuffer != null) { farBuffer.Dispose(); }
             if (furtherBuffer != null) { furtherBuffer.Dispose(); }
-            if (buffer != null) { buffer.Dispose(); }
+            mergeBuffer = null;
             buffer = null;
             farBuffer = null;
             furtherBuffer = null;
-        }
-        ~BufferList()
-        {
-            Debug.Log("Destructor called for bufferlist");
-            //Dispose();
         }
     }
     public class PQSMod_ScatterManager : PQSMod
@@ -144,13 +149,22 @@ namespace Grass
         public Scatter scatter;
 
         float timeUpdated = 0;
-        public delegate void ForceEvaluate();
-        public event ForceEvaluate OnForceEvaluate;
+
+        public delegate void ForceMerge();
+        public event ForceMerge OnForceMerge;
         public delegate void BufferLengthUpdated();
         public event BufferLengthUpdated OnBufferLengthUpdated;
 
+        public delegate void ForceEvaluate();
+        public event ForceEvaluate OnForceEvaluate;
+        public delegate void EvaluateBufferLengthUpdated();
+        public event EvaluateBufferLengthUpdated OnEvaluateBufferLengthUpdated;
+
         public PostCompute pc;
+        public Evaluate ev;
         public Coroutine co;
+
+        public int objectCount = 0;
         public override void OnSetup()
         {
             //GameEvents.onDominantBodyChange.Add(OnBodyChanged);
@@ -164,6 +178,7 @@ namespace Grass
             { 
                 stop = true; 
                 pc.active = false;
+                ev.active = false;
                 //Buffers.activeBuffers[scatterName].Dispose();
                 if (co != null) { StopCoroutine(OnUpdate()); } 
                 //if (bufferList != null) { bufferList.Dispose(); }
@@ -173,6 +188,7 @@ namespace Grass
                 Debug.Log("Starting scatters for " + scatter.planetName);
                 stop = false;
                 pc.active = true;
+                ev.active = true;
                 Start();
                 co = StartCoroutine(OnUpdate()); 
             }
@@ -206,7 +222,7 @@ namespace Grass
             //pc = new PostCompute();
             CreateBuffers();
             if (pc == null) { pc = FlightGlobals.currentMainBody.gameObject.AddComponent<PostCompute>(); pc.scatterName = scatterName; pc.planetName = scatter.planetName; }
-
+            if (ev == null) { ev = FlightGlobals.currentMainBody.gameObject.AddComponent<Evaluate>(); ev.scatter = scatter; ev.planetName = scatter.planetName;}
             //if (co != null) { StopCoroutine(co); }
             //co = StartCoroutine(OnUpdate());
         }
@@ -228,26 +244,37 @@ namespace Grass
         public bool stop = false;
         private int previousMaxMemory = -1;
         public IEnumerator OnUpdate()
-        { 
-            
-            timeUpdated = Time.realtimeSinceStartup;
-            while (true)
-            {
-                if (HighLogic.LoadedScene != GameScenes.FLIGHT) { yield return null; }
-                //if (previousMaxMemory != requiredMemory) { previousMaxMemory = requiredMemory; CreateBuffers(); }
-                if (Time.realtimeSinceStartup - timeUpdated > updateRate && !stop)
-                {
-                    if (OnBufferLengthUpdated != null) { OnBufferLengthUpdated(); } //Issue lies here
-                    Buffers.activeBuffers[scatterName].SetCounterValue(0);
-                    if (OnForceEvaluate != null) {  OnForceEvaluate();  }
-                    pc.Setup(new ComputeBuffer[] { Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer }, scatter);
+        {
 
-                    timeUpdated = Time.realtimeSinceStartup;
-                }
-                yield return new WaitForEndOfFrame();
-            }
-            
+            //timeUpdated = Time.realtimeSinceStartup;
+            //while (true)
+            //{
+            //    if (HighLogic.LoadedScene != GameScenes.FLIGHT) { yield return null; }
+            //    //if (previousMaxMemory != requiredMemory) { previousMaxMemory = requiredMemory; CreateBuffers(); }
+            //    if (Time.realtimeSinceStartup - timeUpdated > (updateRate * (1 / ScatterGlobalSettings.updateMult)) && !stop)
+            //    {
+            //        //if (OnEvaluateBufferLengthUpdated != null) { OnEvaluateBufferLengthUpdated(); } //Issue lies here
+            //        Buffers.activeBuffers[scatterName].SetCounterValue(0);
+            //        if (OnForceEvaluate != null) { OnForceEvaluate();  }
+            //        pc.Setup(new ComputeBuffer[] { Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer }, scatter);
+            //        
+            //        //Make this evaluate instead
+            //        
+            //        timeUpdated = Time.realtimeSinceStartup;
+            //    }
+            //    yield return new WaitForEndOfFrame();
+            //}
+            yield return null;
         }
+        public void MergePoints()   //We need to force a merge on every quad each time a generate is completed
+        {
+            if (OnEvaluateBufferLengthUpdated != null) { OnEvaluateBufferLengthUpdated(); }
+            if (OnBufferLengthUpdated != null) { OnBufferLengthUpdated(); }
+            Buffers.activeBuffers[scatterName].SetMergeCounterValue(0);
+            if (OnForceMerge != null) { OnForceMerge(); }
+            //Should probably re-evaluate here as well
+        }
+        
         public override void OnSphereInactive()
         {
             Debug.Log("Sphere inactive");

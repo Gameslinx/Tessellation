@@ -172,52 +172,6 @@ namespace Grass
             PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
             pqsMod.scatter = this;
             foreach (var cc in allQuads) { cc.scatter = this; cc.GeneratePositions(); }
-
-            //QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
-            //Debug.Log("Updating " + allQuadComps.Length + " components...");
-            //int counter = 0;
-            //int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
-            //string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
-            //int index = 0;
-            //for (int i = 0; i < scatterCount; i++)
-            //{
-            //    string key = keys[i];
-            //    if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
-            //    {
-            //        index = i;
-            //    }
-            //}
-            //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
-            //Debug.Log("Found pc: " + pqsMod.name);
-            //ActiveBuffers.activeBuffers[scatterName].Dispose();
-            //ActiveBuffers.mods.Remove(pqsMod);
-            //pqsMod.bufferList.Dispose();
-            //pqsMod.Start();
-            //pqsMod.stop = true;
-            //foreach (QuadComp quadComp in allQuadComps)
-            //{
-            //    counter++;
-            //    if (quadComp.comps != null)
-            //    {
-            //        ComputeComponent cc = quadComp.comps[index];
-            //        if (cc != null)
-            //        {
-            //            cc.scatter.properties = properties;
-            //            cc.updateFPS = updateFPS;
-            //            if (cc.mesh == null)
-            //            {
-            //                Debug.Log("Null mesh on ComputeComponent detected, instantiating quad mesh (again?)");
-            //                if (quadComp.quad != null)
-            //                {
-            //                    cc.mesh = GameObject.Instantiate(quadComp.quad.GetComponent<MeshFilter>().mesh);
-            //                }
-            //                else { Debug.Log("Quad itself is null"); }
-            //            }
-            //            cc.Start();
-            //        }
-            //    }
-            //    
-            //}
             yield return null;
         }
         public IEnumerator SwitchQuadMaterial(Material mat, bool revert, Scatter scatter)
@@ -290,36 +244,6 @@ namespace Grass
                 pc.SetupAgain(scatter);
             }
             yield return null;
-
-            //ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-            //PostCompute[] allPC = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
-            //Debug.Log("Updating " + allPC.Length + " components...");
-            //int counter = 0;
-            //int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
-            //string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
-            //int index = 0;
-            //for (int i = 0; i < scatterCount; i++)
-            //{
-            //    string key = keys[i];
-            //    if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
-            //    {
-            //        index = i;
-            //    }
-            //}
-            //
-            //foreach (PostCompute quadComp in allPC)
-            //{
-            //    counter++;
-            //    if (quadComp != null)
-            //    {
-            //        quadComp.scatterProps = properties;
-            //        quadComp.SetupAgain(scatter);
-            //    }
-            //    if (counter % 20 == 0)
-            //    {
-            //        yield return null;
-            //    }
-            //}
         }
         public void ModifyScatterVisibility()
         {
@@ -346,7 +270,7 @@ namespace Grass
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.doEvaluate = isVisible;
+                    //comp.doEvaluate = isVisible;      //Remember dummy you made evaluate separate
                 }
             }
         }
@@ -511,14 +435,32 @@ namespace Grass
             }
         }
     }
+    public class ScatterGlobalSettings
+    {
+        public static float densityMult = 1;
+        public static float rangeMult = 1;
+        public static bool frustumCull = true;
+        public static float updateMult = 1;
+    }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScatterLoader : MonoBehaviour
     {
         public UrlDir.UrlConfig[] globalNodes;
+        public UrlDir.UrlConfig settingsNode;
         public void Start()
         {
             globalNodes = GameDatabase.Instance.GetConfigs("ParallaxScatters");
+            settingsNode = GameDatabase.Instance.GetConfigs("ParallaxGlobalConfig").First();
+            LoadGlobalSettings();
             LoadScatterNodes();
+        }
+        public void LoadGlobalSettings()
+        {
+            ConfigNode scatterNode = settingsNode.config.GetNode("ScatterSettings");
+            ScatterGlobalSettings.densityMult = ParseFloat(ParseVar(scatterNode, "densityMultiplier"));
+            ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier"));
+            ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier"));
+            ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling"));
         }
         public void LoadScatterNodes()
         {
@@ -650,9 +592,9 @@ namespace Grass
         {
             Distribution distribution = new Distribution();
             
-            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range"));
+            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range")) * ScatterGlobalSettings.rangeMult;
             distribution._RangePow = ParseFloat(ParseVar(distributionNode, "_RangePow"));
-            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier"));
+            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier")) * ScatterGlobalSettings.densityMult;
             distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength"));
             distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale"));
             distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower"));
@@ -665,7 +607,7 @@ namespace Grass
             distribution._MaxAltitude = ParseFloat(ParseVar(distributionNode, "_MaxAltitude"));
             distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance"));
             distribution._Seed = ParseFloat(ParseVar(distributionNode, "_Seed"));
-
+            if ((int)(distribution._PopulationMultiplier) == 0) { distribution._PopulationMultiplier = 1; }
             ConfigNode lodNode = distributionNode.GetNode("LODs");
             distribution.lods = ParseLODs(lodNode);
 
@@ -697,7 +639,6 @@ namespace Grass
             for (int i = 0; i < nodes.Length; i++)
             {
                 string configShaderName = nodes[i].config.GetValue("name");
-                ScatterLog.Log("Loading shader from shader bank: " + configShaderName);
                 if (configShaderName == shaderName)
                 {
                     ConfigNode propertiesNode = nodes[i].config.GetNode("Properties");
@@ -725,7 +666,6 @@ namespace Grass
                 material.Textures = new Dictionary<string, string>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Textures.Add(values[i], null);
                 }
             }
@@ -734,7 +674,6 @@ namespace Grass
                 material.Floats = new Dictionary<string, float>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Floats.Add(values[i], 0);
                 }
             }
@@ -743,7 +682,6 @@ namespace Grass
                 material.Vectors = new Dictionary<string, Vector3>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Vectors.Add(values[i], Vector3.zero);
                 }
             }
@@ -752,7 +690,6 @@ namespace Grass
                 material.Scales = new Dictionary<string, Vector2>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Scales.Add(values[i], Vector2.zero);
                 }
             }
@@ -761,7 +698,6 @@ namespace Grass
                 material.Colors = new Dictionary<string, Color>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Colors.Add(values[i], Color.magenta);
                 }
             }

@@ -17,7 +17,8 @@ namespace ComputeLoader
         public PQ quad;
         // Start is called before the first frame update
         public ComputeShader distribute;
-        public ComputeShader evaluate;
+        public ComputeShader merge;
+        
 
         public ComputeBuffer positionBuffer;
         public ComputeBuffer grassPositionBuffer;
@@ -39,7 +40,8 @@ namespace ComputeLoader
         public int quadSubdivision; //MARKED FOR REMOVE
         public bool isVisible = true; //   MARKED FOR REMOVE
 
-        private int evaluatePoints;
+        
+        private int mergePoints;
 
         public float updateFPS; //1.0f;
 
@@ -50,7 +52,7 @@ namespace ComputeLoader
         public float[] distributionNoise;
         public float vRAMinMb = 0;
         public int maxMemory = 0;
-        public bool doEvaluate = true;
+        
 
         PQSMod_ScatterManager pqsMod;
         
@@ -154,14 +156,14 @@ namespace ComputeLoader
             {
                 distribute = Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
             }
-            evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
+            merge = Instantiate(ScatterShaderHolder.GetCompute("Merge"));
             GeneratePositions();
             started = true;
         }
         bool initialized = false;
         public void InitializeAllBuffers()
         {
-            evaluatePoints = evaluate.FindKernel("EvaluatePoints");
+            mergePoints = merge.FindKernel("Merge");
 
             int maxStacks = scatter.properties.scatterDistribution.noise._MaxStacks;
             if (!Buffers.activeBuffers.ContainsKey(scatter.scatterName))
@@ -174,91 +176,30 @@ namespace ComputeLoader
             float totalMemory = (GrassData.Size() * count * 8) + (7 * sizeof(int)) + (vertCount * 12) + (vertCount * 12) + (distributionNoise.Length * sizeof(float));
             vRAMinMb = totalMemory / (1024 * 1024);
             if (Buffers.activeBuffers[scatter.scatterName].buffer == null) { Debug.Log("Buffer is null lol"); }
-            evaluate.SetBuffer(evaluatePoints, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
-            evaluate.SetBuffer(evaluatePoints, "Positions", grassPositionBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
-           
+
+            merge.SetBuffer(mergePoints, "PositionsIn", grassPositionBuffer);
+            merge.SetBuffer(mergePoints, "Positions", Buffers.activeBuffers[scatter.scatterName].mergeBuffer);
+
+            if (indirectArgs != null) { indirectArgs.Release(); }
+            indirectArgs = new ComputeBuffer(1, sizeof(int) * 3, ComputeBufferType.IndirectArguments);
+            int[] workGroups = new int[] { Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1 };
+            indirectArgs.SetData(workGroups);
+
             initialized = true;
         }
         public void ReInitializeAllBuffers()
         {
-            evaluate.SetBuffer(evaluatePoints, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
-            evaluate.SetBuffer(evaluatePoints, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
+            merge.SetBuffer(mergePoints, "PositionsIn", grassPositionBuffer);
+            merge.SetBuffer(mergePoints, "Positions", Buffers.activeBuffers[scatter.scatterName].mergeBuffer);
         }
         Vector3d previousTerrainOffset = Vector3d.zero;
         float timeSinceLastRead = 0;
         int count = 0;
         float timeSinceLastSoftUpdate = 0;
-        //void FixedUpdate()
-        //{
-        //    return;
-        //    if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange)
-        //    {
-        //        float targetDeltaTime = 1.0f / softUpdateRate;
-        //        float deltaTime = Time.deltaTime;
-        //        if (timeSinceLastSoftUpdate >= targetDeltaTime)
-        //        {
-        //            timeSinceLastSoftUpdate = 0;
-        //            bool isTimeForSoft = CheckTheSoftTime();
-        //            if (isTimeForSoft && FlightGlobals.ActiveVessel.speed < 100f && objectCount > 0)
-        //            {
-        //
-        //                EvaluatePositions();
-        //
-        //            }
-        //        }
-        //        else
-        //        {
-        //            timeSinceLastSoftUpdate += Time.deltaTime;
-        //        }
-        //        
-        //        
-        //
-        //    }
-        //}
         float softUpdateRate = 1;
         float timeSinceLastUpdate = 0;
         float distanceSinceLastUpdate = 0;
         Vector3 lastPos = Vector3.zero;
-        public bool CheckTheTime(float TargetFPS) //Grass framerate
-        {
-            float targetDeltaTime = 1.0f / TargetFPS;
-            float deltaTime = Time.deltaTime;
-            
-            if (deltaTime > targetDeltaTime * 4)
-            {
-                ScatterLog.Log("Warning: The time since the last frame is vastly exceeding the target framerate for Compute Shader updates. Consider lowering the scatter update rate in your settings!");
-            }
-            if (timeSinceLastUpdate >= targetDeltaTime)
-            {
-                timeSinceLastUpdate = 0;
-                return true;
-            }
-            else
-            {
-                timeSinceLastUpdate += Time.deltaTime;
-                return false;
-            }
-        }
-        public bool CheckTheSoftTime() //Grass framerate
-        {
-            if (Vector3.Distance(FlightGlobals.ActiveVessel.transform.position, transform.position) > scatter.properties.scatterDistribution.lods.lods[0].range + (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel))) )
-            {
-                return false;
-            }
-            Vector3 thisPos = LatLon.GetRelSurfacePosition(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, FlightGlobals.ActiveVessel.transform.position);
-            float distance = Vector3.Distance(thisPos, lastPos);
-            lastPos = thisPos;
-            distanceSinceLastUpdate += distance;
-            if (distanceSinceLastUpdate > scatter.properties.scatterDistribution.lods.lods[0].range)
-            {
-                distanceSinceLastUpdate = 0;
-                return true;
-            }
-            else { return false; }
-        }
         bool alreadyIncreasedMemory = false;
         
         public void GeneratePositions()
@@ -385,7 +326,10 @@ namespace ComputeLoader
                 ScatterLog.Log("[Exception] Async GPU Readback error! (In GeneratePositions())");
                 return;
             }
-            objectCount = req.GetData<int>(0).ToArray()[0];
+            objectCount = req.GetData<int>(0).ToArray()[0]; 
+            
+            pqsMod.objectCount += objectCount;
+            Debug.Log("New object count: " + pqsMod.objectCount);
             InitializeAllBuffers();
             if (objectCount == 0)
             {
@@ -395,85 +339,49 @@ namespace ComputeLoader
             currentlyReadingDist = false;
 
             //ComputeBuffer.CopyCount(grassPositionBuffer, indirectArgs, 0);
-            pqsMod.OnForceEvaluate += DispatchEvaluate;
+            pqsMod.OnForceMerge += DispatchMerge;
             pqsMod.OnBufferLengthUpdated += ReInitializeAllBuffers;
-            EvaluatePositions();
+
+            pqsMod.MergePoints();
+            //MergePositions();
         }
         bool currentlyReadingDist = false;
-        //bool currentlyReadingEv = false;
-        public void EvaluatePositions()
+        public void MergePositions()
         {
             if (initialized == false) { Debug.Log("Not initialized yet..."); }
             if (currentlyReadingDist) { Debug.Log("Currently reading something"); return; }
             if (objectCount == 0) { return; }
-            if (!doEvaluate) { return; }
-
-            if (Buffers.activeBuffers[scatter.scatterName].buffer == null)
+            if (Buffers.activeBuffers[scatter.scatterName].mergeBuffer == null)
             {
-                Debug.Log("Buffer null");
+                Debug.Log("Merge buffer null");
             }
-            if (!Buffers.activeBuffers[scatter.scatterName].buffer.IsValid())             //Someone else is gonna need to help me on this. Buffers are initialized without error but fail here on some seemingly random quads
+            if (!Buffers.activeBuffers[scatter.scatterName].mergeBuffer.IsValid())       
             {
-                Debug.Log("Invalid, destroying");
+                Debug.Log("Invalid merge, destroying");
                 Destroy(this);
                 return;
             }
-            if (indirectArgs != null) { indirectArgs.Release(); }
-            indirectArgs = new ComputeBuffer(1, sizeof(int) * 3, ComputeBufferType.IndirectArguments);
-            int[] workGroups = new int[] { Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1 };
-            indirectArgs.SetData(workGroups);
-
-            evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
-            evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);// FlightGlobals.ActiveVessel.transform.position);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
-            evaluate.SetVector("_CraftPos", FlightGlobals.ActiveVessel.transform.position);
-            if (scatter.useSurfacePos) { evaluate.SetVector("_CameraPos", ActiveBuffers.surfacePos); }
-
-            evaluate.SetFloat("_LODPerc", scatter.properties.scatterDistribution.lods.lods[0].range / scatter.properties.scatterDistribution._Range);    //At what range does the LOD change to the low one?
-            evaluate.SetFloat("_LOD2Perc", scatter.properties.scatterDistribution.lods.lods[1].range / scatter.properties.scatterDistribution._Range);
-
-            evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
-            evaluate.SetVector("_ThisPos", transform.position);
-            evaluate.SetInt("_MaxCount", objectCount);  //quadsubdif?
-                                                        //and V
-            evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
-            evaluate.SetFloat("_Pow", scatter.properties.scatterDistribution._RangePow);
-            evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);             //Frustum culling
-            evaluate.SetFloat("_CullLimit", scatter.cullingLimit);
-            float cullingRangePerc = scatter.cullingRange / scatter.properties.scatterDistribution._Range;
-            evaluate.SetFloat("_CullStartRange", cullingRangePerc);
-
-
-            evaluate.DispatchIndirect(evaluatePoints, indirectArgs, 0);
-            //evaluate.Dispatch(evaluatePoints, Mathf.CeilToInt(((float)objectCount) / 32f), 1, 1);
-
-            //ComputeBuffer.CopyCount(grassBuffer, countBuffer, 0);
-            //int[] count = new int[1] { 0 };
-            //countBuffer.GetData(count);
-            //int counter = count[0];
-            //GrassData[] data = new GrassData[counter];
-            //grassBuffer.GetData(data);
-            //Debug.Log("Evaluate retrieved - Length of data: " + data.Length);
-            //Debug.Log("Matrix from data " + data[0].mat.ToString("F3"));
-            //
-            //Debug.Log("Evaluate dispatched");
-            //ActiveBuffers.activeBuffers[scatter.scatterName].buffer = grassBuffer;
-            //ActiveBuffers.activeBuffers[scatter.scatterName].farBuffer = farGrassBuffer;
-            //ActiveBuffers.activeBuffers[scatter.scatterName].furtherBuffer = furtherGrassBuffer;
-            //pc.Setup(new ComputeBuffer[] { grassBuffer, farGrassBuffer, furtherGrassBuffer, subObjectSlot1, subObjectSlot2, subObjectSlot3, subObjectSlot4 }, scatter);
+            
+            merge.SetInt("_MaxCount", objectCount);
         }
-        public void DispatchEvaluate()
+        
+        public void DispatchMerge()
         {
             if (initialized == false) { Debug.Log("Not initialized yet..."); }
             if (currentlyReadingDist) { Debug.Log("Currently reading something"); return; }
             if (objectCount == 0) { return; }
-            evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
-            evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);
-            evaluate.SetVector("_CraftPos", FlightGlobals.ActiveVessel.transform.position);
-            evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
-            if (scatter.useSurfacePos) { evaluate.SetVector("_CameraPos", ActiveBuffers.surfacePos); }
-            //Debug.Log("Evaluating");
-            evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);
-            evaluate.DispatchIndirect(evaluatePoints, indirectArgs, 0);
+            if (Buffers.activeBuffers[scatter.scatterName].mergeBuffer == null)
+            {
+                Debug.Log("Merge buffer null");
+            }
+            if (!Buffers.activeBuffers[scatter.scatterName].mergeBuffer.IsValid())
+            {
+                Debug.Log("Invalid merge, destroying");
+                Destroy(this);
+                return;
+            }
+            merge.SetInt("_MaxCount", objectCount);
+            merge.DispatchIndirect(mergePoints, indirectArgs, 0);
         }
         //private void AwaitEvaluateReadback(AsyncGPUReadbackRequest req)
         //{
@@ -537,7 +445,8 @@ namespace ComputeLoader
             Utils.DestroyComputeBufferSafe(positionCountBuffer);
             Utils.DestroyComputeBufferSafe(indirectArgs);
             //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);  //Get corresponding mod here
-            pqsMod.OnForceEvaluate -= DispatchEvaluate;
+            pqsMod.objectCount -= objectCount;
+            pqsMod.OnForceMerge -= DispatchMerge;
             pqsMod.OnBufferLengthUpdated -= ReInitializeAllBuffers;
             //pqsMod.requiredMemory -= maxMemory;
             GameEvents.OnCameraChange.Remove(OnCameraChange);
