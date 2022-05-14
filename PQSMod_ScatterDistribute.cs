@@ -13,6 +13,7 @@ using UnityEngine;
 
 namespace Grass
 {
+
     public class ScatterData    //ONCE per planet
     {
         public Dictionary<string, DistributionData> distributionData = new Dictionary<string, DistributionData>();    //Scatter name, distribution for that scatter
@@ -42,9 +43,9 @@ namespace Grass
         //public static Dictionary<string, float[]> distributionData = new Dictionary<string, float[]>();
         public static ScatterData scatterData = new ScatterData();
         Dictionary<string, Scatter> scatters;
-
+        string[] keys;
         float initialTime;
-
+        public static bool alreadySetupSpaceCenter = false;
         public enum NoiseType
         {
             Perlin,
@@ -53,17 +54,13 @@ namespace Grass
         }
         public override void OnSetup()
         {
-            
-            if (FlightGlobals.currentMainBody == null)
-            {
-                return;
-            }
-            scatters = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters;
-            Debug.Log("OnSetup called");
+            if (alreadySetupSpaceCenter) { return; }
+            scatters = ScatterBodies.scatterBodies[sphere.name].scatters;
             scatterData.dataLength = scatters.Values.Count;
+            keys = scatters.Keys.ToArray();
             for (int i = 0; i < scatters.Values.Count; i++)
             {
-                string scatterName = scatters.Keys.ToArray()[i];
+                string scatterName = keys[i];
                 if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent) 
                 {
                     DistributionData data = new DistributionData();
@@ -85,16 +82,16 @@ namespace Grass
                         scatterData.distributionData[scatterName] = data;
                     }
                 }
+
             }
-            //noiseType = PQSMod_VertexHeightNoise.NoiseType.Perlin;
-            //frequency = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution._Frequency;
-            //lacunarity = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution._Lacunarity;
-            //persistance = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Trees"].properties.scatterDistribution._Persistence;
             octaves = 6;
             
             this.requirements = PQS.ModiferRequirements.MeshColorChannel;
-            
-            
+
+            if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            {
+                alreadySetupSpaceCenter = true;
+            }
             
         }
         public IModule GetNoiseType(PQSMod_VertexHeightNoise.NoiseType type, DistributionData data)
@@ -113,21 +110,20 @@ namespace Grass
                     return map;
             }
         }
+        string buildQuadName;
         public override void OnQuadPreBuild(PQ quad)
         {
             initialTime = Time.realtimeSinceStartup;
-            if (FlightGlobals.currentMainBody == null)
-            {
-                return;
-            }
+
             for (int i = 0; i < scatters.Values.Count; i++)
             {
-                string scatterName = scatters.Keys.ToArray()[i];
+                string scatterName = keys[i];
                 if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
                 {
                     DistributionData data = scatterData.distributionData[scatterName];
                     if (!data.data.ContainsKey(quad.name))
                     {
+                        buildQuadName = quad.name;
                         data.data.Add(quad.name, new float[225]);
                     }
                 }
@@ -137,44 +133,32 @@ namespace Grass
         }
         public override void OnVertexBuildHeight(PQS.VertexBuildData data)
         {
-            
-            if (FlightGlobals.currentMainBody == null)
-            {
-                return;
-            }
             if (data.buildQuad == null)
             {
                 return;
             }
+            
             for (int i = 0; i < scatters.Values.Count; i++)
             {
                 
-                string scatterName = scatters.Keys.ToArray()[i];
-                if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
+                string scatterName = keys[i];
+                Scatter scatter = scatters[scatterName];
+                if (scatter.properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent && scatter.properties.scatterDistribution.noise.useNoiseProfile == null)
                 {
                     DistributionData distData = scatterData.distributionData[scatterName];
                     double noise = distData.noiseMap.GetValue(data.directionFromCenter) * 0.5 + 0.5;
-                    //Debug.Log(noise);
+
                     distData.data[data.buildQuad.name][data.vertIndex] = (float)noise;
-                    //Debug.Log("Double: " + data.directionFromCenter.ToString("F20"));
-                    //Debug.Log("Float: " + ((Vector3)(data.directionFromCenter)).ToString("F20"));
+                    
+                    
                 }
             }
-            //double noise = (this.noiseMap.GetValue(data.directionFromCenter));
-            //distributionData[data.buildQuad.name][data.vertIndex] = (float)noise;
         }
         public override void OnQuadDestroy(PQ quad)
         {
-            //return;
-            if (FlightGlobals.currentMainBody == null)
-            {
-                return;
-            }
-            // var data = quad.gameObject.GetComponents<ScatterData>();
-            // Debug.Log("Quad destroyed had " + data.Length + " components");
             for (int i = 0; i < scatters.Values.Count; i++)
             {
-                string scatterName = scatters.Keys.ToArray()[i];
+                string scatterName = keys[i];
                 if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)
                 {
                     DistributionData distData = scatterData.distributionData[scatterName];
@@ -184,27 +168,10 @@ namespace Grass
                     }
                 }
             }
-            //if (distributionData.ContainsKey(quad.name))
-            //{
-            //    distributionData.Remove(quad.name);
-            //    //Debug.Log("Removed quad: " + quad.name + " with value " + quad.GetHashCode());
-            //}
         }
         public override void OnQuadBuilt(PQ quad)
         {
-            //Debug.Log("Built: " + quad.name + " with value: " + distributionData[quad.name][0]);
-            ////Debug.Log("min: " + min);
-            ////Debug.Log("max: " + max);
-            //var data = quad.gameObject.AddComponent<ScatterData>();
-            //data.distributionData = distributionData;
-            ////var data = quad.GetComponent<ScatterData>();
-            //if (FlightGlobals.currentMainBody != null)
-            //{
-            //    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            //    go.transform.localScale = new Vector3(4, 4, 4);
-            //    go.transform.position = quad.quadMatrix.MultiplyPoint3x4(go.transform.position);
-            //}
-            
+
         }
     
     }

@@ -55,7 +55,7 @@ namespace ComputeLoader
             material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
             scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
             shadowCastingMode = scatter.shadowCastingMode;
-            
+
             materialFar = GameObject.Instantiate(material);
             materialFurther = GameObject.Instantiate(material);
             if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
@@ -114,7 +114,7 @@ namespace ComputeLoader
             {
                 UpdateBounds(Vector3.zero);
             }
-            catch(Exception ex) {  }
+            catch (Exception ex) { }
             mainNear = buffers[0];
             mainFar = buffers[1];
             mainFurther = buffers[2];
@@ -139,7 +139,7 @@ namespace ComputeLoader
             furtherArgs = Utils.GenerateArgs(furtherMesh);
             furtherArgsBuffer = Utils.SetupComputeBufferSafe(1, furtherArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             furtherArgsBuffer.SetData(furtherArgs);
-           
+
         }
         private void InitializeBuffers()
         {
@@ -153,8 +153,8 @@ namespace ComputeLoader
             setup = true;
         }
 
-        
-        
+
+
         public void Update()
         {
 
@@ -165,7 +165,7 @@ namespace ComputeLoader
             }
             if (mesh != null)
             {
-                
+
                 Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
             }
             if (farMesh != null)
@@ -205,7 +205,9 @@ namespace ComputeLoader
         private void UpdateBounds(Vector3d offset)
         {
             if (!active) { return; }
-            bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 2.4f));
+            
+            bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 2.8f));
+            if (scatterProps.scatterDistribution._Range < 5000) { bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 30f)); }
             SetPlanetOrigin();
         }
         private void OnEnable()

@@ -38,11 +38,14 @@ namespace Grass
 
         public int _MaxStacks;
         public float _StackSeparation;
+
+        public string useNoiseProfile;
     }
     public struct Distribution
     {
         public DistributionNoise noise;
         public LODs lods;
+        public BiomeBlacklist blacklist;
         public float _Range;                    //How far from the camera to render at the max graphics setting
         public float _RangePow;                 //Range fade power
         public float _PopulationMultiplier;     //How many scatters to render
@@ -64,6 +67,11 @@ namespace Grass
     {
         public LOD[] lods;
         public int LODCount;
+    }
+    public struct BiomeBlacklist
+    {
+        public string[] biomes;
+        public Dictionary<string, string> fastBiomes;   //When wanting to request a biome name but unsure if it is contained, use the much faster dictionary
     }
     public struct LOD
     {
@@ -172,52 +180,6 @@ namespace Grass
             PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
             pqsMod.scatter = this;
             foreach (var cc in allQuads) { cc.scatter = this; cc.GeneratePositions(); }
-
-            //QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
-            //Debug.Log("Updating " + allQuadComps.Length + " components...");
-            //int counter = 0;
-            //int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
-            //string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
-            //int index = 0;
-            //for (int i = 0; i < scatterCount; i++)
-            //{
-            //    string key = keys[i];
-            //    if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
-            //    {
-            //        index = i;
-            //    }
-            //}
-            //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
-            //Debug.Log("Found pc: " + pqsMod.name);
-            //ActiveBuffers.activeBuffers[scatterName].Dispose();
-            //ActiveBuffers.mods.Remove(pqsMod);
-            //pqsMod.bufferList.Dispose();
-            //pqsMod.Start();
-            //pqsMod.stop = true;
-            //foreach (QuadComp quadComp in allQuadComps)
-            //{
-            //    counter++;
-            //    if (quadComp.comps != null)
-            //    {
-            //        ComputeComponent cc = quadComp.comps[index];
-            //        if (cc != null)
-            //        {
-            //            cc.scatter.properties = properties;
-            //            cc.updateFPS = updateFPS;
-            //            if (cc.mesh == null)
-            //            {
-            //                Debug.Log("Null mesh on ComputeComponent detected, instantiating quad mesh (again?)");
-            //                if (quadComp.quad != null)
-            //                {
-            //                    cc.mesh = GameObject.Instantiate(quadComp.quad.GetComponent<MeshFilter>().mesh);
-            //                }
-            //                else { Debug.Log("Quad itself is null"); }
-            //            }
-            //            cc.Start();
-            //        }
-            //    }
-            //    
-            //}
             yield return null;
         }
         public IEnumerator SwitchQuadMaterial(Material mat, bool revert, Scatter scatter)
@@ -290,36 +252,6 @@ namespace Grass
                 pc.SetupAgain(scatter);
             }
             yield return null;
-
-            //ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-            //PostCompute[] allPC = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
-            //Debug.Log("Updating " + allPC.Length + " components...");
-            //int counter = 0;
-            //int scatterCount = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Count;
-            //string[] keys = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters.Keys.ToArray();
-            //int index = 0;
-            //for (int i = 0; i < scatterCount; i++)
-            //{
-            //    string key = keys[i];
-            //    if (scatterName == ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[key].scatterName)
-            //    {
-            //        index = i;
-            //    }
-            //}
-            //
-            //foreach (PostCompute quadComp in allPC)
-            //{
-            //    counter++;
-            //    if (quadComp != null)
-            //    {
-            //        quadComp.scatterProps = properties;
-            //        quadComp.SetupAgain(scatter);
-            //    }
-            //    if (counter % 20 == 0)
-            //    {
-            //        yield return null;
-            //    }
-            //}
         }
         public void ModifyScatterVisibility()
         {
@@ -346,7 +278,7 @@ namespace Grass
                     {
                         Debug.Log("Component is null??");
                     }
-                    comp.doEvaluate = isVisible;
+                    //comp.doEvaluate = isVisible;      //Remember dummy you made evaluate separate
                 }
             }
         }
@@ -511,14 +443,32 @@ namespace Grass
             }
         }
     }
+    public class ScatterGlobalSettings
+    {
+        public static float densityMult = 1;
+        public static float rangeMult = 1;
+        public static bool frustumCull = true;
+        public static float updateMult = 1;
+    }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScatterLoader : MonoBehaviour
     {
         public UrlDir.UrlConfig[] globalNodes;
+        public UrlDir.UrlConfig settingsNode;
         public void Start()
         {
             globalNodes = GameDatabase.Instance.GetConfigs("ParallaxScatters");
+            settingsNode = GameDatabase.Instance.GetConfigs("ParallaxGlobalConfig").First();
+            LoadGlobalSettings();
             LoadScatterNodes();
+        }
+        public void LoadGlobalSettings()
+        {
+            ConfigNode scatterNode = settingsNode.config.GetNode("ScatterSettings");
+            ScatterGlobalSettings.densityMult = ParseFloat(ParseVar(scatterNode, "densityMultiplier"));
+            ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier"));
+            ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier"));
+            ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling"));
         }
         public void LoadScatterNodes()
         {
@@ -569,7 +519,7 @@ namespace Grass
             string cullLimit = "";
             bool cullLimitCheck = scatterNode.TryGetValue("cullingLimit", ref cullLimit);
             if (cullLimitCheck) { scatter.cullingLimit = float.Parse(cullLimit); }
-            if (useSurfacePos) { scatter.useSurfacePos = true; } else { scatter.useSurfacePos = false; }
+
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode);
             props.scatterMaterial = ParseMaterial(materialNode, false);
@@ -583,12 +533,22 @@ namespace Grass
         public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode)
         {
             DistributionNoise distribution = new DistributionNoise();
+
             string noiseMode = ParseVar(distributionNode, "mode");
-            distribution._MaxStacks = 1;
-            distribution._StackSeparation = 1;
             if (noiseMode.ToLower() == "nonpersistent") { distribution.noiseMode = DistributionNoiseMode.NonPersistent; }
             else if (noiseMode.ToLower() == "verticalstack") { distribution.noiseMode = DistributionNoiseMode.VerticalStack; }
             else { distribution.noiseMode = DistributionNoiseMode.Persistent; }
+
+            distribution.useNoiseProfile = (ParseVar(distributionNode, "useNoiseProfile"));
+            if (distribution.useNoiseProfile != null) { ScatterLog.SubLog("Using noise profile: " + distribution.useNoiseProfile); }
+            if (distribution.useNoiseProfile != null && distribution.noiseMode != DistributionNoiseMode.Persistent) { ScatterLog.SubLog("[Exception] Attempting to use a noise profile for a non-persistent scatter. This only works if you want to share the same noise as another persistent scatter!"); }
+            if (distribution.useNoiseProfile != null) { distribution._Frequency = 1; distribution._Lacunarity = 1; distribution._Persistence = 1; distribution._Octaves = 1; distribution._Seed = 1; distribution._NoiseType = 1; distribution._NoiseQuality = LibNoise.NoiseQuality.Low; distribution._MaxStacks = 1; distribution._StackSeparation = 1;  
+                                                        return distribution; }
+
+            
+            distribution._MaxStacks = 1;
+            distribution._StackSeparation = 1;
+
             if (distribution.noiseMode == DistributionNoiseMode.Persistent || distribution.noiseMode == DistributionNoiseMode.VerticalStack)
             {
                 distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency"));
@@ -596,6 +556,8 @@ namespace Grass
                 distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence"));
                 distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves"));
                 distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed"));
+                
+
                 string noiseType = ParseVar(distributionNode, "_NoiseType");
                 switch (noiseType)
                 {
@@ -650,9 +612,9 @@ namespace Grass
         {
             Distribution distribution = new Distribution();
             
-            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range"));
+            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range")) * ScatterGlobalSettings.rangeMult;
             distribution._RangePow = ParseFloat(ParseVar(distributionNode, "_RangePow"));
-            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier"));
+            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier")) * ScatterGlobalSettings.densityMult;
             distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength"));
             distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale"));
             distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower"));
@@ -665,9 +627,13 @@ namespace Grass
             distribution._MaxAltitude = ParseFloat(ParseVar(distributionNode, "_MaxAltitude"));
             distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance"));
             distribution._Seed = ParseFloat(ParseVar(distributionNode, "_Seed"));
-
+            if ((int)(distribution._PopulationMultiplier) == 0) { distribution._PopulationMultiplier = 1; }
             ConfigNode lodNode = distributionNode.GetNode("LODs");
+            ConfigNode biomeBlacklist = null;  //optional
+            bool hasBlacklist = distributionNode.TryGetNode("BiomeBlacklist", ref biomeBlacklist);
+            distribution.blacklist = ParseBlacklist(biomeBlacklist, hasBlacklist);
             distribution.lods = ParseLODs(lodNode);
+
 
             return distribution;
         }
@@ -691,13 +657,31 @@ namespace Grass
             }
             return lods;
         }
+        public BiomeBlacklist ParseBlacklist(ConfigNode node, bool hasBlacklist)
+        {
+            if (!hasBlacklist)
+            {
+                BiomeBlacklist emptyList = new BiomeBlacklist();
+                emptyList.fastBiomes = new Dictionary<string, string>();
+                emptyList.biomes = new string[0];
+                return emptyList;
+            }
+            BiomeBlacklist blacklist = new BiomeBlacklist();
+            string[] values = node.GetValues("name");
+            blacklist.biomes = values;
+            blacklist.fastBiomes = new Dictionary<string, string>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                blacklist.fastBiomes.Add(values[i], values[i]);
+            }
+            return blacklist;
+        }
         public ScatterMaterial GetShaderVars(string shaderName, ScatterMaterial material, ConfigNode materialNode)
         {
             UrlDir.UrlConfig[] nodes = GameDatabase.Instance.GetConfigs("ScatterShader");
             for (int i = 0; i < nodes.Length; i++)
             {
                 string configShaderName = nodes[i].config.GetValue("name");
-                ScatterLog.Log("Loading shader from shader bank: " + configShaderName);
                 if (configShaderName == shaderName)
                 {
                     ConfigNode propertiesNode = nodes[i].config.GetNode("Properties");
@@ -725,7 +709,6 @@ namespace Grass
                 material.Textures = new Dictionary<string, string>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Textures.Add(values[i], null);
                 }
             }
@@ -734,7 +717,6 @@ namespace Grass
                 material.Floats = new Dictionary<string, float>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Floats.Add(values[i], 0);
                 }
             }
@@ -743,7 +725,6 @@ namespace Grass
                 material.Vectors = new Dictionary<string, Vector3>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Vectors.Add(values[i], Vector3.zero);
                 }
             }
@@ -752,7 +733,6 @@ namespace Grass
                 material.Scales = new Dictionary<string, Vector2>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Scales.Add(values[i], Vector2.zero);
                 }
             }
@@ -761,7 +741,6 @@ namespace Grass
                 material.Colors = new Dictionary<string, Color>();
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ScatterLog.SubLog("Parsing " + type.Name + ": " + values[i] + " from the shader bank config");
                     material.Colors.Add(values[i], Color.magenta);
                 }
             }
@@ -889,11 +868,11 @@ namespace Grass
         }
         public string ParseVar(ConfigNode scatter, string valueName)
         {
-            string data = "invalid";
+            string data = null;
             bool succeeded = scatter.TryGetValue(valueName, ref data);
             if (!succeeded)
             {
-                ScatterLog.SubLog("[Exception] Unable to get the value of " + valueName);
+                ScatterLog.SubLog("Unable to get the value of " + valueName);
                 return null;
             }
             else

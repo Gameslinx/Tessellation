@@ -258,7 +258,7 @@ namespace ScatterConfiguratorUtils
                 
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Distribution Settings", alignment, GUILayout.ExpandWidth(true));
-                distProps._PopulationMultiplier = TextAreaLabelFloat("Population Multiplier", distProps._PopulationMultiplier, ChangeType.Distribution);
+                distProps._PopulationMultiplier = TextAreaLabelSlider("Population Multiplier", distProps._PopulationMultiplier, 1, 100, ChangeType.Distribution);//TextAreaLabelFloat("Population Multiplier", distProps._PopulationMultiplier, ChangeType.Distribution);
                 distProps._Range = TextAreaLabelFloat("Max Range", distProps._Range, ChangeType.Distribution);
                 distProps._RangePow = TextAreaLabelFloat("Range Fade Power", distProps._RangePow, ChangeType.Distribution);
                 distProps._SpawnChance = TextAreaLabelFloat("Spawn Chance", distProps._SpawnChance, ChangeType.Distribution);

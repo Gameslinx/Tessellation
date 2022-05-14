@@ -11,10 +11,33 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 namespace Grass
 {
-
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class GlobalPoint : MonoBehaviour
+    {
+        public static Vector3 originPoint = new Vector3(0f, 100f, 0f);
+        void Start()
+        {
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+            {
+                PQSMod_ScatterDistribute.alreadySetupSpaceCenter = false;
+            }
+        }
+        void Update()
+        {
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
+            {
+                originPoint = FlightGlobals.ActiveVessel.transform.position;
+            }
+            else if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            {
+                originPoint = Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position;
+            }
+        }
+    }
     public static class Buffers
     {
         public static Dictionary<string, BufferList> activeBuffers = new Dictionary<string, BufferList>();
@@ -31,43 +54,38 @@ namespace Grass
     public class ActiveBuffers : MonoBehaviour
     {
         public static string currentPlanet = "";
-          //String is scattername, we can retrieve these from the Compute.cs
+        //String is scattername, we can retrieve these from the Compute.cs
         public static List<PQSMod_ScatterManager> mods = new List<PQSMod_ScatterManager>();
         public static Vector3 cameraPos = Vector3.zero;
         public static Vector3 surfacePos = Vector3.zero;
         public static float[] planeNormals;
         void Update()
         {
-            Camera cam = Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00");
-            cameraPos = cam.gameObject.transform.position;
-
-            ConstructFrustumPlanes(Camera.main, out planeNormals);
-
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT ) { return; }
             if (FlightGlobals.currentMainBody.name != currentPlanet)
             {
-                Debug.Log("Current main body changed from " + currentPlanet + " to " + FlightGlobals.currentMainBody.name);
                 foreach (PQSMod_ScatterManager mod in mods)
                 {
                     mod.OnBodyChanged(currentPlanet, FlightGlobals.currentMainBody.name);
                 }
                 currentPlanet = FlightGlobals.currentMainBody.name;
-
-                //Debug.Log("Cleared active buffers as main body changed");
-                //activeBuffers[currentPlanet].Dispose();
-                //activeBuffers.Clear();
-                //StopCoroutine(mods.Find(x => x.name == currentPlanet).OnUpdate());
-                //currentPlanet = FlightGlobals.currentMainBody.name;
-
             }
+            Camera cam = Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00");
+            if (cam == null) { return; }
+            cameraPos = cam.gameObject.transform.position;
+
+            ConstructFrustumPlanes(Camera.main, out planeNormals);
+
+            
         }
-        void FixedUpdate()
-        {
-            RaycastHit hit;
-            if (Physics.Raycast(cameraPos, -Vector3.Normalize(cameraPos - FlightGlobals.currentMainBody.transform.position), out hit, 5000.0f, 1 << 15))
-            {
-                surfacePos = hit.point;
-            }
-        }
+        //void FixedUpdate()
+        //{
+        //    RaycastHit hit;
+        //    if (Physics.Raycast(cameraPos, -Vector3.Normalize(cameraPos - FlightGlobals.currentMainBody.transform.position), out hit, 5000.0f, 1 << 15))
+        //    {
+        //        surfacePos = hit.point;
+        //    }
+        //}
         private void ConstructFrustumPlanes(Camera camera, out float[] planeNormals)
         {
             const int floatPerNormal = 4;
@@ -88,7 +106,7 @@ namespace Grass
     }
     public class BufferList //Holds the buffers for one scatter
     {
-       
+
         public BufferList(int memory, int stride)
         {
             Dispose();
@@ -107,14 +125,12 @@ namespace Grass
         }
         public void Release()
         {
-            Debug.Log("Releasing buffers");
             if (buffer != null) { buffer.Release(); }
             if (farBuffer != null) { farBuffer.Release(); }
             if (furtherBuffer != null) { furtherBuffer.Release(); }
         }
         public void Dispose()
         {
-            Debug.Log("Disposing buffers");
             if (farBuffer != null) { farBuffer.Dispose(); }
             if (furtherBuffer != null) { furtherBuffer.Dispose(); }
             if (buffer != null) { buffer.Dispose(); }
@@ -122,17 +138,12 @@ namespace Grass
             farBuffer = null;
             furtherBuffer = null;
         }
-        ~BufferList()
-        {
-            Debug.Log("Destructor called for bufferlist");
-            //Dispose();
-        }
     }
     public class PQSMod_ScatterManager : PQSMod
     {
         public string scatterName = "a";
         public int subdivisionLevel = 1;
-        
+
         public int triCount = 392;
         public int quadCount = 100;
 
@@ -159,60 +170,39 @@ namespace Grass
 
         public void OnBodyChanged(string from, string to)
         {
-            Debug.Log("Body change: From " + from + " to " + to);
-            if (to != scatter.planetName) 
-            { 
-                stop = true; 
+            if (to != scatter.planetName)
+            {
+                stop = true;
                 pc.active = false;
                 //Buffers.activeBuffers[scatterName].Dispose();
-                if (co != null) { StopCoroutine(OnUpdate()); } 
+                if (co != null) { StopCoroutine(co); }
                 //if (bufferList != null) { bufferList.Dispose(); }
             }
-            if (to == scatter.planetName) 
+            if (to == scatter.planetName)
             {
-                Debug.Log("Starting scatters for " + scatter.planetName);
                 stop = false;
                 pc.active = true;
                 Start();
-                co = StartCoroutine(OnUpdate()); 
+                co = StartCoroutine(OnUpdate());
             }
             FloatingOrigin.TerrainShaderOffset = Vector3.zero;
-            
-            //We need to start if the planet becomes the dominant body again
-
-
-            //if (data.to.name == scatter.planetName) { if (co != null) { co = StartCoroutine(OnUpdate()); } }
-            //Debug.Log("Dominant body changed!");
-            //Debug.Log("From: " + data.from.bodyName + ". To: " + data.to.bodyName);
-            //if (co != null) { StopCoroutine(co); }
-            //if (pc != null) { Destroy(pc); }
 
         }
         public void Start()
         {
             if (FlightGlobals.currentMainBody == null) { return; }
-            Debug.Log("Name is: " + scatterName);
-            Debug.Log("SubdivisionLevel is: " + subdivisionLevel);
             scatter = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[scatterName];
             requiredMemory = subdivisionLevel * triCount * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadCount * scatter.properties.scatterDistribution.noise._MaxStacks * 50;
-            //if (!ActiveBuffers.activeBuffers.ContainsKey(scatterName))
-            //{
-            //    ActiveBuffers.activeBuffers.Add(scatterName, bufferList);
-            //}
             if (!ActiveBuffers.mods.Contains(this))
             {
                 ActiveBuffers.mods.Add(this);
             }
-            //pc = new PostCompute();
             CreateBuffers();
             if (pc == null) { pc = FlightGlobals.currentMainBody.gameObject.AddComponent<PostCompute>(); pc.scatterName = scatterName; pc.planetName = scatter.planetName; }
-
-            //if (co != null) { StopCoroutine(co); }
-            //co = StartCoroutine(OnUpdate());
+            framerate = new WaitForSeconds(updateRate);
         }
         public void CreateBuffers()
         {
-            Debug.Log("Creating buffers");
             if (Buffers.activeBuffers.ContainsKey(scatterName))
             {
                 Buffers.activeBuffers[scatterName].Dispose();
@@ -220,37 +210,26 @@ namespace Grass
             }
             requiredMemory = subdivisionLevel * triCount * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadCount * scatter.properties.scatterDistribution.noise._MaxStacks;
             if (requiredMemory == 0) { ScatterLog.Log("[Exception] Attempting to create a 0-length buffer, setting length to 10"); requiredMemory = 10; }
-            ScatterLog.Log("Requiring: " + ((float)requiredMemory * (float)ComputeComponent.GrassData.Size() / (1024f*1024f)).ToString("F4") + "Mb for " + scatterName);
-
-            bufferList = new BufferList(requiredMemory, ComputeLoader.ComputeComponent.GrassData.Size());
+            bufferList = new BufferList(requiredMemory * 2, ComputeLoader.ComputeComponent.GrassData.Size());
             Buffers.activeBuffers.Add(scatterName, bufferList);
         }
         public bool stop = false;
-        private int previousMaxMemory = -1;
+        public WaitForSeconds framerate = new WaitForSeconds(1);
         public IEnumerator OnUpdate()
-        { 
-            
-            timeUpdated = Time.realtimeSinceStartup;
+        {
+
+            //timeUpdated = Time.realtimeSinceStartup;
             while (true)
             {
-                if (HighLogic.LoadedScene != GameScenes.FLIGHT) { yield return null; }
-                //if (previousMaxMemory != requiredMemory) { previousMaxMemory = requiredMemory; CreateBuffers(); }
-                if (Time.realtimeSinceStartup - timeUpdated > updateRate && !stop)
+                if (HighLogic.LoadedScene != GameScenes.FLIGHT && HighLogic.LoadedScene != GameScenes.SPACECENTER) { StopCoroutine(co); yield return null; }
+                if (!stop)
                 {
-                    if (OnBufferLengthUpdated != null) { OnBufferLengthUpdated(); } //Issue lies here
                     Buffers.activeBuffers[scatterName].SetCounterValue(0);
-                    if (OnForceEvaluate != null) {  OnForceEvaluate();  }
+                    if (OnForceEvaluate != null) { OnForceEvaluate(); }
                     pc.Setup(new ComputeBuffer[] { Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer }, scatter);
-
-                    timeUpdated = Time.realtimeSinceStartup;
                 }
-                yield return new WaitForEndOfFrame();
+                yield return framerate;
             }
-            
-        }
-        public override void OnSphereInactive()
-        {
-            Debug.Log("Sphere inactive");
 
         }
     }
@@ -275,12 +254,12 @@ namespace Grass
             get { return Mod.scatterName; }
             set { Mod.scatterName = value; }
         }
-        
+
         [ParserTarget("updateRate", Optional = false)]
         public NumericParser<float> updateRate
         {
             get { return Mod.updateRate; }
-            set { Mod.updateRate = value; }
+            set { Mod.updateRate = value; Mod.framerate = new WaitForSeconds(value); }
         }
     }
 }
