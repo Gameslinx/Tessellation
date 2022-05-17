@@ -154,28 +154,32 @@ namespace Grass
         public BufferList bufferList;
         public Scatter scatter;
 
-        float timeUpdated = 0;
         public delegate void ForceEvaluate();
         public event ForceEvaluate OnForceEvaluate;
-        public delegate void BufferLengthUpdated();
-        public event BufferLengthUpdated OnBufferLengthUpdated;
 
         public PostCompute pc;
         public Coroutine co;
         public override void OnSetup()
         {
             //GameEvents.onDominantBodyChange.Add(OnBodyChanged);
+            if (!ActiveBuffers.mods.Contains(this))
+            {
+                ActiveBuffers.mods.Add(this);
+            }
             Start();    //So we can update from UI without starting another coroutine :D
         }
 
         public void OnBodyChanged(string from, string to)
         {
+            FloatingOrigin.TerrainShaderOffset = Vector3.zero;
             if (to != scatter.planetName)
             {
                 stop = true;
                 pc.active = false;
                 //Buffers.activeBuffers[scatterName].Dispose();
                 if (co != null) { StopCoroutine(co); }
+                bufferList.Dispose();
+                Buffers.activeBuffers[scatterName].Dispose();
                 //if (bufferList != null) { bufferList.Dispose(); }
             }
             if (to == scatter.planetName)
@@ -185,21 +189,22 @@ namespace Grass
                 Start();
                 co = StartCoroutine(OnUpdate());
             }
-            FloatingOrigin.TerrainShaderOffset = Vector3.zero;
+            
 
         }
         public void Start()
         {
-            if (FlightGlobals.currentMainBody == null) { return; }
-            scatter = ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters[scatterName];
-            requiredMemory = subdivisionLevel * triCount * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadCount * scatter.properties.scatterDistribution.noise._MaxStacks * 50;
+            //if (FlightGlobals.currentMainBody == null) { return; }
+            scatter = ScatterBodies.scatterBodies[sphere.name].scatters[scatterName];
+            requiredMemory = subdivisionLevel * triCount * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadCount * scatter.properties.scatterDistribution.noise._MaxStacks;
             if (!ActiveBuffers.mods.Contains(this))
             {
                 ActiveBuffers.mods.Add(this);
             }
             CreateBuffers();
-            if (pc == null) { pc = FlightGlobals.currentMainBody.gameObject.AddComponent<PostCompute>(); pc.scatterName = scatterName; pc.planetName = scatter.planetName; }
-            framerate = new WaitForSeconds(updateRate);
+            
+            if (pc == null) { pc = FlightGlobals.GetBodyByName(sphere.name).gameObject.AddComponent<PostCompute>(); pc.scatterName = scatterName; pc.planetName = scatter.planetName; }
+            framerate = new WaitForSeconds(updateRate * ScatterGlobalSettings.updateMult);
         }
         public void CreateBuffers()
         {
@@ -252,7 +257,7 @@ namespace Grass
         public String scatterName
         {
             get { return Mod.scatterName; }
-            set { Mod.scatterName = value; }
+            set { Mod.scatterName = Mod.sphere.name + "-" + value; }
         }
 
         [ParserTarget("updateRate", Optional = false)]

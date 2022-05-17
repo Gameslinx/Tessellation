@@ -498,7 +498,8 @@ namespace Grass
         public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNoiseNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
-            string scatterName = scatterNode.GetValue("name");
+            string scatterName = bodyName + "-" + scatterNode.GetValue("name");
+            
             ScatterLog.Log("Parsing scatter: " + scatterName);
             Scatter scatter = new Scatter(scatterName);
             scatter.planetName = bodyName;
@@ -521,7 +522,7 @@ namespace Grass
             if (cullLimitCheck) { scatter.cullingLimit = float.Parse(cullLimit); }
 
             props.scatterDistribution = ParseDistribution(distributionNode);
-            props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode);
+            props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode, bodyName);
             props.scatterMaterial = ParseMaterial(materialNode, false);
             props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
             props.memoryMultiplier = 100;
@@ -530,7 +531,7 @@ namespace Grass
             scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS"));
             body.scatters.Add(scatterName, scatter);
         }
-        public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode)
+        public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode, string bodyName)
         {
             DistributionNoise distribution = new DistributionNoise();
 
@@ -540,6 +541,7 @@ namespace Grass
             else { distribution.noiseMode = DistributionNoiseMode.Persistent; }
 
             distribution.useNoiseProfile = (ParseVar(distributionNode, "useNoiseProfile"));
+            if (distribution.useNoiseProfile != null) { distribution.useNoiseProfile = bodyName + "-" + distribution.useNoiseProfile; }
             if (distribution.useNoiseProfile != null) { ScatterLog.SubLog("Using noise profile: " + distribution.useNoiseProfile); }
             if (distribution.useNoiseProfile != null && distribution.noiseMode != DistributionNoiseMode.Persistent) { ScatterLog.SubLog("[Exception] Attempting to use a noise profile for a non-persistent scatter. This only works if you want to share the same noise as another persistent scatter!"); }
             if (distribution.useNoiseProfile != null) { distribution._Frequency = 1; distribution._Lacunarity = 1; distribution._Persistence = 1; distribution._Octaves = 1; distribution._Seed = 1; distribution._NoiseType = 1; distribution._NoiseQuality = LibNoise.NoiseQuality.Low; distribution._MaxStacks = 1; distribution._StackSeparation = 1;  

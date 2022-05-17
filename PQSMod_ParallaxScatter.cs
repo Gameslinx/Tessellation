@@ -22,7 +22,6 @@ namespace ParallaxGrass
     {
         
         public static Dictionary<string, QuadComp> quads = new Dictionary<string, QuadComp>();
-        int arrayIndex = 0;
         void Start()
         {
             FloatingOrigin.ResetTerrainShaderOffset();
@@ -165,7 +164,7 @@ namespace ParallaxGrass
         }
         public void OnDestroy()
         {
-            if (co != null) { Debug.Log("Stopping coroutine"); StopCoroutine(co); }
+            if (co != null) { StopCoroutine(co); }
             if (go != null) { Destroy(go); }
             if (mesh != null) { Destroy(mesh); }
             RemoveAllFixedScatters(quad);

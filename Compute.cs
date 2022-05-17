@@ -9,6 +9,7 @@ using Kopernicus.Configuration.ModLoader;
 using Grass;
 using ScatterConfiguratorUtils;
 using UnityEngine.Rendering;
+using System;
 
 namespace ComputeLoader
 {
@@ -32,7 +33,7 @@ namespace ComputeLoader
         public Mesh mesh;
         public int vertCount;
         public int triCount;
-
+        
         public Vector3 _PlanetOrigin;
 
         public Scatter scatter;
@@ -59,7 +60,6 @@ namespace ComputeLoader
             public Vector3 pos;
             public Matrix4x4 mat;
             public Vector4 color;
-            public int mode;
             public float timeUpdated;
             public static int Size()
             {
@@ -75,16 +75,13 @@ namespace ComputeLoader
         {
             public Matrix4x4 mat;
             public Vector4 color;
-            public float initialTime;
             public static int Size()
             {
                 return
                     sizeof(float) * 4 * 4 + // matrix;
-                    sizeof(float) * 4 +     // color
-                    sizeof(float);          // time
+                    sizeof(float) * 4;     // color
             }
         }
-        CameraManager.CameraMode lastCameraMode;
         public void OnCameraChange(CameraManager.CameraMode mode)
         {
             if (HighLogic.LoadedScene != GameScenes.FLIGHT) { return; }
@@ -97,7 +94,7 @@ namespace ComputeLoader
         public void OnEnable()
         {
             
-
+            
         }
         public void Start()
         {
@@ -113,10 +110,12 @@ namespace ComputeLoader
             }
             if (scatter == null) { Debug.Log("Scatter null?"); }
             if (scatter.scatterName == null) { Debug.Log("Name null?"); }
+
             RealStart();
         }
         void RealStart()
         {
+            pqsMod.OnForceEvaluate += DispatchEvaluate;
             if (mesh == null)
             {
                 Destroy(this);
@@ -137,8 +136,7 @@ namespace ComputeLoader
                 distribute = Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
             }
             evaluate = Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
-            pqsMod.OnForceEvaluate += DispatchEvaluate;
-            pqsMod.OnBufferLengthUpdated += ReInitializeAllBuffers;
+            
             GameEvents.OnCameraChange.Add(OnCameraChange);
             GeneratePositions();
             started = true;
@@ -146,6 +144,7 @@ namespace ComputeLoader
         bool initialized = false;
         public void InitializeAllBuffers()
         {
+            Debug.Log("Initializing all buffers for " + scatter.scatterName);
             evaluatePoints = evaluate.FindKernel("EvaluatePoints");
 
             int maxStacks = scatter.properties.scatterDistribution.noise._MaxStacks;
@@ -155,7 +154,6 @@ namespace ComputeLoader
             }
 
             int count = (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * maxStacks;
-
             float totalMemory = (GrassData.Size() * count * 8) + (7 * sizeof(int)) + (vertCount * 12) + (vertCount * 12) + (distributionNoise.Length * sizeof(float));
             vRAMinMb = totalMemory / (1024 * 1024);
             if (Buffers.activeBuffers[scatter.scatterName].buffer == null) { Debug.Log("Buffer is null lol"); }
@@ -166,37 +164,6 @@ namespace ComputeLoader
 
             initialized = true;
         }
-        public void ReInitializeAllBuffers()
-        {
-            evaluate.SetBuffer(evaluatePoints, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
-            evaluate.SetBuffer(evaluatePoints, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
-            evaluate.SetBuffer(evaluatePoints, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
-        }
-        Vector3d previousTerrainOffset = Vector3d.zero;
-        float timeSinceLastUpdate = 0;
-        float distanceSinceLastUpdate = 0;
-        Vector3 lastPos = Vector3.zero;
-        public bool CheckTheTime(float TargetFPS) //Grass framerate
-        {
-            float targetDeltaTime = 1.0f / TargetFPS;
-            float deltaTime = Time.deltaTime;
-
-            if (deltaTime > targetDeltaTime * 4)
-            {
-                ScatterLog.Log("Warning: The time since the last frame is vastly exceeding the target framerate for Compute Shader updates. Consider lowering the scatter update rate in your settings!");
-            }
-            if (timeSinceLastUpdate >= targetDeltaTime)
-            {
-                timeSinceLastUpdate = 0;
-                return true;
-            }
-            else
-            {
-                timeSinceLastUpdate += Time.deltaTime;
-                return false;
-            }
-        }
-  
         public void GeneratePositions()
         {
             if (mesh == null) { Destroy(this); return; }
@@ -204,8 +171,11 @@ namespace ComputeLoader
             int[] tris = mesh.triangles;
             Vector3[] normals = mesh.normals;
             //First we need to adjust the memory usage for the output buffer
-            
+
             //maxMemory = (tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference * scatter.properties.scatterDistribution.noise._MaxStacks;
+
+            //We need a latitude and longitude multiplier to make sure densities are correctly adjusted
+            
 
             Utils.SafetyCheckDispose(positionBuffer, "position buffer");
             Utils.SafetyCheckDispose(grassPositionBuffer, "grass position buffer");
@@ -265,6 +235,30 @@ namespace ComputeLoader
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             distribute.SetMatrix("_WorldToPlanet", FlightGlobals.currentMainBody.gameObject.transform.worldToLocalMatrix);
             distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance);
+
+            Vector2d latlon = LatLon.GetLatitudeAndLongitude(FlightGlobals.currentMainBody.BodyFrame, FlightGlobals.currentMainBody.transform.position, transform.position);
+            double lat = Math.Abs(latlon.x) % 45.0 - 22.5;
+            double lon = Math.Abs(latlon.y) % 45.0 - 22.5;   //From -22.5 to 22.5 where 0 we want the highest density and -22.5 we want 1/3 density
+            lat /= 22.5;
+            lon /= 22.5;    //Now from -1 to 1, with 0 being where we want most density and -1 where we want 1/3
+
+            lat = Math.Abs(lat);
+            lon = Math.Abs(lon);    //Now from 0 to 1. 1 when at a corner
+
+            double factor = (lat + lon) / 2;
+            float multiplier = Mathf.Clamp01(Mathf.Lerp(1.0f, 0.333333f, Mathf.Pow((float)factor, 3)));
+            if (scatter.properties.scatterDistribution._PopulationMultiplier > 2 && multiplier < 0.65f)
+            {
+                //scatter.properties.scatterDistribution._PopulationMultiplier = (int)(scatter.properties.scatterDistribution._PopulationMultiplier * factor);
+                distribute.SetInt("_PopulationMultiplier", (int)(Mathf.Round((scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) * multiplier)));
+            }
+            if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f)
+            {
+                distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance * multiplier);
+            }
+
+
+            
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             if (scatter.alignToTerrainNormal) { distribute.SetInt("_AlignToNormal", 1); } else { distribute.SetInt("_AlignToNormal", 0); }
             distribute.SetBuffer(distributeKernel, "Objects", positionBuffer);
@@ -306,7 +300,6 @@ namespace ComputeLoader
             if (currentlyReadingDist) { return; }
             if (objectCount == 0) { return; }
             if (!doEvaluate) { return; }
-
             if (Buffers.activeBuffers[scatter.scatterName].buffer == null)
             {
                 Debug.Log("Buffer null");
@@ -339,8 +332,12 @@ namespace ComputeLoader
             evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);             //Frustum culling
             evaluate.SetFloat("_CullLimit", scatter.cullingLimit);
             float cullingRangePerc = scatter.cullingRange / scatter.properties.scatterDistribution._Range;
+            
             evaluate.SetFloat("_CullStartRange", cullingRangePerc);
-
+            if (!ScatterGlobalSettings.frustumCull)
+            {
+                evaluate.SetFloat("_CullStartRange", 1);
+            }
 
             evaluate.DispatchIndirect(evaluatePoints, indirectArgs, 0);
         }
@@ -397,7 +394,6 @@ namespace ComputeLoader
             Utils.DestroyComputeBufferSafe(positionCountBuffer);
             Utils.DestroyComputeBufferSafe(indirectArgs);
         }
-        bool everDisabled = false;
         void OnDisable()
         {
             //Utils.ForceGPUFinish(grassBuffer, typeof(GrassData), (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier);
@@ -410,7 +406,6 @@ namespace ComputeLoader
             Utils.DestroyComputeBufferSafe(indirectArgs);
             //PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);  //Get corresponding mod here
             pqsMod.OnForceEvaluate -= DispatchEvaluate;
-            pqsMod.OnBufferLengthUpdated -= ReInitializeAllBuffers;
             //pqsMod.requiredMemory -= maxMemory;
             GameEvents.OnCameraChange.Remove(OnCameraChange);
         }

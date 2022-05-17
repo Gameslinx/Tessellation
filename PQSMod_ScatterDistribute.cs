@@ -17,6 +17,7 @@ namespace Grass
     public class ScatterData    //ONCE per planet
     {
         public Dictionary<string, DistributionData> distributionData = new Dictionary<string, DistributionData>();    //Scatter name, distribution for that scatter
+        public Dictionary<string, string> perQuadBiomeData = new Dictionary<string, string>();
         public int dataLength;
     }
     public struct DistributionData
@@ -46,6 +47,7 @@ namespace Grass
         string[] keys;
         float initialTime;
         public static bool alreadySetupSpaceCenter = false;
+        bool hasBiomeBlacklist = false;
         public enum NoiseType
         {
             Perlin,
@@ -82,7 +84,10 @@ namespace Grass
                         scatterData.distributionData[scatterName] = data;
                     }
                 }
-
+                if (scatters[scatterName].properties.scatterDistribution.blacklist.biomes.Length > 0)
+                {
+                    hasBiomeBlacklist = true;
+                }
             }
             octaves = 6;
             
@@ -148,9 +153,17 @@ namespace Grass
                     DistributionData distData = scatterData.distributionData[scatterName];
                     double noise = distData.noiseMap.GetValue(data.directionFromCenter) * 0.5 + 0.5;
 
+                    
+                    
+                    if (hasBiomeBlacklist) 
+                    {
+                        string thisBiome = ScatterBiomeData.quadBiomeData[data.buildQuad.name][data.vertIndex];
+                        if (thisBiome != null && scatter.properties.scatterDistribution.blacklist.fastBiomes.ContainsKey(thisBiome))
+                        {
+                            noise = -0.01;
+                        }
+                    }
                     distData.data[data.buildQuad.name][data.vertIndex] = (float)noise;
-                    
-                    
                 }
             }
         }

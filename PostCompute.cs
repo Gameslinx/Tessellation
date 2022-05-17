@@ -27,7 +27,6 @@ namespace ComputeLoader
         private ComputeBuffer mainFurther;
 
         private Bounds bounds;
-        bool setup = false;
         public bool setupInitial = false;
 
         public int vertexCount;
@@ -110,11 +109,11 @@ namespace ComputeLoader
                 setupInitial = true;
                 CreateBuffers();
             }
-            try
-            {
+            //try
+           // {
                 UpdateBounds(Vector3.zero);
-            }
-            catch (Exception ex) { }
+            //}
+            //catch { }
             mainNear = buffers[0];
             mainFar = buffers[1];
             mainFurther = buffers[2];
@@ -150,33 +149,33 @@ namespace ComputeLoader
             material.SetBuffer("_Properties", mainNear);
             materialFar.SetBuffer("_Properties", mainFar);
             materialFurther.SetBuffer("_Properties", mainFurther);
-            setup = true;
         }
 
 
 
         public void Update()
         {
-
-            UpdateBounds(FloatingOrigin.TerrainShaderOffset);
-            if (!active)
+            if (HighLogic.LoadedSceneIsFlight)
             {
-                return;
+                this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
+                if (!this.active)
+                {
+                    return;
+                }
+                if (this.mesh != null)
+                {
+                    Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
+                }
+                if (this.farMesh != null)
+                {
+                    Graphics.DrawMeshInstancedIndirect(this.farMesh, 0, this.materialFar, this.bounds, this.farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
+                }
+                if (this.furtherMesh != null)
+                {
+                    Graphics.DrawMeshInstancedIndirect(this.furtherMesh, 0, this.materialFurther, this.bounds, this.furtherArgsBuffer, 0, null, this.shadowCastingMode, true, 0);
+                    return;
+                }
             }
-            if (mesh != null)
-            {
-
-                Graphics.DrawMeshInstancedIndirect(mesh, 0, material, bounds, argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
-            }
-            if (farMesh != null)
-            {
-                Graphics.DrawMeshInstancedIndirect(farMesh, 0, materialFar, bounds, farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
-            }
-            if (furtherMesh != null)
-            {
-                Graphics.DrawMeshInstancedIndirect(furtherMesh, 0, materialFurther, bounds, furtherArgsBuffer, 0, null, shadowCastingMode, true, 0);
-            }
-            //Debug.Log("Update completed");
         }
         private void SetPlanetOrigin()
         {
@@ -212,7 +211,7 @@ namespace ComputeLoader
         }
         private void OnEnable()
         {
-            //EventManager.OnShaderOffsetUpdated += UpdateBounds;
+
         }
         private void OnDestroy()
         {
