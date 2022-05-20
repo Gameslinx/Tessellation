@@ -4,6 +4,7 @@ using Kopernicus.ConfigParser.BuiltinTypeParsers;
 using Kopernicus.ConfigParser.Enumerations;
 using Kopernicus.Configuration.ModLoader;
 using LibNoise;
+using ParallaxGrass;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -50,8 +51,8 @@ namespace Grass
             ActiveBuffers.currentPlanet = "";
         }
     }
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class ActiveBuffers : MonoBehaviour
+    [KSPAddon(KSPAddon.Startup.AllGameScenes, false)]
+    public class ActiveBuffers : MonoBehaviour 
     {
         public static string currentPlanet = "";
         //String is scattername, we can retrieve these from the Compute.cs
@@ -59,10 +60,25 @@ namespace Grass
         public static Vector3 cameraPos = Vector3.zero;
         public static Vector3 surfacePos = Vector3.zero;
         public static float[] planeNormals;
-        void Update()
+        public bool stopped = false;
+        void Update()       //Might be worth changing this to an event in the future. If this is still here on release, recommend messaging me about it
         {
-            if (HighLogic.LoadedScene != GameScenes.FLIGHT ) { return; }
-            if (FlightGlobals.currentMainBody.name != currentPlanet)
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT && !stopped)    //Stop coroutine otherwise they will double up lol
+            {
+                foreach (PQSMod_ScatterManager mod in mods)
+                {
+                    Debug.Log("Scene changed, stopping coroutine for " + mod.scatterName);
+                    if (mod.co != null)
+                    {
+                        StopCoroutine(mod.co);
+                    }
+                }
+                stopped = true;
+                return; 
+            }
+            else if (HighLogic.LoadedScene != GameScenes.FLIGHT) { stopped = false; }
+            
+            if (FlightGlobals.currentMainBody.name != currentPlanet)    //Body change, so stop coroutines
             {
                 foreach (PQSMod_ScatterManager mod in mods)
                 {
@@ -168,7 +184,6 @@ namespace Grass
             }
             Start();    //So we can update from UI without starting another coroutine :D
         }
-
         public void OnBodyChanged(string from, string to)
         {
             FloatingOrigin.TerrainShaderOffset = Vector3.zero;
@@ -187,6 +202,7 @@ namespace Grass
                 stop = false;
                 pc.active = true;
                 Start();
+                if (co != null) { StopCoroutine(co); }
                 co = StartCoroutine(OnUpdate());
             }
             
@@ -215,23 +231,21 @@ namespace Grass
             }
             requiredMemory = subdivisionLevel * triCount * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadCount * scatter.properties.scatterDistribution.noise._MaxStacks;
             if (requiredMemory == 0) { ScatterLog.Log("[Exception] Attempting to create a 0-length buffer, setting length to 10"); requiredMemory = 10; }
-            bufferList = new BufferList(requiredMemory * 2, ComputeLoader.ComputeComponent.GrassData.Size());
+            bufferList = new BufferList(requiredMemory, GrassData.Size());
             Buffers.activeBuffers.Add(scatterName, bufferList);
         }
         public bool stop = false;
         public WaitForSeconds framerate = new WaitForSeconds(1);
         public IEnumerator OnUpdate()
         {
-
-            //timeUpdated = Time.realtimeSinceStartup;
             while (true)
             {
-                if (HighLogic.LoadedScene != GameScenes.FLIGHT && HighLogic.LoadedScene != GameScenes.SPACECENTER) { StopCoroutine(co); yield return null; }
+                if (HighLogic.LoadedScene != GameScenes.FLIGHT) { if (co != null) { StopCoroutine(co); } yield return null; }
                 if (!stop)
                 {
                     Buffers.activeBuffers[scatterName].SetCounterValue(0);
                     if (OnForceEvaluate != null) { OnForceEvaluate(); }
-                    pc.Setup(new ComputeBuffer[] { Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer }, scatter);
+                    pc.Setup(Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer, scatter);
                 }
                 yield return framerate;
             }

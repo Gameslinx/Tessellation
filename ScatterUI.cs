@@ -640,7 +640,7 @@ namespace ScatterConfiguratorUtils
             PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
             ScatterLog.Log("Attempting to stop OnUpdate coroutine for " + scatter.scatterName);
             ScatterLog.Log("Stopped");
-            StartCoroutine(scatter.ForceComputeUpdate());
+            //StartCoroutine(scatter.ForceComputeUpdate());
             
         }
         public void ForceTerrainMaterialUpdate(Scatter scatter, bool revert)
@@ -652,7 +652,7 @@ namespace ScatterConfiguratorUtils
         public void ForceDistributionMaterialUpdate(Scatter scatter, bool revert)
         {
             Material distributionViewer = new Material(ScatterShaderHolder.GetShader("Custom/VertexColor"));
-            StartCoroutine(scatter.SwitchQuadMaterial(distributionViewer, revert, scatter));
+            //StartCoroutine(scatter.SwitchQuadMaterial(distributionViewer, revert, scatter));
         }
         public void UpdateVisibility(Scatter scatter)
         {

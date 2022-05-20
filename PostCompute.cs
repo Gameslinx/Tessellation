@@ -72,7 +72,7 @@ namespace ComputeLoader
             CreateBuffers();
             InitializeBuffers();
         }
-        public void Setup(ComputeBuffer[] buffers, Scatter scatter)
+        public void Setup(ComputeBuffer buffer, ComputeBuffer farBuffer, ComputeBuffer furtherBuffer, Scatter scatter)
         {
             if (!setupInitial)
             {
@@ -114,9 +114,9 @@ namespace ComputeLoader
                 UpdateBounds(Vector3.zero);
             //}
             //catch { }
-            mainNear = buffers[0];
-            mainFar = buffers[1];
-            mainFurther = buffers[2];
+            mainNear = buffer;
+            mainFar = farBuffer;
+            mainFurther = furtherBuffer;
             InitializeBuffers();
         }
         private void CreateBuffers()
@@ -217,24 +217,24 @@ namespace ComputeLoader
         {
             //Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
 
-            Utils.DestroyComputeBufferSafe(mainNear);
-            Utils.DestroyComputeBufferSafe(mainFar);
-            Utils.DestroyComputeBufferSafe(mainFurther);
-            Utils.DestroyComputeBufferSafe(argsBuffer);
-            Utils.DestroyComputeBufferSafe(farArgsBuffer);
-            Utils.DestroyComputeBufferSafe(furtherArgsBuffer);
+            Utils.DestroyComputeBufferSafe(ref mainNear);
+            Utils.DestroyComputeBufferSafe(ref mainFar);
+            Utils.DestroyComputeBufferSafe(ref mainFurther);
+            Utils.DestroyComputeBufferSafe(ref argsBuffer);
+            Utils.DestroyComputeBufferSafe(ref farArgsBuffer);
+            Utils.DestroyComputeBufferSafe(ref furtherArgsBuffer);
         }
         private void OnDisable()
         {
             //EventManager.OnShaderOffsetUpdated -= UpdateBounds;
             //Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
 
-            Utils.DestroyComputeBufferSafe(mainNear);
-            Utils.DestroyComputeBufferSafe(mainFar);
-            Utils.DestroyComputeBufferSafe(mainFurther);
-            Utils.DestroyComputeBufferSafe(argsBuffer);
-            Utils.DestroyComputeBufferSafe(farArgsBuffer);
-            Utils.DestroyComputeBufferSafe(furtherArgsBuffer);
+            Utils.DestroyComputeBufferSafe(ref mainNear);
+            Utils.DestroyComputeBufferSafe(ref mainFar);
+            Utils.DestroyComputeBufferSafe(ref mainFurther);
+            Utils.DestroyComputeBufferSafe(ref argsBuffer);
+            Utils.DestroyComputeBufferSafe(ref farArgsBuffer);
+            Utils.DestroyComputeBufferSafe(ref furtherArgsBuffer);
         }
     }
 }

@@ -163,6 +163,7 @@ namespace Grass
                             noise = -0.01;
                         }
                     }
+                    
                     distData.data[data.buildQuad.name][data.vertIndex] = (float)noise;
                 }
             }

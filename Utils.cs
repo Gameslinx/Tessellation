@@ -16,11 +16,12 @@ namespace ScatterConfiguratorUtils
     {
         public static bool oneCamera = false;
         public static Vector3 initialPlanetRelative = Vector3.zero;
-        public static void DestroyComputeBufferSafe(ComputeBuffer buffer)
+        public static void DestroyComputeBufferSafe(ref ComputeBuffer buffer)
         {
             if (buffer != null)
             {
                 buffer.Dispose();
+                buffer = null;
             }
         }
         public static ComputeBuffer SetupComputeBufferSafe(int count, int stride, ComputeBufferType type)
@@ -58,15 +59,136 @@ namespace ScatterConfiguratorUtils
                 //ScatterLog.Log("Exception performing release safety check on " + nameThisBufferSomethingUseful + " because it is null!");
             }
         }
-        public static void SafetyCheckDispose(ComputeBuffer buffer, string nameThisBufferSomethingUseful)
+        public static void SafetyCheckDispose(ref ComputeBuffer buffer, string nameThisBufferSomethingUseful)
         {
             if (buffer != null)
             {
                 buffer.Dispose();
+                buffer = null;
             }
             if (buffer == null)
             {
                 //ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
+            }
+        }
+        public static ComputeShader GetCorrectComputeShader(Scatter scatter)
+        {
+            ComputeShader distribute;
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
+            {
+                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeNearest"));
+            }
+            else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent)
+            {
+                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
+            }
+            else
+            {
+                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
+            }
+            return distribute;
+        }
+        public static float[] GetDistributionData(Scatter thisScatter, PQ quad)
+        {
+            DistributionNoise noise = thisScatter.properties.scatterDistribution.noise;
+    
+            if (noise.useNoiseProfile != null)
+            {
+                return PQSMod_ScatterDistribute.scatterData.distributionData[noise.useNoiseProfile].data[quad.name];
+            }
+            else
+            {
+                return PQSMod_ScatterDistribute.scatterData.distributionData[thisScatter.scatterName].data[quad.name];
+            }
+        }
+        public static void SetDistributionVars(ref ComputeShader distribute, Scatter scatter, Transform transform, int quadSubdivisionDifference, int triCount, string sphereName)
+        {
+            
+            CelestialBody body = FlightGlobals.GetBodyByName(sphereName);
+            distribute.SetInt("_PopulationMultiplier", (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference); //quadsubdiv diff
+            distribute.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
+            distribute.SetVector("_PlanetOrigin", body.transform.position);
+            distribute.SetVector("_PlanetNormal", Vector3.Normalize(GlobalPoint.originPoint - body.transform.position));
+            distribute.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
+
+            if (FlightGlobals.ActiveVessel != null && !FlightGlobals.ready) { distribute.SetVector("_ShaderOffset", Vector3.zero); }    //During scene change
+
+            distribute.SetInt("_MaxCount", (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
+            distribute.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
+            distribute.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
+            distribute.SetFloat("minAltitude", scatter.properties.scatterDistribution._MinAltitude);
+            distribute.SetFloat("maxAltitude", scatter.properties.scatterDistribution._MaxAltitude);
+            distribute.SetFloat("grassSizeNoiseScale", scatter.properties.scatterDistribution.noise._SizeNoiseScale);
+            distribute.SetFloat("grassSizeNoiseOffset", scatter.properties.scatterDistribution.noise._SizeNoiseOffset);
+            distribute.SetVector("grassColorMain", scatter.properties.scatterMaterial._MainColor);//scatter.properties.scatterMaterial._MainColor);
+            distribute.SetVector("grassColorSub", scatter.properties.scatterMaterial._SubColor);
+            distribute.SetFloat("grassColorNoiseStrength", scatter.properties.scatterMaterial._ColorNoiseStrength);
+            distribute.SetFloat("grassColorNoiseScale", scatter.properties.scatterDistribution.noise._ColorNoiseScale);
+            distribute.SetFloat("seed", scatter.properties.scatterDistribution._Seed);
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.VerticalStack)
+            {
+                distribute.SetFloat("_StackSeparation", scatter.properties.scatterDistribution.noise._StackSeparation);
+                distribute.SetInt("_VerticalMult", scatter.properties.scatterDistribution.noise._MaxStacks);
+            }
+            distribute.SetFloat("grassCutoffScale", scatter.properties.scatterDistribution._CutoffScale);
+            distribute.SetFloat("grassSizeNoiseStrength", scatter.properties.scatterDistribution._SizeNoiseStrength);
+            distribute.SetFloat("_SteepPower", scatter.properties.scatterDistribution._SteepPower);
+            distribute.SetFloat("_SteepContrast", scatter.properties.scatterDistribution._SteepContrast);
+            distribute.SetFloat("_SteepMidpoint", scatter.properties.scatterDistribution._SteepMidpoint);
+            distribute.SetFloat("rotationMult", 1);
+            distribute.SetFloat("_MaxNormalDeviance", scatter.properties.scatterDistribution._MaxNormalDeviance);
+            distribute.SetFloat("_PlanetRadius", (float)body.Radius);
+            distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
+            distribute.SetMatrix("_WorldToPlanet", body.gameObject.transform.worldToLocalMatrix);
+            distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance);
+
+            Vector2d latlon = LatLon.GetLatitudeAndLongitude(body.BodyFrame, body.transform.position, transform.position);
+            double lat = System.Math.Abs(latlon.x) % 45.0 - 22.5;
+            double lon = System.Math.Abs(latlon.y) % 45.0 - 22.5;   //From -22.5 to 22.5 where 0 we want the highest density and -22.5 we want 1/3 density
+            lat /= 22.5;
+            lon /= 22.5;    //Now from -1 to 1, with 0 being where we want most density and -1 where we want 1/3
+
+            lat = System.Math.Abs(lat);
+            lon = System.Math.Abs(lon);    //Now from 0 to 1. 1 when at a corner
+
+            double factor = (lat + lon) / 2;
+            float multiplier = Mathf.Clamp01(Mathf.Lerp(1.0f, 0.333333f, Mathf.Pow((float)factor, 3)));
+            if (scatter.properties.scatterDistribution._PopulationMultiplier > 2 && multiplier < 0.65f)
+            {
+                distribute.SetInt("_PopulationMultiplier", (int)(Mathf.Round((scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) * multiplier)));
+            }
+            if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f)
+            {
+                distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance * multiplier);
+            }
+
+            distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
+            if (scatter.alignToTerrainNormal) { distribute.SetInt("_AlignToNormal", 1); } else { distribute.SetInt("_AlignToNormal", 0); }
+        }
+        public static void SetEvaluationVars(ref ComputeShader evaluate, Scatter scatter, Transform transform, int objectCount)
+        {
+            evaluate.SetFloat("range", scatter.properties.scatterDistribution._Range);
+            evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);// GlobalPoint.originPoint);//Camera.allCameras.FirstOrDefault(_cam => _cam.name == "Camera 00").gameObject.transform.position - gameObject.transform.position);
+            evaluate.SetVector("_CraftPos", GlobalPoint.originPoint);
+            if (scatter.useSurfacePos) { evaluate.SetVector("_CameraPos", ActiveBuffers.surfacePos); }
+
+            evaluate.SetFloat("_LODPerc", scatter.properties.scatterDistribution.lods.lods[0].range / scatter.properties.scatterDistribution._Range);    //At what range does the LOD change to the low one?
+            evaluate.SetFloat("_LOD2Perc", scatter.properties.scatterDistribution.lods.lods[1].range / scatter.properties.scatterDistribution._Range);
+
+            evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
+            evaluate.SetVector("_ThisPos", transform.position);
+            evaluate.SetInt("_MaxCount", objectCount);
+
+            evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
+            evaluate.SetFloat("_Pow", scatter.properties.scatterDistribution._RangePow);
+            evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);             //Frustum culling
+            evaluate.SetFloat("_CullLimit", scatter.cullingLimit);
+            float cullingRangePerc = scatter.cullingRange / scatter.properties.scatterDistribution._Range;
+
+            evaluate.SetFloat("_CullStartRange", cullingRangePerc);
+            if (!ScatterGlobalSettings.frustumCull)
+            {
+                evaluate.SetFloat("_CullStartRange", 1);
             }
         }
         public static uint[] GenerateArgs(Mesh mesh)

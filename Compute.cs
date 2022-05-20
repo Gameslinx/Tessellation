@@ -67,7 +67,6 @@ namespace ComputeLoader
                     sizeof(float) * 4 * 4 + // matrix;
                     sizeof(float) * 3 + // pos
                     sizeof(float) * 4 + // color
-                    sizeof(int) +
                     sizeof(float);
             }
         }
@@ -199,7 +198,7 @@ namespace ComputeLoader
             int distributeKernel = distribute.FindKernel("DistributePoints");
             
             grassPositionBuffer.SetCounterValue(0);
-            
+           
             distribute.SetInt("_PopulationMultiplier", (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference); //quadsubdiv diff
             distribute.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
             distribute.SetVector("_PlanetOrigin", FlightGlobals.currentMainBody.transform.position);
@@ -249,16 +248,13 @@ namespace ComputeLoader
             float multiplier = Mathf.Clamp01(Mathf.Lerp(1.0f, 0.333333f, Mathf.Pow((float)factor, 3)));
             if (scatter.properties.scatterDistribution._PopulationMultiplier > 2 && multiplier < 0.65f)
             {
-                //scatter.properties.scatterDistribution._PopulationMultiplier = (int)(scatter.properties.scatterDistribution._PopulationMultiplier * factor);
                 distribute.SetInt("_PopulationMultiplier", (int)(Mathf.Round((scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) * multiplier)));
             }
-            if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f)
+            if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f) 
             {
                 distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance * multiplier);
             }
 
-
-            
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             if (scatter.alignToTerrainNormal) { distribute.SetInt("_AlignToNormal", 1); } else { distribute.SetInt("_AlignToNormal", 0); }
             distribute.SetBuffer(distributeKernel, "Objects", positionBuffer);

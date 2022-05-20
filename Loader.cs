@@ -162,84 +162,87 @@ namespace Grass
         {
             scatterName = name;
         }
-        public IEnumerator ForceComputeUpdate()
-        {
-            ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-            QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
-            List<ComputeComponent> allQuads = new List<ComputeComponent>();
-            foreach (var quadComp in allQuadComps) 
-            {
-                Debug.Log("Checking quadComp:");
-                ComputeComponent cc = quadComp.comps.Where(c => c?.scatter?.scatterName == scatterName)?.FirstOrDefault(); 
-                if (cc != null) 
-                {
-                    Debug.Log("Found CC");
-                    allQuads.Add(cc); 
-                } 
-            }
-            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
-            pqsMod.scatter = this;
-            foreach (var cc in allQuads) { cc.scatter = this; cc.GeneratePositions(); }
-            yield return null;
-        }
+        //public IEnumerator ForceComputeUpdate()
+        //{
+        //    ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
+        //    QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
+        //    List<ComputeComponent> allQuads = new List<ComputeComponent>();
+        //    foreach (var quadComp in allQuadComps) 
+        //    {
+        //        Debug.Log("Checking quadComp:");
+        //        ComputeComponent cc = quadComp.comps.Where(c => c?.scatter?.scatterName == scatterName)?.FirstOrDefault(); 
+        //        if (cc != null) 
+        //        {
+        //            Debug.Log("Found CC");
+        //            allQuads.Add(cc); 
+        //        } 
+        //    }
+        //    PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
+        //    pqsMod.scatter = this;
+        //    foreach (var cc in allQuads) { cc.scatter = this; cc.GeneratePositions(); }
+        //    yield return null;
+        //}
         public IEnumerator SwitchQuadMaterial(Material mat, bool revert, Scatter scatter)
         {
-            
-            QuadComp[] allQMComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
-            int counter = 0;
-            foreach (QuadComp comp in allQMComps)
+
+            QuadData[] allData = PQSMod_ParallaxScatter.quadList.Values.ToArray();
+            for (int i = 0; i < allData.Length; i++)
             {
-                counter++;
-                if (comp.gameObject.activeSelf && !revert)
+                int counter = 0;
+                foreach (QuadData comp in allData)
                 {
-                    Debug.Log("Instantiating");
-                    PQ quad = comp.quad;
-                    GameObject go = new GameObject();
-                    go.name = quad.name + "-INST";
-                    go.transform.position = quad.transform.position;
-                    go.transform.rotation = quad.transform.rotation;
-                    go.transform.localScale = quad.transform.localScale;
-                    var newQMF = go.AddComponent<MeshFilter>();
-                    newQMF.mesh = GameObject.Instantiate(quad.mesh);
-                    float[] data = PQSMod_ScatterDistribute.scatterData.distributionData[scatter.scatterName].data[quad.name];
-                    Color[] colors = new Color[data.Length];
-                    Color32[] colors32 = new Color32[data.Length];
-                    for (int i = 0; i < quad.mesh.colors.Length; i++)
+                    counter++;
+                    if (!revert)
                     {
-                        if (data != null)
+                        Debug.Log("Instantiating");
+                        PQ quad = comp.quad;
+                        GameObject go = new GameObject();
+                        go.name = quad.name + "-INST";
+                        go.transform.position = quad.transform.position;
+                        go.transform.rotation = quad.transform.rotation;
+                        go.transform.localScale = quad.transform.localScale;
+                        var newQMF = go.AddComponent<MeshFilter>();
+                        newQMF.mesh = GameObject.Instantiate(quad.mesh);
+                        float[] data = PQSMod_ScatterDistribute.scatterData.distributionData[scatter.scatterName].data[quad.name];
+                        Color[] colors = new Color[data.Length];
+                        Color32[] colors32 = new Color32[data.Length];
+                        for (int c = 0; c < quad.mesh.colors.Length; c++)
                         {
-                            colors[i] = new Color(data[i], data[i], data[i]);
-                            colors32[i] = new Color(data[i], data[i], data[i]);
+                            if (data != null)
+                            {
+                                colors[c] = new Color(data[c], data[c], data[c]);
+                                colors32[c] = new Color(data[c], data[c], data[c]);
+                            }
+                            else
+                            {
+                                Debug.Log("Null lol");
+                            }
                         }
-                        else
+                        newQMF.mesh.colors = colors;
+                        newQMF.mesh.colors32 = colors32;
+                        go.GetComponent<MeshFilter>().mesh = newQMF.mesh;
+                        var newQMR = go.AddComponent<MeshRenderer>();
+
+                        newQMR.material = mat;
+                        go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                        go.SetActive(true);
+                    }
+                    if (revert)
+                    {
+                        Debug.Log("Reverting");
+                        PQ quad = comp.quad;
+                        GameObject go = GameObject.Find(quad.name + "-INST");
+                        if (go != null)
                         {
-                            Debug.Log("Null lol");
+                            GameObject.Destroy(go);
                         }
                     }
-                    newQMF.mesh.colors = colors;
-                    newQMF.mesh.colors32 = colors32;
-                    go.GetComponent<MeshFilter>().mesh = newQMF.mesh;
-                    var newQMR = go.AddComponent<MeshRenderer>();
-            
-                    newQMR.material = mat;
-                    go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
-                    go.SetActive(true);
-                }
-                if (revert)
-                {
-                    Debug.Log("Reverting");
-                    PQ quad = comp.quad;
-                    GameObject go = GameObject.Find(quad.name + "-INST");
-                    if (go != null)
+                    if (counter % 20 == 0)
                     {
-                        comp.DestroyGO(go);
+                        yield return null;
                     }
+
                 }
-                if (counter % 20 == 0)
-                {
-                    yield return null;
-                }
-                
             }
         }
         public IEnumerator ForceMaterialUpdate(Scatter scatter)
@@ -255,32 +258,32 @@ namespace Grass
         }
         public void ModifyScatterVisibility()
         {
-            PostCompute[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
-            foreach (PostCompute comp in allComputeComponents)
-            {
-                if (comp.scatterName != null && comp.scatterName == scatterName)
-                {
-                    Debug.Log("Found PC: " + comp.name);
-                    if (comp == null)
-                    {
-                        Debug.Log("Component is null??");
-                    }
-                    comp.active = isVisible;
-                }
-            }
-            ComputeComponent[] allComputeComponents2 = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
-            foreach (ComputeComponent comp in allComputeComponents2)
-            {
-                if (comp.scatter != null && comp.scatter.scatterName == scatterName)
-                {
-                    Debug.Log("Found CC: " + comp.name);
-                    if (comp == null)
-                    {
-                        Debug.Log("Component is null??");
-                    }
-                    //comp.doEvaluate = isVisible;      //Remember dummy you made evaluate separate
-                }
-            }
+            //PostCompute[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
+            //foreach (PostCompute comp in allComputeComponents)
+            //{
+            //    if (comp.scatterName != null && comp.scatterName == scatterName)
+            //    {
+            //        Debug.Log("Found PC: " + comp.name);
+            //        if (comp == null)
+            //        {
+            //            Debug.Log("Component is null??");
+            //        }
+            //        comp.active = isVisible;
+            //    }
+            //}
+            //ComputeComponent[] allComputeComponents2 = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
+            //foreach (ComputeComponent comp in allComputeComponents2)
+            //{
+            //    if (comp.scatter != null && comp.scatter.scatterName == scatterName)
+            //    {
+            //        Debug.Log("Found CC: " + comp.name);
+            //        if (comp == null)
+            //        {
+            //            Debug.Log("Component is null??");
+            //        }
+            //        //comp.doEvaluate = isVisible;      //Remember dummy you made evaluate separate
+            //    }
+            //}
         }
         //public int GetGlobalVertexCount(Scatter currentScatter)
         //{
