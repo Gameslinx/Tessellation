@@ -3,12 +3,13 @@ using UnityEngine;
 using Grass;
 using ScatterConfiguratorUtils;
 using System;
+using System.Collections;
 
 namespace ComputeLoader
 {
     public class PostCompute : MonoBehaviour
     {
-        public bool active = true;
+        public bool active = false;
         public Material material;
         public Material materialFar;
         public Material materialFurther;
@@ -45,16 +46,31 @@ namespace ComputeLoader
 
         public Properties scatterProps;
         UnityEngine.Rendering.ShadowCastingMode shadowCastingMode;
+        void OnEnable()
+        {
+            BodySwitchManager.onBodyChange += BodyChanged;
+        }
+        public void BodyChanged(string from, string to) //Activate or deactivate PostCompute component 
+        {
+            Debug.Log("Processing a body change from " + from + " to " + to + " for " + scatterName);
+            if (to != planetName)
+            {
+                this.active = false;
+            }
+            else
+            {
+                this.active = true;
+            }
+        }
         public void SetupAgain(Scatter scatter)
         {
             material = new Material(scatter.properties.scatterMaterial.shader);
 
             //material.SetFloat("_WaveSpeed", 0);
             //material.SetFloat("_HeightCutoff", -1000);
-            material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
+            material = new Material(scatter.properties.scatterMaterial.shader);
+            material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial, scatter.scatterName);
             scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
-            shadowCastingMode = scatter.shadowCastingMode;
-
             materialFar = GameObject.Instantiate(material);
             materialFurther = GameObject.Instantiate(material);
             if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
@@ -63,17 +79,28 @@ namespace ComputeLoader
             materialFurther.CopyPropertiesFromMaterial(material);
             if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
             {
-                materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[0].mainTexName));
+                Debug.Log("Attempting load: " + scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName);
+                materialFar.SetTexture("_MainTex", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[0].mainTexName]);
+            }
+            if (scatter.properties.scatterDistribution.lods.lods[0].normalName != "parent")
+            {
+                materialFar.SetTexture("_BumpMap", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[0].normalName]);
             }
             if (scatter.properties.scatterDistribution.lods.lods[1].mainTexName != "parent")
             {
-                materialFurther.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[1].mainTexName));
+                Debug.Log("Attempting load: " + scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName);
+                materialFurther.SetTexture("_MainTex", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName]);
+            }
+            if (scatter.properties.scatterDistribution.lods.lods[1].normalName != "parent")
+            {
+                materialFurther.SetTexture("_BumpMap", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].normalName]);
             }
             CreateBuffers();
             InitializeBuffers();
         }
         public void Setup(ComputeBuffer buffer, ComputeBuffer farBuffer, ComputeBuffer furtherBuffer, Scatter scatter)
         {
+            
             if (!setupInitial)
             {
                 GameObject go = GameDatabase.Instance.GetModel(scatter.model);
@@ -84,7 +111,7 @@ namespace ComputeLoader
                 go = GameDatabase.Instance.GetModel(scatter.properties.scatterDistribution.lods.lods[1].modelName);
                 furtherMesh = GameObject.Instantiate(go.GetComponent<MeshFilter>().mesh);
                 material = new Material(scatter.properties.scatterMaterial.shader);
-                material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial);
+                material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial, scatter.scatterName);
                 scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
                 shadowCastingMode = scatter.shadowCastingMode;
                 materialFar = GameObject.Instantiate(material);
@@ -95,11 +122,21 @@ namespace ComputeLoader
                 materialFurther.CopyPropertiesFromMaterial(material);
                 if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
                 {
-                    materialFar.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[0].mainTexName));
+                    Debug.Log("Attempting load: " + scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName);
+                    materialFar.SetTexture("_MainTex", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[0].mainTexName]);
+                }
+                if (scatter.properties.scatterDistribution.lods.lods[0].normalName != "parent")
+                {
+                    materialFar.SetTexture("_BumpMap", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[0].normalName]);
                 }
                 if (scatter.properties.scatterDistribution.lods.lods[1].mainTexName != "parent")
                 {
-                    materialFurther.SetTexture("_MainTex", Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == scatter.properties.scatterDistribution.lods.lods[1].mainTexName));
+                    Debug.Log("Attempting load: " + scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName);
+                    materialFurther.SetTexture("_MainTex", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].mainTexName]);
+                }
+                if (scatter.properties.scatterDistribution.lods.lods[1].normalName != "parent")
+                {
+                    materialFurther.SetTexture("_BumpMap", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].normalName]);
                 }
                 subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
                 subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2));
@@ -155,13 +192,13 @@ namespace ComputeLoader
 
         public void Update()
         {
+            if (!this.active)
+            {
+                return;
+            }
             if (HighLogic.LoadedSceneIsFlight)
             {
                 this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
-                if (!this.active)
-                {
-                    return;
-                }
                 if (this.mesh != null)
                 {
                     Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
@@ -176,6 +213,7 @@ namespace ComputeLoader
                     return;
                 }
             }
+            
         }
         private void SetPlanetOrigin()
         {
@@ -184,20 +222,20 @@ namespace ComputeLoader
             if (material != null && material.HasProperty("_PlanetOrigin"))
             {
                 material.SetVector("_PlanetOrigin", planetOrigin);
-                material.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                material.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
                 material.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
                 //Debug.Log("Shader offset: " + FloatingOrigin.TerrainShaderOffset);
             }
             if (materialFar != null && materialFar.HasProperty("_PlanetOrigin"))
             {
                 materialFar.SetVector("_PlanetOrigin", planetOrigin);
-                materialFar.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                materialFar.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
                 materialFar.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
             }
             if (materialFurther != null && materialFurther.HasProperty("_PlanetOrigin"))
             {
                 materialFurther.SetVector("_PlanetOrigin", planetOrigin);
-                materialFurther.SetFloat("_CurrentTime", Time.realtimeSinceStartup);
+                materialFurther.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
                 materialFurther.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
             }
         }
@@ -208,10 +246,6 @@ namespace ComputeLoader
             bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 2.8f));
             if (scatterProps.scatterDistribution._Range < 5000) { bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 30f)); }
             SetPlanetOrigin();
-        }
-        private void OnEnable()
-        {
-
         }
         private void OnDestroy()
         {
@@ -228,7 +262,7 @@ namespace ComputeLoader
         {
             //EventManager.OnShaderOffsetUpdated -= UpdateBounds;
             //Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
-
+            BodySwitchManager.onBodyChange -= BodyChanged;
             Utils.DestroyComputeBufferSafe(ref mainNear);
             Utils.DestroyComputeBufferSafe(ref mainFar);
             Utils.DestroyComputeBufferSafe(ref mainFurther);

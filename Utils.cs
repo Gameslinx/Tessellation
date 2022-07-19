@@ -71,37 +71,41 @@ namespace ScatterConfiguratorUtils
                 //ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
             }
         }
-        public static ComputeShader GetCorrectComputeShader(Scatter scatter)
+        public static ComputeShader GetCorrectComputeShader(Scatter scatter, out ComputeShaderType shaderType)
         {
             ComputeShader distribute;
+            shaderType = ComputeShaderType.distributeNearest;
             if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
             {
                 distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeNearest"));
+                shaderType = ComputeShaderType.distributeNearest;
             }
             else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent)
             {
                 distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
+                shaderType= ComputeShaderType.distributeFixed;
             }
             else
             {
                 distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
+                shaderType = ComputeShaderType.distributeFixedToHeight;
             }
             return distribute;
         }
-        public static float[] GetDistributionData(Scatter thisScatter, PQ quad)
+        public static QuadDistributionData GetDistributionData(Scatter thisScatter, PQ quad)
         {
             DistributionNoise noise = thisScatter.properties.scatterDistribution.noise;
     
             if (noise.useNoiseProfile != null)
             {
-                return PQSMod_ScatterDistribute.scatterData.distributionData[noise.useNoiseProfile].data[quad.name];
+                return PQSMod_ScatterDistribute.scatterData.distributionData[noise.useNoiseProfile].data[quad];
             }
             else
             {
-                return PQSMod_ScatterDistribute.scatterData.distributionData[thisScatter.scatterName].data[quad.name];
+                return PQSMod_ScatterDistribute.scatterData.distributionData[thisScatter.scatterName].data[quad];
             }
         }
-        public static void SetDistributionVars(ref ComputeShader distribute, Scatter scatter, Transform transform, int quadSubdivisionDifference, int triCount, string sphereName)
+        public static void SetDistributionVars(ref ComputeShader distribute, Scatter scatter, Transform transform, int quadSubdivisionDifference, int triCount, string sphereName, int kernel)
         {
             
             CelestialBody body = FlightGlobals.GetBodyByName(sphereName);
@@ -114,6 +118,7 @@ namespace ScatterConfiguratorUtils
             if (FlightGlobals.ActiveVessel != null && !FlightGlobals.ready) { distribute.SetVector("_ShaderOffset", Vector3.zero); }    //During scene change
 
             distribute.SetInt("_MaxCount", (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
+            if (scatter.scatterName == "Mun-SmallRocks" && scatter.properties.maxCount != 0) { distribute.SetInt("_MaxCount", (int)scatter.properties.maxCount); }
             distribute.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
             distribute.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
             distribute.SetFloat("minAltitude", scatter.properties.scatterDistribution._MinAltitude);
@@ -142,7 +147,7 @@ namespace ScatterConfiguratorUtils
             distribute.SetMatrix("_WorldToPlanet", body.gameObject.transform.worldToLocalMatrix);
             distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance);
 
-            Vector2d latlon = LatLon.GetLatitudeAndLongitude(body.BodyFrame, body.transform.position, transform.position);
+            UnityEngine.Vector2d latlon = LatLon.GetLatitudeAndLongitude(body.BodyFrame, body.transform.position, transform.position);
             double lat = System.Math.Abs(latlon.x) % 45.0 - 22.5;
             double lon = System.Math.Abs(latlon.y) % 45.0 - 22.5;   //From -22.5 to 22.5 where 0 we want the highest density and -22.5 we want 1/3 density
             lat /= 22.5;
@@ -152,15 +157,19 @@ namespace ScatterConfiguratorUtils
             lon = System.Math.Abs(lon);    //Now from 0 to 1. 1 when at a corner
 
             double factor = (lat + lon) / 2;
-            float multiplier = Mathf.Clamp01(Mathf.Lerp(1.0f, 0.333333f, Mathf.Pow((float)factor, 3)));
-            if (scatter.properties.scatterDistribution._PopulationMultiplier > 2 && multiplier < 0.65f)
-            {
-                distribute.SetInt("_PopulationMultiplier", (int)(Mathf.Round((scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) * multiplier)));
-            }
-            if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f)
-            {
-                distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance * multiplier);
-            }
+            float multiplier = Mathf.Clamp01(Mathf.Lerp(1.0f, 0.333333f, Mathf.Pow((float)factor, 2)));
+            float spawnChance = multiplier * scatter.properties.scatterDistribution._SpawnChance;
+            distribute.SetFloat("_SpawnChance", spawnChance);
+            //if (scatter.properties.scatterDistribution._PopulationMultiplier > 2 && multiplier < 0.65f)
+            //{
+            //    distribute.SetInt("_PopulationMultiplier", (int)(Mathf.Round((scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference) * multiplier)));
+            //    distribute.SetInt("_MaxCount", (triCount / 3) * (int)((float)scatter.properties.scatterDistribution._PopulationMultiplier * (float)quadSubdivisionDifference * multiplier));
+            //}
+            //if (scatter.properties.scatterDistribution._PopulationMultiplier < 3 && multiplier < 0.65f)
+            //{
+            //    distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance * multiplier);
+            //    distribute.SetInt("_MaxCount", (triCount / 3) * (int)((float)scatter.properties.scatterDistribution._PopulationMultiplier * (float)quadSubdivisionDifference * multiplier));
+            //}
 
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             if (scatter.alignToTerrainNormal) { distribute.SetInt("_AlignToNormal", 1); } else { distribute.SetInt("_AlignToNormal", 0); }
@@ -214,40 +223,7 @@ namespace ScatterConfiguratorUtils
                 force = null;
             }
         }
-        public static Material GetSubObjectMaterial(Scatter scatter, int index)
-        {
-            
-            if (index >= scatter.subObjectCount)
-            {
-                return new Material(Shader.Find("Standard"));
-            }
-            else
-            {
-                SubObject sub = scatter.subObjects[index];
-                Material mat = new Material(sub.properties.material.shader);
-
-                mat = SetShaderProperties(mat, sub.properties.material);
-
-                return mat;
-            }
-        }
-        public static Mesh GetSubObjectMesh(Scatter scatter, int index, out int vertCount)
-        {
-            if (index >= scatter.subObjectCount)
-            {
-                vertCount = 0;
-                return null;
-            }
-            else
-            {
-                SubObject sub = scatter.subObjects[index];
-                GameObject go = GameDatabase.Instance.GetModel(sub.properties.model);
-                Mesh mesh = GameObject.Instantiate( go.GetComponent<MeshFilter>().mesh);
-                vertCount = mesh.vertexCount;
-                return mesh;
-            }
-        }
-        public static Material SetShaderProperties(Material mat, ScatterMaterial scatterMaterial)
+        public static Material SetShaderProperties(Material mat, ScatterMaterial scatterMaterial, string scatterName)
         {
             Dictionary<string, string> textures = scatterMaterial.Textures;
             Dictionary<string, float> floats = scatterMaterial.Floats;
@@ -261,7 +237,8 @@ namespace ScatterConfiguratorUtils
             string[] colorKeys = colors.Keys.ToArray();
             for (int i = 0; i < texKeys.Length; i++)
             {
-                mat.SetTexture(texKeys[i], Resources.FindObjectsOfTypeAll<Texture>().FirstOrDefault(t => t.name == textures[texKeys[i]]));
+                Debug.Log("Setting texture: " + texKeys[i] + " to " + scatterName + "-" + textures[texKeys[i]]);
+                mat.SetTexture(texKeys[i], LoadOnDemand.activeTextures[scatterName + "-" + texKeys[i]]);
             }
             for (int i = 0; i < floatKeys.Length; i++)
             {
@@ -899,7 +876,6 @@ namespace ScatterConfiguratorUtils
                 {
                     ConfigNode configLOD = lodNode.AddNode("LOD");
                     configLOD.AddValue("model", lod.modelName);
-                    configLOD.AddValue("_MainTex", lod.mainTexName);
                     configLOD.AddValue("range", lod.range);
                     configLOD.AddValue("billboard", lod.isBillboard);
                 }
@@ -911,19 +887,6 @@ namespace ScatterConfiguratorUtils
                 materialNode.AddValue("_ColorNoiseStrength", mat._ColorNoiseStrength);
                 SaveMaterialNode(materialNode, mat);
                 ConfigNode subObjectsNode = scatterNode.AddNode("SubObjects");
-                foreach (SubObject so in scatter.subObjects)
-                {
-                    ConfigNode soNode = subObjectsNode.AddNode("Object");
-                    soNode.AddValue("name", so.objectName);
-                    soNode.AddValue("model", so.properties.model);
-                    soNode.AddValue("_NoiseScale", so.properties._NoiseScale);
-                    soNode.AddValue("_NoiseAmount", so.properties._NoiseAmount);
-                    soNode.AddValue("_Density", so.properties._Density);
-                    ScatterMaterial soMat = so.properties.material;
-                    ConfigNode soMatNode = soNode.AddNode("Material");
-                    soMatNode.AddValue("shader", soMat.shader.name);
-                    SaveMaterialNode(soMatNode, soMat);
-                }
             }
             node.Save(path);
             

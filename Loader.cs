@@ -20,6 +20,7 @@ namespace Grass
         public SubdivisionProperties subdivisionSettings;
         public int subObjectCount;
         public float memoryMultiplier; //Manual VRAM management until I figure out how to automate it
+        public float maxCount;
     }
     public struct DistributionNoise
     {
@@ -58,7 +59,6 @@ namespace Grass
         public float _SteepMidpoint;
         public float _SpawnChance;
         public float _MaxNormalDeviance;
-        public float _MaxSubdivisionRange;
         public float _MinAltitude;
         public float _MaxAltitude;
         public float _Seed;
@@ -78,6 +78,7 @@ namespace Grass
         public float range;
         public string modelName;
         public string mainTexName;
+        public string normalName;
         public bool isBillboard;
     }
     public struct ScatterMaterial
@@ -98,6 +99,7 @@ namespace Grass
         public SubdivisionMode mode;
         public float range;
         public int level;
+        public int minLevel;
     }
     public enum DistributionNoiseMode
     {
@@ -152,138 +154,135 @@ namespace Grass
         public int subObjectCount = 0;
         public Properties properties;
         public UnityEngine.Rendering.ShadowCastingMode shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        public SubObject[] subObjects;
         public bool isVisible = true;
         public bool useSurfacePos = false;
         public float cullingRange = 0;
         public float cullingLimit = -15;
+        public bool shared = false;
+        public string sharedParent = "";
         
         public Scatter(string name)
         {
             scatterName = name;
         }
-        //public IEnumerator ForceComputeUpdate()
-        //{
-        //    ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
-        //    QuadComp[] allQuadComps = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(QuadComp)) as QuadComp[];
-        //    List<ComputeComponent> allQuads = new List<ComputeComponent>();
-        //    foreach (var quadComp in allQuadComps) 
-        //    {
-        //        Debug.Log("Checking quadComp:");
-        //        ComputeComponent cc = quadComp.comps.Where(c => c?.scatter?.scatterName == scatterName)?.FirstOrDefault(); 
-        //        if (cc != null) 
-        //        {
-        //            Debug.Log("Found CC");
-        //            allQuads.Add(cc); 
-        //        } 
-        //    }
-        //    PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatterName);
-        //    pqsMod.scatter = this;
-        //    foreach (var cc in allQuads) { cc.scatter = this; cc.GeneratePositions(); }
-        //    yield return null;
-        //}
+        public IEnumerator ForceComputeUpdate()
+        {
+            ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
+            foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
+            {
+                foreach (KeyValuePair<string, ScatterCompute> scatter in data.Value.comps)
+                {
+                    if (scatter.Value.scatter.scatterName == scatterName)
+                    {
+                        scatter.Value.Start();
+                    }
+                }
+            }
+            Debug.Log("Finding PQSMod");
+            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatter == this);
+            pqsMod.scatter = this;
+            yield return null;
+        }
         public IEnumerator SwitchQuadMaterial(Material mat, bool revert, Scatter scatter)
         {
 
             QuadData[] allData = PQSMod_ParallaxScatter.quadList.Values.ToArray();
-            for (int i = 0; i < allData.Length; i++)
+            int counter = 0;
+            foreach (QuadData comp in allData)
             {
-                int counter = 0;
-                foreach (QuadData comp in allData)
+                counter++;
+                if (!revert)
                 {
-                    counter++;
-                    if (!revert)
+                    if (!comp.comps.ContainsKey(scatterName))
                     {
-                        Debug.Log("Instantiating");
-                        PQ quad = comp.quad;
-                        GameObject go = new GameObject();
-                        go.name = quad.name + "-INST";
-                        go.transform.position = quad.transform.position;
-                        go.transform.rotation = quad.transform.rotation;
-                        go.transform.localScale = quad.transform.localScale;
-                        var newQMF = go.AddComponent<MeshFilter>();
-                        newQMF.mesh = GameObject.Instantiate(quad.mesh);
-                        float[] data = PQSMod_ScatterDistribute.scatterData.distributionData[scatter.scatterName].data[quad.name];
-                        Color[] colors = new Color[data.Length];
-                        Color32[] colors32 = new Color32[data.Length];
-                        for (int c = 0; c < quad.mesh.colors.Length; c++)
-                        {
-                            if (data != null)
-                            {
-                                colors[c] = new Color(data[c], data[c], data[c]);
-                                colors32[c] = new Color(data[c], data[c], data[c]);
-                            }
-                            else
-                            {
-                                Debug.Log("Null lol");
-                            }
-                        }
-                        newQMF.mesh.colors = colors;
-                        newQMF.mesh.colors32 = colors32;
-                        go.GetComponent<MeshFilter>().mesh = newQMF.mesh;
-                        var newQMR = go.AddComponent<MeshRenderer>();
-
-                        newQMR.material = mat;
-                        go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
-                        go.SetActive(true);
+                        continue;
                     }
-                    if (revert)
+                    Debug.Log("Instantiating");
+                    PQ quad = comp.quad;
+                    GameObject go = new GameObject();
+                    go.name = quad.name + "-INST";
+                    go.transform.position = quad.transform.position;
+                    go.transform.rotation = quad.transform.rotation;
+                    go.transform.localScale = quad.transform.localScale;
+                    var newQMF = go.AddComponent<MeshFilter>();
+                    newQMF.mesh = GameObject.Instantiate(quad.mesh);
+                    float[] data = PQSMod_ScatterDistribute.scatterData.distributionData[scatter.scatterName].data[quad].data;
+                    Color[] colors = new Color[data.Length];
+                    Color32[] colors32 = new Color32[data.Length];
+                    Color[] meshColors = quad.mesh.colors;
+                    for (int c = 0; c < meshColors.Length; c++)
                     {
-                        Debug.Log("Reverting");
-                        PQ quad = comp.quad;
-                        GameObject go = GameObject.Find(quad.name + "-INST");
-                        if (go != null)
+                        if (data != null)
                         {
-                            GameObject.Destroy(go);
+                            colors[c] = new Color(data[c], data[c], data[c]);
+                            colors32[c] = new Color(data[c], data[c], data[c]);
+                        }
+                        else
+                        {
+                            Debug.Log("Null lol");
                         }
                     }
-                    if (counter % 20 == 0)
-                    {
-                        yield return null;
-                    }
+                    newQMF.mesh.colors = colors;
+                    newQMF.mesh.colors32 = colors32;
+                    go.GetComponent<MeshFilter>().mesh = newQMF.mesh;
+                    var newQMR = go.AddComponent<MeshRenderer>();
 
+                    newQMR.material = mat;
+                    go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                    go.SetActive(true);
                 }
+                if (revert)
+                {
+                    Debug.Log("Reverting");
+                    PQ quad = comp.quad;
+                    GameObject go = GameObject.Find(quad.name + "-INST");
+                    if (go != null)
+                    {
+                        GameObject.Destroy(go);
+                    }
+                }
+                if (counter % 50 == 0)
+                {
+                    yield return null;
+                }
+
             }
         }
         public IEnumerator ForceMaterialUpdate(Scatter scatter)
         {
-        
-            PostCompute pc = (UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[]).Where(x => x.scatterName == scatterName)?.FirstOrDefault();
-            if (pc != null)
+            PQSMod_ScatterManager[] managers = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PQSMod_ScatterManager)) as PQSMod_ScatterManager[];
+            Debug.Log("Found " + managers.Length + " PQSMods");
+            PostCompute[] pcs = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
+            Debug.Log("Found " + pcs.Length + " PostCompute components");
+            foreach (PostCompute pc in pcs)
             {
-                pc.scatterProps = properties;
-                pc.SetupAgain(scatter);
+                if (pc.scatterName != null && pc.scatterName == scatter.scatterName)
+                {
+                    if (pc != null)
+                    {
+                        pc.scatterProps = properties;
+                        pc.SetupAgain(scatter);
+                    }
+                }
             }
+            
             yield return null;
         }
         public void ModifyScatterVisibility()
         {
-            //PostCompute[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
-            //foreach (PostCompute comp in allComputeComponents)
-            //{
-            //    if (comp.scatterName != null && comp.scatterName == scatterName)
-            //    {
-            //        Debug.Log("Found PC: " + comp.name);
-            //        if (comp == null)
-            //        {
-            //            Debug.Log("Component is null??");
-            //        }
-            //        comp.active = isVisible;
-            //    }
-            //}
-            //ComputeComponent[] allComputeComponents2 = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
-            //foreach (ComputeComponent comp in allComputeComponents2)
-            //{
-            //    if (comp.scatter != null && comp.scatter.scatterName == scatterName)
-            //    {
-            //        Debug.Log("Found CC: " + comp.name);
-            //        if (comp == null)
-            //        {
-            //            Debug.Log("Component is null??");
-            //        }
-            //        //comp.doEvaluate = isVisible;      //Remember dummy you made evaluate separate
-            //    }
-            //}
+            PostCompute[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
+            foreach (PostCompute comp in allComputeComponents)
+            {
+                if (comp.scatterName != null && comp.scatterName == scatterName)
+                {
+                    Debug.Log("Found PC: " + comp.name);
+                    if (comp == null)
+                    {
+                        Debug.Log("Component is null??");
+                    }
+                    comp.active = isVisible;
+                }
+            }
         }
         //public int GetGlobalVertexCount(Scatter currentScatter)
         //{
@@ -377,37 +376,6 @@ namespace Grass
         //    ScatterLog.Log("Finished counting VRAM for " + currentScatter.scatterName + ": " + scatterRAMUsage + " mb");
         //    return scatterRAMUsage;
         //}
-        public static int CountAll(int[] objs, int[] verts)
-        {
-            int total = 0;
-            for (int i = 0; i < objs.Length; i++)
-            {
-                total += (objs[i] * verts[i]);
-            }
-            return total;
-        }
-        public static int GetMeshVertexCountSafe(Mesh mesh, int countCheck)
-        {
-            if (countCheck > 0 && mesh != null)
-            {
-                return mesh.vertexCount;
-            }
-            else
-            {
-                return 0;
-            }
-        }
-    }
-    public class SubObject
-    {
-        public string objectName;
-        public Scatter scatter;
-        public SubObjectProperties properties;
-        public SubObject(Scatter parent, string name)
-        {
-            objectName = name;
-            scatter = parent;
-        }
     }
     public static class ScatterLog
     {
@@ -486,19 +454,28 @@ namespace Grass
                 {
                     ConfigNode rootNode = globalNodes[i].config;
                     ConfigNode scatterNode = rootNode.nodes[b];
-                    ConfigNode distributionNode = scatterNode.GetNode("Distribution");
-                    ConfigNode materialNode = scatterNode.GetNode("Material");
-                    ConfigNode windNode = scatterNode.GetNode("Wind");
-                    ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
-                    ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
-                    ConfigNode distributionNoiseNode = scatterNode.GetNode("DistributionNoise");
+                    string parentName = scatterNode.GetValue("parent");
+                    if (parentName != null)
+                    {
+                        ConfigNode materialNode = scatterNode.GetNode("Material");
+                        ConfigNode distributionNode = scatterNode.GetNode("Distribution");
+                        ParseSharedScatter(parentName, scatterNode, distributionNode, materialNode, bodyName);    //Shares its distribution data with another scatter
+                    }
+                    else
+                    {
+                        ConfigNode distributionNode = scatterNode.GetNode("Distribution");
+                        ConfigNode materialNode = scatterNode.GetNode("Material");
+                        ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
+                        ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
+                        ConfigNode distributionNoiseNode = scatterNode.GetNode("DistributionNoise");
 
-                    ParseNewBody(scatterNode, distributionNoiseNode, distributionNode, materialNode, windNode, subdivisionSettingsNode, subObjectNode, bodyName);
+                        ParseNewScatter(scatterNode, distributionNoiseNode, distributionNode, materialNode, subdivisionSettingsNode, subObjectNode, bodyName);
+                    }
                 }
                 
             }
         }
-        public void ParseNewBody(ConfigNode scatterNode, ConfigNode distributionNoiseNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode windNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
+        public void ParseNewScatter(ConfigNode scatterNode, ConfigNode distributionNoiseNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
         {
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = bodyName + "-" + scatterNode.GetValue("name");
@@ -524,14 +501,39 @@ namespace Grass
             bool cullLimitCheck = scatterNode.TryGetValue("cullingLimit", ref cullLimit);
             if (cullLimitCheck) { scatter.cullingLimit = float.Parse(cullLimit); }
 
+
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode, bodyName);
             props.scatterMaterial = ParseMaterial(materialNode, false);
-            props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode);
+            props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode, body);
             props.memoryMultiplier = 100;
             scatter.properties = props;
-            scatter.subObjects = ParseSubObjects(scatter, subObjectNode);
             scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS"));
+            body.scatters.Add(scatterName, scatter);
+        }
+        public void ParseSharedScatter(string parentName, ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, string bodyName)
+        {
+            ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
+            string scatterName = bodyName + "-" + scatterNode.GetValue("name");
+            ScatterLog.Log("Parsing shared scatter: " + scatterName);
+            Scatter scatter = new Scatter(scatterName);
+            scatter.shared = true;
+            scatter.sharedParent = parentName;
+            scatter.planetName = bodyName;
+            Properties props = new Properties();
+            scatter.model = scatterNode.GetValue("model");
+
+            string forcedFull = "";
+            bool forcedFullShadows = scatterNode.TryGetValue("shadowMode", ref forcedFull);
+            if (forcedFullShadows && forcedFull == "forcedFull") { scatter.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
+
+            props.scatterMaterial = ParseMaterial(materialNode, false);
+            props.memoryMultiplier = 100;
+            Distribution distribution = new Distribution();
+            ConfigNode lodNode = distributionNode.GetNode("LODs");
+            distribution.lods = ParseLODs(lodNode);
+            props.scatterDistribution = distribution;
+            scatter.properties = props;
             body.scatters.Add(scatterName, scatter);
         }
         public DistributionNoise ParseDistributionNoise(ConfigNode distributionNode, string bodyName)
@@ -644,6 +646,7 @@ namespace Grass
         }
         public LODs ParseLODs(ConfigNode lodNode)
         {
+            
             LODs lods = new LODs();
             ConfigNode[] lodNodes = lodNode.GetNodes("LOD");
             lods.LODCount = lodNodes.Length;
@@ -651,11 +654,17 @@ namespace Grass
             for (int i = 0; i < lods.LODCount; i++)
             {
                 LOD lod = new LOD();
-                lod.range = ParseFloat(ParseVar(lodNodes[i], "range"));
+                
                 lod.modelName = ParseVar(lodNodes[i], "model");
                 lod.mainTexName = ParseVar(lodNodes[i], "_MainTex");
+                string normalName = "parent";
+                bool hasNormal = lodNodes[i].TryGetValue("_BumpMap", ref normalName);
+                if (!hasNormal) { normalName = "parent"; }
+                lod.normalName = normalName;
                 if (lodNodes[i].HasValue("billboard") && lodNodes[i].GetValue("billboard").ToLower() == "true") { lod.isBillboard = true; Debug.Log("has billboard"); }
                 else { lod.isBillboard = false; }
+
+                if (lodNodes[i].HasValue("range")) { lod.range = ParseFloat(ParseVar(lodNodes[i], "range")); }
 
                 lods.lods[i] = lod;
                 //Parse models on main menu after they have loaded
@@ -811,7 +820,7 @@ namespace Grass
 
             return material;
         }
-        public SubdivisionProperties ParseSubdivisionSettings(ConfigNode subdivNode)
+        public SubdivisionProperties ParseSubdivisionSettings(ConfigNode subdivNode, ScatterBody body)
         {
             SubdivisionProperties props = new SubdivisionProperties();
 
@@ -831,29 +840,13 @@ namespace Grass
 
             props.level = (int)ParseFloat(ParseVar(subdivNode, "subdivisionLevel"));
             props.range = ParseFloat(ParseVar(subdivNode, "subdivisionRange"));
+            string minLevel = "";
+            bool hasMinLevel = subdivNode.TryGetValue("minimumSubdivision", ref minLevel);
+            props.minLevel = hasMinLevel ? (int)ParseFloat(minLevel) : body.minimumSubdivision;
 
             return props;
         }
-        public SubObject[] ParseSubObjects(Scatter scatter, ConfigNode subObjectsNode)
-        {
-            if (subObjectsNode == null)
-            {
-                return new SubObject[0];
-            }
-            ConfigNode[] subObjects = subObjectsNode.GetNodes("Object");
-            int count = subObjects.Length;
-            SubObject[] objects = new SubObject[count];
-            scatter.subObjectCount = count;
-            for (int i = 0; i < count; i++)
-            {
-                string name = subObjects[i].GetValue("name");
-                ScatterLog.Log("Parsing SubObject: " + name);
-                SubObject subObject = new SubObject(scatter, name);
-                subObject.properties = ParseSubObjectProperties(subObjects[i]);
-                objects[i] = subObject;
-            }
-            return objects;
-        }
+        
         public SubObjectProperties ParseSubObjectProperties(ConfigNode subNode)
         {
             SubObjectProperties props = new SubObjectProperties();

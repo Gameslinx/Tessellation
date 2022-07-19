@@ -108,18 +108,12 @@ namespace ScatterConfiguratorUtils
         {
             string currentKey = BodyScatters.Keys.ToArray()[currentScatterIndex];
             currentScatter = BodyScatters[currentKey];
-            SubObject currentSub = null;
-            if (currentScatter.subObjects != null && currentScatter.subObjectCount > 0)
-            {
-                currentSub = currentScatter.subObjects[currentSubIndex];
-            }
             GUILayout.BeginVertical();
 
             GUIStyle alignment = GUI.skin.GetStyle("Label");
             alignment.alignment = TextAnchor.MiddleCenter;
 
             GUILayout.Label("Currently displaying scatter: " + currentScatter.scatterName, alignment, GUILayout.ExpandWidth(true));
-            GUILayout.Label("Currently displaying sub: " + currentSub, alignment, GUILayout.ExpandWidth(true));
             GUILayout.BeginHorizontal();
 
             CreateAdvanceButton("Previous Scatter", ref currentScatterIndex, BodyScatters.Values.Count, 0.5f, false);
@@ -127,8 +121,6 @@ namespace ScatterConfiguratorUtils
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
 
-            CreateAdvanceButton("Previous Sub", ref currentSubIndex, currentScatter.subObjects.Length, 0.5f, false);
-            CreateAdvanceButton("Next Sub", ref currentSubIndex, currentScatter.subObjects.Length, 0.5f, true);
             string showHide = "Hide this scatter";
            
             GUILayout.EndHorizontal();
@@ -200,7 +192,7 @@ namespace ScatterConfiguratorUtils
         {
             Properties mainProps = scatter.properties;
             Distribution distProps = scatter.properties.scatterDistribution;
-            mainProps.memoryMultiplier = TextAreaLabelSlider("Memory Multiplier", scatter.properties.memoryMultiplier, 0, 100, ChangeType.Memory);
+            mainProps.maxCount = TextAreaLabelSlider("Max Count", scatter.properties.maxCount, 0, 30000, ChangeType.Distribution);
             scatter.cullingRange = (int)TextAreaLabelFloat("Culling Range", scatter.cullingRange, ChangeType.Evaluate);
             scatter.cullingLimit = (int)TextAreaLabelFloat("Culling Limit", scatter.cullingLimit, ChangeType.Evaluate);
             scatter.properties = mainProps;
@@ -322,7 +314,6 @@ namespace ScatterConfiguratorUtils
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Material Settings", alignment, GUILayout.ExpandWidth(true));
                 props = SetupMaterialUI(props);
-                props._ColorNoiseStrength = TextAreaLabelFloat("Planet Radius", props._ColorNoiseStrength, ChangeType.Distribution);
                 scatter.properties.scatterMaterial = props;
                 //GUILayout.EndVertical();
             }
@@ -354,22 +345,6 @@ namespace ScatterConfiguratorUtils
                 {
                     window.height = absoluteSize.height;
                 }
-            }
-            if (showSubObject && scatter.subObjectCount > 0)
-            {
-                SubObject currentSub = scatter.subObjects[currentSubIndex];
-                SubObjectProperties props = currentSub.properties;
-                GUILayout.Label("Scatter SubObject Settings: " + currentScatter.scatterName + " / " + currentSub.objectName, alignment, GUILayout.ExpandWidth(true));
-                props.model = TextAreaLabelModel("Model", props.model, ChangeType.Distribution);
-                GUILayout.Label("Distribution", GUILayout.ExpandWidth(true));
-                props._Density = TextAreaLabelFloat("Spawn Chance", props._Density, ChangeType.Distribution);
-                props._NoiseScale = TextAreaLabelFloat("Noise Scale", props._NoiseScale, ChangeType.Distribution);
-                props._NoiseAmount = TextAreaLabelFloat("Noise Amount/Influence", props._NoiseAmount, ChangeType.Distribution);
-                GUILayout.Label("Material", GUILayout.ExpandWidth(true));
-                props.material = SetupMaterialUI(props.material);
-                currentSub.properties = props;
-                currentScatter.subObjects[currentSubIndex].properties = props;
-                currentScatter.subObjects[currentSubIndex] = currentSub;
             }
             CreateSaveButton();
         }
@@ -595,7 +570,7 @@ namespace ScatterConfiguratorUtils
             if (type == ChangeType.Rebuild)
             {
                 FlightGlobals.currentMainBody.pqsController.RebuildSphere();
-                //ForceFullUpdate(currentScatter);
+                ForceFullUpdate(currentScatter);
 
             }
             if (type == ChangeType.Material)
@@ -640,7 +615,7 @@ namespace ScatterConfiguratorUtils
             PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
             ScatterLog.Log("Attempting to stop OnUpdate coroutine for " + scatter.scatterName);
             ScatterLog.Log("Stopped");
-            //StartCoroutine(scatter.ForceComputeUpdate());
+            StartCoroutine(scatter.ForceComputeUpdate());
             
         }
         public void ForceTerrainMaterialUpdate(Scatter scatter, bool revert)
@@ -652,7 +627,7 @@ namespace ScatterConfiguratorUtils
         public void ForceDistributionMaterialUpdate(Scatter scatter, bool revert)
         {
             Material distributionViewer = new Material(ScatterShaderHolder.GetShader("Custom/VertexColor"));
-            //StartCoroutine(scatter.SwitchQuadMaterial(distributionViewer, revert, scatter));
+            StartCoroutine(scatter.SwitchQuadMaterial(distributionViewer, revert, scatter));
         }
         public void UpdateVisibility(Scatter scatter)
         {
@@ -683,10 +658,7 @@ namespace ScatterConfiguratorUtils
         //        }
         //    }
         //}
-        public static Material SetAllValues(Material material)
-        {
-            return Utils.SetShaderProperties(material, currentScatter.properties.scatterMaterial);
-        }
+
 
         private static void SaveConfigs(string fileName)
         {
