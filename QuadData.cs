@@ -50,6 +50,14 @@ namespace ParallaxGrass
         public float quadWidth;
         public bool subdivisionAlreadyRequested = false; //ScatterCompute calls back to here to subdivide the quad only when it gets in range, and only once
 
+        public ComputeBuffer vertexBuffer;
+        public ComputeBuffer normalBuffer;
+        public ComputeBuffer triBuffer;
+
+        public ComputeBuffer subdividedVertexBuffer;
+        public ComputeBuffer subdividedNormalBuffer;
+        public ComputeBuffer subdividedTriangleBuffer;
+
         public QuadData(PQ pq)
         {
             quad = pq;
@@ -58,6 +66,12 @@ namespace ParallaxGrass
             data.vertices = quad.mesh.vertices;
             data.normals = quad.mesh.normals;
             data.tris = quad.mesh.triangles;
+            vertexBuffer = new ComputeBuffer(data.vertices.Length, 12, ComputeBufferType.Structured);
+            normalBuffer = new ComputeBuffer(data.normals.Length, 12, ComputeBufferType.Structured);
+            triBuffer = new ComputeBuffer(data.tris.Length, sizeof(int), ComputeBufferType.Structured);
+            vertexBuffer.SetData(data.vertices);
+            normalBuffer.SetData(data.normals);
+            triBuffer.SetData(data.tris);
             subdividedData = new MeshData();
             subMesh = GameObject.Instantiate(mesh);
             DetermineQuadWidth();
@@ -78,7 +92,8 @@ namespace ParallaxGrass
             Scatter[] scatters = ScatterBodies.scatterBodies[sphereName].scatters.Values.ToArray();
             for (int i = 0; i < scatters.Length; i++)
             {
-                PQSMod_ScatterManager manager = ActiveBuffers.mods.Find(x => x.scatterName == scatters[i].scatterName);
+
+                ScatterComponent manager = ScatterManagerPlus.scatterComponents[sphereName].Find(x => x.scatter.scatterName == scatters[i].scatterName);
                 if (quad.subdivision >= scatters[i].properties.subdivisionSettings.minLevel && !scatters[i].shared)    //Only add stuff if it's within the minimum subdivision level
                 {
                     //If quad is only in 1 biome and that biome is blacklisted...
@@ -118,10 +133,22 @@ namespace ParallaxGrass
             subdividedData.vertices = subMesh.vertices; //Automatically referenced, don't need to reassign
             subdividedData.normals = subMesh.normals;
             subdividedData.tris = subMesh.triangles;
+            subdividedVertexBuffer = new ComputeBuffer(subdividedData.vertices.Length, 12, ComputeBufferType.Structured);
+            subdividedNormalBuffer = new ComputeBuffer(subdividedData.normals.Length, 12, ComputeBufferType.Structured);
+            subdividedTriangleBuffer = new ComputeBuffer(subdividedData.tris.Length, sizeof(int), ComputeBufferType.Structured);
+            subdividedVertexBuffer.SetData(subdividedData.vertices);
+            subdividedNormalBuffer.SetData(subdividedData.normals);
+            subdividedTriangleBuffer.SetData(subdividedData.tris);
             subdivisionAlreadyRequested = true;
         }
         public void Cleanup()   //Called when the quad is destroyed. Purge anything memory intensive, because this won't be destroyed for a while
         {
+            if (vertexBuffer != null) { vertexBuffer.Release(); vertexBuffer = null; }
+            if (normalBuffer != null) { normalBuffer.Release(); normalBuffer = null; }
+            if (triBuffer != null) { triBuffer.Release(); triBuffer = null; }
+            if (subdividedVertexBuffer != null) { subdividedVertexBuffer.Release(); subdividedVertexBuffer = null; }
+            if (subdividedNormalBuffer != null) { subdividedNormalBuffer.Release(); subdividedNormalBuffer = null; }
+            if (subdividedTriangleBuffer != null) { subdividedTriangleBuffer.Release(); subdividedTriangleBuffer = null; }
             foreach (ScatterCompute scatter in comps.Values)
             {
                 scatter.Cleanup();
@@ -136,7 +163,7 @@ namespace ParallaxGrass
         public Scatter scatter;
         public Properties properties;
         public PQ quad;
-        public PQSMod_ScatterManager pqsMod;
+        public ScatterComponent pqsMod;
         public QuadData parent;                 //Not great technique, but access the mesh data without duplicating its arrays each time
         public MeshData meshData;
 
@@ -146,9 +173,10 @@ namespace ParallaxGrass
         int distributeIndex;
         int evaluateIndex;
 
-        public ComputeBuffer vertexBuffer;
+        public ComputeBuffer vertexBuffer;  //References the buffers in QuadData
         public ComputeBuffer normalBuffer;
         public ComputeBuffer triBuffer;
+
         public ComputeBuffer noiseBuffer;
         public ComputeBuffer positionBuffer;
 
@@ -168,20 +196,15 @@ namespace ParallaxGrass
         int generateDispatchAmount = 0;
 
         string sphereName;
-
         public int totalMem = 0;
         public float quadWidth = 0;
-
         public MeshRenderer quadMeshRenderer;
-
         public bool cleaned = false;
-
         public bool active = false;    //Set true when quad is in subdivision range. True by default for persistent scatters
-
         public bool subdivided = false;
         public QuadDistributionData distributionData;
 
-        public ScatterCompute(Scatter scatter, PQ quad, PQSMod_ScatterManager pqsMod, QuadData parent, string sphereName, ref MeshData meshData, ref MeshData subdividedData)
+        public ScatterCompute(Scatter scatter, PQ quad, ScatterComponent pqsMod, QuadData parent, string sphereName, ref MeshData meshData, ref MeshData subdividedData)
         {
             this.scatter = scatter;
             this.quad = quad;
@@ -202,6 +225,37 @@ namespace ParallaxGrass
             if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange) { active = true; }
             if (active) { Start(); }
             
+        }
+        public float GetTotalMemoryUsage()
+        {
+            float total = 0;
+            Debug.Log(" - Vertex Buffer: Count: " + vertexBuffer.count + ", Stride: " + vertexBuffer.stride + ", Total: " + ((float)(vertexBuffer.count * vertexBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - Normal Buffer: Count: " + normalBuffer.count + ", Stride: " + normalBuffer.stride + ", Total: " + ((float)(normalBuffer.count * normalBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - Triangle Buffer: Count: " + triBuffer.count + ", Stride: " + triBuffer.stride + ", Total: " + ((float)(triBuffer.count * triBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - Noise Buffer: Count: " + noiseBuffer.count + ", Stride: " + noiseBuffer.stride + ", Total: " + ((float)(noiseBuffer.count * noiseBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - Position Buffer: Count: " + positionBuffer.count + ", Stride: " + positionBuffer.stride + ", Total: " + ((float)(positionBuffer.count * positionBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - DC Buffer: Count: " + distributeCountBuffer.count + ", Stride: " + distributeCountBuffer.stride + ", Total: " + ((float)(distributeCountBuffer.count * distributeCountBuffer.stride) / (1024f * 1024f)) + " MB");
+            Debug.Log(" - Args Buffer: Count: " + indirectArgs.count + ", Stride: " + indirectArgs.stride + ", Total: " + ((float)(indirectArgs.count * indirectArgs.stride) / (1024f * 1024f)) + " MB");
+            total += vertexBuffer.count * vertexBuffer.stride;
+            total += normalBuffer.count * normalBuffer.stride;
+            total += triBuffer.count * triBuffer.stride;
+            total += noiseBuffer.count * noiseBuffer.stride;
+            total += positionBuffer.count * positionBuffer.stride;
+            total += distributeCountBuffer.count * distributeCountBuffer.stride;
+            total += indirectArgs.count * indirectArgs.stride;
+
+            int[] count = new int[1];
+            ComputeBuffer tempCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.IndirectArguments);
+            ComputeBuffer.CopyCount(positionBuffer, tempCountBuffer, 0);
+            tempCountBuffer.GetData(count);
+            Debug.Log(" - Position Buffer: Capacity: " + positionBuffer.count + ", Filled: " + count[0] + ", Usage: " + (((float)count[0] / (float)positionBuffer.count) * 100f) + "%");
+            tempCountBuffer.Dispose();
+
+            Debug.Log("Total (one quad) " + (total / (1024f * 1024f)) + " MB");
+
+            
+
+            return total / (1024f * 1024f);
         }
         public void Setup()
         {
@@ -228,13 +282,13 @@ namespace ParallaxGrass
         }
         public void Start()  //Subscribe events here. Determine subdivision level, if the quad needs subdividing, etc
         {
-            if (cleaned) { return; }
+            //if (cleaned) { return; }
             if (ComputeShaderAvailable())   //Generate immediately
             {
                 distribute = pqsMod.computePool[pqsMod.computePool.Count - 1];  //Take last item on list to prevent re-ordering
                 pqsMod.computePool.RemoveAt(pqsMod.computePool.Count - 1);
                 distributeIndex = distribute.FindKernel("DistributePoints");
-                if (!active) { UpdateQueue(); return; }
+                if (!active || cleaned) { UpdateQueue(); return; }
                 InitializeGenerate();
                 PrepareGenerate(true);
                 DispatchGenerate();
@@ -260,7 +314,7 @@ namespace ParallaxGrass
             if (scatter.properties.subdivisionSettings.mode != SubdivisionMode.NearestQuads) { return; }
             if (!active)    //Run once - This is the range check
             {
-                if (Vector3.Distance(quad.gameObject.transform.position, GlobalPoint.originPoint) - quadWidth < scatter.properties.subdivisionSettings.range)   //Distance check - In range AND subdivided
+                if (FlightGlobals.ready && Vector3.Distance(quad.gameObject.transform.position, GlobalPoint.originPoint) - quadWidth < scatter.properties.subdivisionSettings.range)   //Distance check - In range AND subdivided
                 {
                     if (!subdivided) { parent.SubdivideQuad(); subdivided = true;  }
                     active = true;
@@ -298,9 +352,6 @@ namespace ParallaxGrass
         public void InitializeGenerate()
         {
             if (!active) { return; }
-            if (vertexBuffer != null) { vertexBuffer.Release(); }
-            if (normalBuffer != null) { normalBuffer.Release(); }
-            if (triBuffer != null) { triBuffer.Release(); }
             if (noiseBuffer != null) { noiseBuffer.Release(); }
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); }
             if (indirectArgs != null) { indirectArgs.Release(); }
@@ -310,10 +361,20 @@ namespace ParallaxGrass
             int numObjects = (int)((float)((meshData.tris.Length / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivDifference * scatter.properties.scatterDistribution.noise._MaxStacks) * scatter.properties.scatterDistribution._SpawnChance);
             if (numObjects == 0) { numObjects = 1; }
 
-            vertexBuffer = new ComputeBuffer(meshData.vertices.Length, 12, ComputeBufferType.Structured);
-            normalBuffer = new ComputeBuffer(meshData.normals.Length, 12, ComputeBufferType.Structured);
+            if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.NearestQuads)
+            {
+                vertexBuffer = parent.subdividedVertexBuffer;
+                normalBuffer = parent.subdividedNormalBuffer;
+                triBuffer = parent.subdividedTriangleBuffer;
+            }
+            else
+            {
+                vertexBuffer = parent.vertexBuffer;
+                normalBuffer = parent.normalBuffer;
+                triBuffer = parent.triBuffer;
+            }
+
             positionBuffer = new ComputeBuffer(numObjects, PositionData.Size(), ComputeBufferType.Append);
-            triBuffer = new ComputeBuffer(meshData.tris.Length, sizeof(int), ComputeBufferType.Structured);
             noiseBuffer = distributionData.data != null ? new ComputeBuffer(distributionData.data.Length, sizeof(float), ComputeBufferType.Structured) : new ComputeBuffer(1, sizeof(float), ComputeBufferType.Structured); //new ComputeBuffer(distributionNoise.Length, sizeof(float), ComputeBufferType.Structured);
             distributeCountBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.IndirectArguments);
             indirectArgs = new ComputeBuffer(1, sizeof(int) * 3, ComputeBufferType.IndirectArguments);
@@ -322,10 +383,10 @@ namespace ParallaxGrass
 
             totalMem = vertexBuffer.stride * vertexBuffer.count + normalBuffer.stride * normalBuffer.count + positionBuffer.stride * positionBuffer.count + triBuffer.stride * triBuffer.count + noiseBuffer.stride * noiseBuffer.count + distributeCountBuffer.stride * distributeCountBuffer.count;
 
-            vertexBuffer.SetData(meshData.vertices);
-            triBuffer.SetData(meshData.tris);
+            //vertexBuffer.SetData(meshData.vertices);
+            //triBuffer.SetData(meshData.tris);
             if (distributionData.data != null) { noiseBuffer.SetData(distributionData.data); }; //Otherwise null
-            normalBuffer.SetData(meshData.normals);
+            //normalBuffer.SetData(meshData.normals);
 
             distribute.SetBuffer(distributeIndex, "Objects", vertexBuffer);
             distribute.SetBuffer(distributeIndex, "Tris", triBuffer);
@@ -371,6 +432,7 @@ namespace ParallaxGrass
             indirectArgs.SetData(workGroups);
             currentlyReadingDist = false;
 
+            Debug.Log("Readback: " + scatter.scatterName);
             InitializeEvaluate();
             UpdateQueue();          //Dequeue and process the next quad
         }
@@ -391,8 +453,8 @@ namespace ParallaxGrass
         {
             if (currentlyReadingDist) { return; }
             if (objectCount == 0) { return; }
-            if (!pqsMod.buffersCreated) { return; }
-
+            if (!pqsMod.buffersCreated) { Debug.Log("[Exception] Buffers not created for " + scatter.scatterName); return; }
+            Debug.Log("Evaluate initialized: " + scatter.scatterName + " at offset " + FloatingOrigin.TerrainShaderOffset.ToString("F3"));
             evaluate.SetBuffer(evaluateIndex, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
             evaluate.SetBuffer(evaluateIndex, "Positions", positionBuffer);
             evaluate.SetBuffer(evaluateIndex, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
@@ -426,9 +488,6 @@ namespace ParallaxGrass
         }
         public void Hibernate() //Used in range check to clean up data that could be used again
         {
-            if (vertexBuffer != null) { vertexBuffer.Release(); }
-            if (normalBuffer != null) { normalBuffer.Release(); }
-            if (triBuffer != null) { triBuffer.Release(); }
             if (noiseBuffer != null) { noiseBuffer.Release(); }
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); }
             if (indirectArgs != null) { indirectArgs.Release(); }
@@ -446,9 +505,7 @@ namespace ParallaxGrass
             GameEvents.onVesselChange.Remove(OnVesselSwitch);
             GameEvents.onVesselWillDestroy.Remove(OnVesselDestroyed);
 
-            if (vertexBuffer != null) { vertexBuffer.Release(); vertexBuffer = null; }
-            if (normalBuffer != null) { normalBuffer.Release(); normalBuffer = null; }
-            if (triBuffer != null) { triBuffer.Release(); triBuffer = null; }
+            
             if (noiseBuffer != null) { noiseBuffer.Release(); noiseBuffer = null; }
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); distributeCountBuffer = null; }
             if (indirectArgs != null) { indirectArgs.Release(); indirectArgs = null; }
@@ -462,7 +519,10 @@ namespace ParallaxGrass
             //ShaderPool.ReturnShader(distribute, shaderType);
             //ShaderPool.ReturnShader(evaluate, ComputeShaderType.evaluate);
 
+            active = false;
+            subdivided = false;
             cleaned = true;
         }
+        
     }
 }

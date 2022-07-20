@@ -58,7 +58,6 @@ namespace Grass
                 stop = true;
                 pc.active = false;
                 pc.setupInitial = false;    //Force setup again on body switch
-                if (co != null) { StopCoroutine(co); }
             }
             if (to == scatter.planetName)
             {
@@ -66,8 +65,6 @@ namespace Grass
                 pc.active = true;
                 Debug.Log("New body by name: " + to);
                 Debug.Log("Successful body change for: " + to + " - " + FlightGlobals.GetBodyByName(to).name);
-                if (co != null) { StopCoroutine(co); }
-                co = StartCoroutine(OnUpdate());
             }
         }
         public void OnSceneChanged(GameScenes from, GameScenes to)
@@ -85,18 +82,15 @@ namespace Grass
         public bool stop = false;
         public WaitForSeconds framerate = new WaitForSeconds(1);
         WaitForSeconds rapidWait = new WaitForSeconds(0.0606f);
-        Coroutine co;
-        public IEnumerator OnUpdate()
+
+        public void Update()
         {
-            while (true)
+            if (HighLogic.LoadedScene != GameScenes.FLIGHT) { return; }
+            if (!stop)
             {
-                if (HighLogic.LoadedScene != GameScenes.FLIGHT) { if (co != null) { StopCoroutine(co); } yield return null; }
-                if (!stop)
-                {
-                    pc.Setup(Buffers.activeBuffers[scatterName].buffer, Buffers.activeBuffers[scatterName].farBuffer, Buffers.activeBuffers[scatterName].furtherBuffer, scatter);
-                }
-                yield return rapidWait;
+                pc.Setup(Buffers.activeBuffers[parentName].buffer, Buffers.activeBuffers[parentName].farBuffer, Buffers.activeBuffers[parentName].furtherBuffer, scatter);
             }
+
         }
     }
     [RequireConfigType(ConfigType.Node)]

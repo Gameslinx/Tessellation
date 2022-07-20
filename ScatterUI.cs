@@ -196,8 +196,7 @@ namespace ScatterConfiguratorUtils
             scatter.cullingRange = (int)TextAreaLabelFloat("Culling Range", scatter.cullingRange, ChangeType.Evaluate);
             scatter.cullingLimit = (int)TextAreaLabelFloat("Culling Limit", scatter.cullingLimit, ChangeType.Evaluate);
             scatter.properties = mainProps;
-            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
-            pqsMod.quadCount = (int)mainProps.memoryMultiplier;
+            ScatterComponent pqsMod = ScatterManagerPlus.scatterComponents[scatter.planetName].Find(x => x.scatter.scatterName == scatter.scatterName);
             //currentChangeType = ChangeType.Memory;
             //anyValueHasChanged = true;
             //bool displayDeviance = false;
@@ -593,12 +592,6 @@ namespace ScatterConfiguratorUtils
             {
                 ForceDistributionMaterialUpdate(currentScatter, revertDistributionMaterial);
             }
-            if (type == ChangeType.Memory)
-            {
-                PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == currentScatter.scatterName);
-                pqsMod.scatter = currentScatter;
-                pqsMod.CreateBuffers();
-            }
             if (type == ChangeType.Evaluate)
             {
                 ForceFullUpdate(currentScatter);
@@ -612,7 +605,7 @@ namespace ScatterConfiguratorUtils
         public void ForceFullUpdate(Scatter scatter)
         {
             ScatterLog.Log("Forcing a full update on " + scatter);
-            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatterName == scatter.scatterName);
+            ScatterComponent pqsMod = ScatterManagerPlus.scatterComponents[scatter.planetName].Find(x => x.scatter.scatterName == scatter.scatterName);
             ScatterLog.Log("Attempting to stop OnUpdate coroutine for " + scatter.scatterName);
             ScatterLog.Log("Stopped");
             StartCoroutine(scatter.ForceComputeUpdate());

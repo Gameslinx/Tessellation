@@ -38,26 +38,27 @@ namespace ParallaxGrass
                     }
                     foreach (ScatterCompute sc in data.comps.Values)
                     {
-                        totalMem += sc.totalMem / (1024f * 1024f);
+                        totalMem += sc.GetTotalMemoryUsage(); //(float)sc.totalMem / (1024f * 1024f);
                         if (!sc.quad.isVisible || sc.cleaned)
                         {
                             cleanedCount++;
                         }
                     }
                 }
-                Debug.Log("Total memory in use by compute buffers: " + totalMem);
-                Debug.Log("Total memory in use by compute buffers: " + ((float)totalMem / (1024f * 1024f)) + "mb");
+                Debug.Log("Total memory in use by compute buffers: " + totalMem + " MB");
                 Debug.Log("Out of a total of " + count + " quads, " + actualCleanedCount + " were invisible and " + cleanedCount + " quadData components were inactive");
 
                 //Get total object count in all compute buffers
-                foreach (PQSMod_ScatterManager scatterManager in ActiveBuffers.mods)
+                foreach (ScatterComponent scatterManager in ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name])
                 {
-                    if (scatterManager.scatterName != null && Buffers.activeBuffers.ContainsKey(scatterManager.scatterName))
+                    if (scatterManager.scatter.scatterName != null && Buffers.activeBuffers.ContainsKey(scatterManager.scatter.scatterName))
                     {
-                        int objCount = Buffers.activeBuffers[scatterManager.scatterName].GetObjectCount();
-                        int capacity = Buffers.activeBuffers[scatterManager.scatterName].GetCapacity();
-                        Debug.Log("Object count of " + scatterManager.scatterName + " right now is " + objCount + " out of " + capacity + " which means " + (((float)objCount / (float)capacity) * 100) + "% of the buffer is in use right now");
-                        totalMem += Buffers.activeBuffers[scatterManager.scatterName].GetMemoryInMB();
+                        int objCount = Buffers.activeBuffers[scatterManager.scatter.scatterName].GetObjectCount();
+                        int capacity = Buffers.activeBuffers[scatterManager.scatter.scatterName].GetCapacity();
+                        Debug.Log("Object count of " + scatterManager.scatter.scatterName + " right now is " + objCount + " out of " + capacity + " which means " + (((float)objCount / (float)capacity) * 100) + "% of the buffer is in use right now");
+                        float localTotal = Buffers.activeBuffers[scatterManager.scatter.scatterName].GetMemoryInMB();
+                        Debug.Log(" - Total for this compute buffer: " + localTotal + " MB");
+                        totalMem += localTotal;
                     }
                 }
                 Debug.Log("Absolute total memory usage of everything (in MB): " + totalMem);
@@ -65,17 +66,11 @@ namespace ParallaxGrass
 
             if (flag2)
             {
-                Debug.Log("Number of textures loaded right now: " + LoadOnDemand.activeTextures.Count);
-                float memImpact = 0;
-                foreach(KeyValuePair<string, Texture> activeTexture in LoadOnDemand.activeTextures)
+                foreach (ScatterComponent sc in ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name])
                 {
-                    memImpact += Profiler.GetRuntimeMemorySizeLong(activeTexture.Value);
-                    Debug.Log("Memory impact of " + activeTexture.Key + " is " + (Profiler.GetRuntimeMemorySizeLong(activeTexture.Value) / (1024L * 1024L)));
-                    Debug.Log("\t - GraphicsFormat: " + activeTexture.Value.graphicsFormat.ToString());
-                    Debug.Log("\t - IsReadable: " + activeTexture.Value.isReadable.ToString());
-                    Debug.Log("\t - Mip Count: " + activeTexture.Value.mipmapCount.ToString());
+                    Debug.Log(sc.scatter.scatterName + " has " + sc.scatterQueue.Count + " items in the queue");
+                    sc.CheckQueue();
                 }
-                Debug.Log("Total memory usage by Scatter textures: " + memImpact);
             }
         }
     }
@@ -92,11 +87,8 @@ namespace ParallaxGrass
         }
         public override void OnQuadDestroy(PQ quad)
         {
-            if (quad.subdivision > ScatterBodies.scatterBodies[quad.sphereRoot.name].minimumSubdivision)    //Remove from dictionary, remember to purge the buffers at least
-            {
-                if (quadList.ContainsKey(quad)) { quadList[quad].Cleanup(); }
-                quadList.Remove(quad);     //Not all quads on destroy are in the dictionary, but it always falls down to 0
-            }
+            if (quadList.ContainsKey(quad)) { quadList[quad].Cleanup(); }
+            quadList.Remove(quad);     //Not all quads on destroy are in the dictionary, but it always falls down to 0
         }
     }
     [RequireConfigType(ConfigType.Node)]

@@ -159,7 +159,8 @@ namespace Grass
         public float cullingRange = 0;
         public float cullingLimit = -15;
         public bool shared = false;
-        public string sharedParent = "";
+        public string sharedParent;
+        public int maxObjects = 10000;  //Large memory impact. 10k is a middle ground number
         
         public Scatter(string name)
         {
@@ -167,6 +168,8 @@ namespace Grass
         }
         public IEnumerator ForceComputeUpdate()
         {
+            ScatterComponent pqsMod = ScatterManagerPlus.scatterComponents[planetName].Find(x => x.scatter == this);
+            pqsMod.scatterQueue.Clear();
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
             foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
             {
@@ -178,8 +181,6 @@ namespace Grass
                     }
                 }
             }
-            Debug.Log("Finding PQSMod");
-            PQSMod_ScatterManager pqsMod = ActiveBuffers.mods.Find(x => x.scatter == this);
             pqsMod.scatter = this;
             yield return null;
         }
@@ -250,8 +251,6 @@ namespace Grass
         }
         public IEnumerator ForceMaterialUpdate(Scatter scatter)
         {
-            PQSMod_ScatterManager[] managers = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PQSMod_ScatterManager)) as PQSMod_ScatterManager[];
-            Debug.Log("Found " + managers.Length + " PQSMods");
             PostCompute[] pcs = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
             Debug.Log("Found " + pcs.Length + " PostCompute components");
             foreach (PostCompute pc in pcs)
@@ -420,6 +419,9 @@ namespace Grass
         public static float rangeMult = 1;
         public static bool frustumCull = true;
         public static float updateMult = 1;
+
+        public static float scatterTextureMult = 1.0f;
+        public static int maxTextureRes = 8192;
     }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScatterLoader : MonoBehaviour
@@ -440,6 +442,10 @@ namespace Grass
             ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier"));
             ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier"));
             ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling"));
+
+            ConfigNode textureNode = settingsNode.config.GetNode("TextureSettings");
+            ScatterGlobalSettings.scatterTextureMult = ParseFloat(ParseVar(scatterNode, "scatterTextureQualityMultiplier"));
+            ScatterGlobalSettings.maxTextureRes = (int)ParseFloat(ParseVar(textureNode, "maxTextureResolution"));
         }
         public void LoadScatterNodes()
         {
@@ -500,7 +506,9 @@ namespace Grass
             string cullLimit = "";
             bool cullLimitCheck = scatterNode.TryGetValue("cullingLimit", ref cullLimit);
             if (cullLimitCheck) { scatter.cullingLimit = float.Parse(cullLimit); }
-
+            string maxObjects = "";
+            bool maxObjectsCheck = scatterNode.TryGetValue("maxObjects", ref maxObjects);
+            if (maxObjectsCheck) { scatter.maxObjects = int.Parse(maxObjects); }
 
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode, bodyName);
@@ -532,6 +540,7 @@ namespace Grass
             Distribution distribution = new Distribution();
             ConfigNode lodNode = distributionNode.GetNode("LODs");
             distribution.lods = ParseLODs(lodNode);
+            distribution._Range = body.scatters[bodyName + "-" + parentName].properties.scatterDistribution._Range;
             props.scatterDistribution = distribution;
             scatter.properties = props;
             body.scatters.Add(scatterName, scatter);

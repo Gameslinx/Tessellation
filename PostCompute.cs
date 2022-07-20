@@ -48,19 +48,7 @@ namespace ComputeLoader
         UnityEngine.Rendering.ShadowCastingMode shadowCastingMode;
         void OnEnable()
         {
-            BodySwitchManager.onBodyChange += BodyChanged;
-        }
-        public void BodyChanged(string from, string to) //Activate or deactivate PostCompute component 
-        {
-            Debug.Log("Processing a body change from " + from + " to " + to + " for " + scatterName);
-            if (to != planetName)
-            {
-                this.active = false;
-            }
-            else
-            {
-                this.active = true;
-            }
+
         }
         public void SetupAgain(Scatter scatter)
         {
@@ -192,10 +180,6 @@ namespace ComputeLoader
 
         public void Update()
         {
-            if (!this.active)
-            {
-                return;
-            }
             if (HighLogic.LoadedSceneIsFlight)
             {
                 this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
@@ -241,8 +225,6 @@ namespace ComputeLoader
         }
         private void UpdateBounds(Vector3d offset)
         {
-            if (!active) { return; }
-            
             bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 2.8f));
             if (scatterProps.scatterDistribution._Range < 5000) { bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 30f)); }
             SetPlanetOrigin();
@@ -260,9 +242,7 @@ namespace ComputeLoader
         }
         private void OnDisable()
         {
-            //EventManager.OnShaderOffsetUpdated -= UpdateBounds;
-            //Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
-            BodySwitchManager.onBodyChange -= BodyChanged;
+            setupInitial = false;
             Utils.DestroyComputeBufferSafe(ref mainNear);
             Utils.DestroyComputeBufferSafe(ref mainFar);
             Utils.DestroyComputeBufferSafe(ref mainFurther);
