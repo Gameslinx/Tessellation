@@ -9,7 +9,7 @@ namespace ComputeLoader
 {
     public class PostCompute : MonoBehaviour
     {
-        public bool active = false;
+        public bool active = true;
         public Material material;
         public Material materialFar;
         public Material materialFurther;
@@ -24,8 +24,8 @@ namespace ComputeLoader
 
 
         public ComputeBuffer mainNear;
-        private ComputeBuffer mainFar;
-        private ComputeBuffer mainFurther;
+        public ComputeBuffer mainFar;
+        public ComputeBuffer mainFurther;
 
         private Bounds bounds;
         public bool setupInitial = false;
@@ -57,12 +57,12 @@ namespace ComputeLoader
             //material.SetFloat("_WaveSpeed", 0);
             //material.SetFloat("_HeightCutoff", -1000);
             material = new Material(scatter.properties.scatterMaterial.shader);
-            material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial, scatter.scatterName);
+            Utils.SetShaderProperties(ref material, ref scatter.properties.scatterMaterial, scatter.scatterName);
             scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
             materialFar = GameObject.Instantiate(material);
             materialFurther = GameObject.Instantiate(material);
-            if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
-            if (scatter.properties.scatterDistribution.lods.lods[1].isBillboard) { materialFurther = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
+            if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader("Custom/InstancedCutoutBillboard")); materialFar.SetFloat("_Cutoff", 0.5f); }
+            if (scatter.properties.scatterDistribution.lods.lods[1].isBillboard) { materialFurther = new Material(ScatterShaderHolder.GetShader("Custom/InstancedCutoutBillboard")); materialFurther.SetFloat("_Cutoff", 0.5f); }
             materialFar.CopyPropertiesFromMaterial(material);
             materialFurther.CopyPropertiesFromMaterial(material);
             if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
@@ -88,7 +88,7 @@ namespace ComputeLoader
         }
         public void Setup(ComputeBuffer buffer, ComputeBuffer farBuffer, ComputeBuffer furtherBuffer, Scatter scatter)
         {
-            
+            if (buffer == null) { Debug.Log("The buffer is null"); }
             if (!setupInitial)
             {
                 GameObject go = GameDatabase.Instance.GetModel(scatter.model);
@@ -99,13 +99,14 @@ namespace ComputeLoader
                 go = GameDatabase.Instance.GetModel(scatter.properties.scatterDistribution.lods.lods[1].modelName);
                 furtherMesh = GameObject.Instantiate(go.GetComponent<MeshFilter>().mesh);
                 material = new Material(scatter.properties.scatterMaterial.shader);
-                material = Utils.SetShaderProperties(material, scatter.properties.scatterMaterial, scatter.scatterName);
+                Utils.SetShaderProperties(ref material, ref scatter.properties.scatterMaterial, scatter.scatterName);
+
                 scatterProps = scatter.properties; //ScatterBodies.scatterBodies[FlightGlobals.currentMainBody.name].scatters["Grass"].properties;
                 shadowCastingMode = scatter.shadowCastingMode;
                 materialFar = GameObject.Instantiate(material);
                 materialFurther = GameObject.Instantiate(material);
-                if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
-                if (scatter.properties.scatterDistribution.lods.lods[1].isBillboard) { materialFurther = new Material(ScatterShaderHolder.GetShader(material.shader.name + "Billboard")); }
+                if (scatter.properties.scatterDistribution.lods.lods[0].isBillboard) { materialFar = new Material(ScatterShaderHolder.GetShader("Custom/InstancedCutoutBillboard")); materialFar.SetFloat("_Cutoff", 0.5f); }
+                if (scatter.properties.scatterDistribution.lods.lods[1].isBillboard) { materialFurther = new Material(ScatterShaderHolder.GetShader("Custom/InstancedCutoutBillboard")); materialFurther.SetFloat("_Cutoff", 0.5f); }
                 materialFar.CopyPropertiesFromMaterial(material);
                 materialFurther.CopyPropertiesFromMaterial(material);
                 if (scatter.properties.scatterDistribution.lods.lods[0].mainTexName != "parent")
@@ -126,8 +127,8 @@ namespace ComputeLoader
                 {
                     materialFurther.SetTexture("_BumpMap", LoadOnDemand.activeTextures[scatter.scatterName + "-" + scatter.properties.scatterDistribution.lods.lods[1].normalName]);
                 }
-                subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
-                subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2));
+                //subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
+                //subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2));
                 vertexCount = mesh.vertexCount;
                 farVertexCount = farMesh.vertexCount;
                 furtherVertexCount = furtherMesh.vertexCount;
@@ -142,6 +143,12 @@ namespace ComputeLoader
             mainNear = buffer;
             mainFar = farBuffer;
             mainFurther = furtherBuffer;
+            InitializeBuffers();
+        }
+        public void ReInitializeBuffers()
+        {
+            ScreenMessages.PostScreenMessage("[PostCompute] Reinitialized buffers externally");
+            CreateBuffers();
             InitializeBuffers();
         }
         private void CreateBuffers()
@@ -180,6 +187,8 @@ namespace ComputeLoader
 
         public void Update()
         {
+            if (!active) { return; }
+            
             if (HighLogic.LoadedSceneIsFlight)
             {
                 this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
@@ -208,7 +217,6 @@ namespace ComputeLoader
                 material.SetVector("_PlanetOrigin", planetOrigin);
                 material.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
                 material.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
-                //Debug.Log("Shader offset: " + FloatingOrigin.TerrainShaderOffset);
             }
             if (materialFar != null && materialFar.HasProperty("_PlanetOrigin"))
             {
@@ -233,9 +241,9 @@ namespace ComputeLoader
         {
             //Utils.ForceGPUFinish(mainNear, typeof(ComputeComponent.GrassData), countCheck);
 
-            Utils.DestroyComputeBufferSafe(ref mainNear);
-            Utils.DestroyComputeBufferSafe(ref mainFar);
-            Utils.DestroyComputeBufferSafe(ref mainFurther);
+            //Utils.DestroyComputeBufferSafe(ref mainNear);
+            //Utils.DestroyComputeBufferSafe(ref mainFar);
+            //Utils.DestroyComputeBufferSafe(ref mainFurther);
             Utils.DestroyComputeBufferSafe(ref argsBuffer);
             Utils.DestroyComputeBufferSafe(ref farArgsBuffer);
             Utils.DestroyComputeBufferSafe(ref furtherArgsBuffer);
@@ -243,9 +251,9 @@ namespace ComputeLoader
         private void OnDisable()
         {
             setupInitial = false;
-            Utils.DestroyComputeBufferSafe(ref mainNear);
-            Utils.DestroyComputeBufferSafe(ref mainFar);
-            Utils.DestroyComputeBufferSafe(ref mainFurther);
+            //Utils.DestroyComputeBufferSafe(ref mainNear);
+            //Utils.DestroyComputeBufferSafe(ref mainFar);
+            //Utils.DestroyComputeBufferSafe(ref mainFurther);
             Utils.DestroyComputeBufferSafe(ref argsBuffer);
             Utils.DestroyComputeBufferSafe(ref farArgsBuffer);
             Utils.DestroyComputeBufferSafe(ref furtherArgsBuffer);

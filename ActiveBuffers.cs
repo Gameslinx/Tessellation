@@ -8,7 +8,7 @@ namespace Grass
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class GlobalPoint : MonoBehaviour
     {
-        public static Vector3 originPoint = new Vector3(0f, 100f, 0f);
+        public static Vector3 originPoint = new Vector3(0f, 0f, 0f);
         void Start()
         {
             if (HighLogic.LoadedScene == GameScenes.FLIGHT)
@@ -20,7 +20,10 @@ namespace Grass
         {
             if (HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
-                originPoint = FlightGlobals.ActiveVessel.transform.position;
+                if (FlightGlobals.ActiveVessel != null)
+                {
+                    originPoint = FlightGlobals.ActiveVessel.transform.position;
+                }
             }
             else if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
@@ -58,14 +61,10 @@ namespace Grass
                 ScatterLog.Log("Camera mode changed! Regenerating scatters on " + currentPlanet);   //ShaderOffset changes when camera mode changes
                 foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
                 {
-                    foreach (KeyValuePair<string, ScatterCompute> scatter in data.Value.comps)
+                    foreach (KeyValuePair<Scatter, ScatterCompute> scatter in data.Value.comps)
                     {
                         //Debug.Log("Calling start on the following scatter: " + scatter.Value.scatter.scatterName + ", which is active? " + scatter.Value.active);
-                        if (scatter.Value.active)
-                        {
-                            scatter.Value.Start();
-                        }
-                        
+                        scatter.Value.Start();
                     }
                 }
                 cameraMode = CameraManager.Instance.currentCameraMode;
@@ -100,12 +99,15 @@ namespace Grass
     }
     public class BufferList //Holds the buffers for one scatter
     {
-        public BufferList(int memory, int stride)
+        public int frameCountCreated = 0;
+        public BufferList(int memory, int stride, int frameCount)
         {
             Dispose();
             buffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             farBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             furtherBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
+            frameCountCreated = frameCount;
+            Debug.Log("DEBUG INTERNAL: CREATE BUFFERS");
         }
         public ComputeBuffer buffer;
         public ComputeBuffer farBuffer;
@@ -130,6 +132,7 @@ namespace Grass
             buffer = null;
             farBuffer = null;
             furtherBuffer = null;
+            Debug.Log("DEBUG INTERNAL: DISPOSE BUFFERS");
         }
         public float GetMemoryInMB()
         {

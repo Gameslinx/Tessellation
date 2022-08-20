@@ -48,6 +48,7 @@ namespace Grass
         public LODs lods;
         public BiomeBlacklist blacklist;
         public float _Range;                    //How far from the camera to render at the max graphics setting
+        public float _SqrRange;                 //Use for fast range calculation in distance checks CPU side
         public float _RangePow;                 //Range fade power
         public float _PopulationMultiplier;     //How many scatters to render
         public float _SizeNoiseStrength;        //Strength of perlin noise - How varied the scatter size is
@@ -62,6 +63,7 @@ namespace Grass
         public float _MinAltitude;
         public float _MaxAltitude;
         public float _Seed;
+        public float _AltitudeFadeRange;        //Fade out a scatter over a vertical distance according to size noise. Reduces harshness of a sudden cutoff
     }
     public struct LODs
     {
@@ -161,6 +163,9 @@ namespace Grass
         public bool shared = false;
         public string sharedParent;
         public int maxObjects = 10000;  //Large memory impact. 10k is a middle ground number
+        public bool collideable = false;
+        public bool alwaysCollideable = false;
+        public string collisionMesh;
         
         public Scatter(string name)
         {
@@ -173,11 +178,13 @@ namespace Grass
             ScreenMessages.PostScreenMessage("WARNING: Forcing a compute update is not recommended and should not be called in realtime!");
             foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
             {
-                foreach (KeyValuePair<string, ScatterCompute> scatter in data.Value.comps)
+                foreach (KeyValuePair<Scatter, ScatterCompute> scatter in data.Value.comps)
                 {
                     if (scatter.Value.scatter.scatterName == scatterName)
                     {
+                        scatter.Value.updateTime = false;
                         scatter.Value.Start();
+                        scatter.Value.updateTime = true;
                     }
                 }
             }
@@ -194,11 +201,10 @@ namespace Grass
                 counter++;
                 if (!revert)
                 {
-                    if (!comp.comps.ContainsKey(scatterName))
+                    if (!comp.comps.ContainsKey(scatter))
                     {
                         continue;
                     }
-                    Debug.Log("Instantiating");
                     PQ quad = comp.quad;
                     GameObject go = new GameObject();
                     go.name = quad.name + "-INST";
@@ -229,7 +235,7 @@ namespace Grass
                     var newQMR = go.AddComponent<MeshRenderer>();
 
                     newQMR.material = mat;
-                    go.transform.position += Vector3.Normalize(FlightGlobals.ActiveVessel.transform.position - FlightGlobals.currentMainBody.transform.position);
+                    go.transform.position += Vector3.Normalize(GlobalPoint.originPoint - FlightGlobals.currentMainBody.transform.position) * 0.1f;
                     go.SetActive(true);
                 }
                 if (revert)
@@ -269,89 +275,21 @@ namespace Grass
         }
         public void ModifyScatterVisibility()
         {
-            PostCompute[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(PostCompute)) as PostCompute[];
-            foreach (PostCompute comp in allComputeComponents)
+            List<ScatterComponent> scs = ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name];
+            foreach (ScatterComponent sc in scs)
             {
-                if (comp.scatterName != null && comp.scatterName == scatterName)
+                if (sc.scatter.scatterName == scatterName)
                 {
-                    Debug.Log("Found PC: " + comp.name);
-                    if (comp == null)
-                    {
-                        Debug.Log("Component is null??");
-                    }
-                    comp.active = isVisible;
+                    PostCompute pc = sc.pc;
+                    pc.active = !pc.active;
                 }
+                
             }
         }
-        //public int GetGlobalVertexCount(Scatter currentScatter)
-        //{
-        //    if (currentScatter == null)
-        //    {
-        //        ScatterLog.Log("The next scatter is null!");
-        //        return 0;
-        //    }
-        //    int[] objectCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
-        //    int[] vertCount = new int[] { 0, 0, 0, 0, 0, 0, 0 };
-        //    ScreenMessages.PostScreenMessage("WARNING: Counting all objects, this should not be called in realtime!");
-        //    ComputeComponent[] allComputeComponents = UnityEngine.Resources.FindObjectsOfTypeAll(typeof(ComputeComponent)) as ComputeComponent[];
-        //    foreach (ComputeComponent cc in allComputeComponents)
-        //    {
-        //        
-        //        if (cc.gameObject.activeSelf && cc.scatter.scatterName == currentScatter.scatterName)
-        //        {
-        //            PostCompute pc = cc.pc;
-        //            vertCount[0] = pc.vertexCount;
-        //            vertCount[1] = pc.farVertexCount;
-        //            vertCount[2] = pc.furtherVertexCount;
-        //
-        //            vertCount[3] = pc.subVertexCount1;
-        //            vertCount[4] = pc.subVertexCount2;
-        //            vertCount[5] = pc.subVertexCount3;
-        //            vertCount[6] = pc.subVertexCount4;
-        //
-        //            //objectCount[0] += pc.countCheck;
-        //            //objectCount[1] += pc.farCountCheck;
-        //            //objectCount[2] += pc.furtherCountCheck;
-        //            //
-        //            //objectCount[3] += pc.subCount1;
-        //            //objectCount[4] += pc.subCount2;
-        //            //objectCount[5] += pc.subCount3;
-        //            //objectCount[6] += pc.subCount4;
-        //        }
-        //    }
-        //    ScatterLog.Log("Finished counting objects and vertices");
-        //    ScatterLog.Log("Breakdown for Scatter '" + currentScatter.scatterName + "':");
-        //    ScatterLog.Log("LOD0 Mesh vertex count: " + vertCount[0].ToString("N0"));
-        //    ScatterLog.Log("LOD1 Mesh vertex count: " + vertCount[1].ToString("N0"));
-        //    ScatterLog.Log("LOD2 Mesh vertex count: " + vertCount[2].ToString("N0"));
-        //    Debug.Log("");
-        //    ScatterLog.Log("SO 1 Mesh vertex count: " + vertCount[3].ToString("N0"));
-        //    ScatterLog.Log("SO 2 Mesh vertex count: " + vertCount[4].ToString("N0"));
-        //    ScatterLog.Log("SO 3 Mesh vertex count: " + vertCount[5].ToString("N0"));
-        //    ScatterLog.Log("SO 4 Mesh vertex count: " + vertCount[6].ToString("N0"));
-        //    ScatterLog.Log("----------------------------");
-        //    ScatterLog.Log("LOD0 object count: " + objectCount[0].ToString("N0"));
-        //    ScatterLog.Log("LOD1 object count: " + objectCount[1].ToString("N0"));
-        //    ScatterLog.Log("LOD2 object count: " + objectCount[2].ToString("N0"));
-        //    Debug.Log("");
-        //    ScatterLog.Log("SO 1 object count: " + objectCount[3].ToString("N0"));
-        //    ScatterLog.Log("SO 2 object count: " + objectCount[4].ToString("N0"));
-        //    ScatterLog.Log("SO 3 object count: " + objectCount[5].ToString("N0"));
-        //    ScatterLog.Log("SO 4 object count: " + objectCount[6].ToString("N0"));
-        //    ScatterLog.Log("----------------------------");
-        //    ScatterLog.Log("LOD0 global vertex count: " + (objectCount[0] * vertCount[0]).ToString("N0"));
-        //    ScatterLog.Log("LOD1 global vertex count: " + (objectCount[1] * vertCount[1]).ToString("N0"));
-        //    ScatterLog.Log("LOD2 global vertex count: " + (objectCount[2] * vertCount[2]).ToString("N0"));
-        //    Debug.Log("");
-        //    ScatterLog.Log("SO 1 global vertex count: " + (objectCount[3] * vertCount[3]).ToString("N0"));
-        //    ScatterLog.Log("SO 2 global vertex count: " + (objectCount[4] * vertCount[4]).ToString("N0"));
-        //    ScatterLog.Log("SO 3 global vertex count: " + (objectCount[5] * vertCount[5]).ToString("N0"));
-        //    ScatterLog.Log("SO 4 global vertex count: " + (objectCount[6] * vertCount[6]).ToString("N0"));
-        //    ScatterLog.Log("----------------------------");
-        //    int totalVertCount = CountAll(objectCount, vertCount);
-        //    ScatterLog.Log("Total amount of vertices for this scatter being rendered right now: " + totalVertCount.ToString("N0"));
-        //    return totalVertCount;
-        //}
+        public int GetGlobalVertexCount(Scatter currentScatter)
+        {
+            return 0;
+        }
         //public float GetPlanetVRAMUsage(Scatter currentScatter)
         //{
         //    if (currentScatter == null)
@@ -422,12 +360,22 @@ namespace Grass
 
         public static float scatterTextureMult = 1.0f;
         public static int maxTextureRes = 8192;
+
+        public static bool enableCollisions = false;
+        public static bool onlyQueryControllable = true;
     }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScatterLoader : MonoBehaviour
     {
         public UrlDir.UrlConfig[] globalNodes;
         public UrlDir.UrlConfig settingsNode;
+        public static ScatterLoader Instance;
+        float subdivisionRangeRestraint = 0;    //Collideables MUST share the same range
+        void Awake()
+        {
+            GameObject.DontDestroyOnLoad(this);
+            Instance = this;
+        }
         public void Start()
         {
             globalNodes = GameDatabase.Instance.GetConfigs("ParallaxScatters");
@@ -438,14 +386,17 @@ namespace Grass
         public void LoadGlobalSettings()
         {
             ConfigNode scatterNode = settingsNode.config.GetNode("ScatterSettings");
-            ScatterGlobalSettings.densityMult = ParseFloat(ParseVar(scatterNode, "densityMultiplier"));
-            ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier"));
-            ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier"));
-            ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling"));
+            ScatterGlobalSettings.densityMult = ParseFloat(ParseVar(scatterNode, "densityMultiplier", "1"));
+            ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier", "1"));
+            ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier", "1"));
+            ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling", "true"));
 
             ConfigNode textureNode = settingsNode.config.GetNode("TextureSettings");
-            ScatterGlobalSettings.scatterTextureMult = ParseFloat(ParseVar(scatterNode, "scatterTextureQualityMultiplier"));
-            ScatterGlobalSettings.maxTextureRes = (int)ParseFloat(ParseVar(textureNode, "maxTextureResolution"));
+            ScatterGlobalSettings.scatterTextureMult = ParseFloat(ParseVar(textureNode, "scatterTextureQualityMultiplier", "1"));
+            ScatterGlobalSettings.maxTextureRes = (int)ParseFloat(ParseVar(textureNode, "maxTextureResolution", "8192"));
+
+            ConfigNode collisionsNode = settingsNode.config.GetNode("CollisionSettings");
+            ScatterGlobalSettings.enableCollisions = bool.Parse(ParseVar(collisionsNode, "enableCollisions", "false"));
         }
         public void LoadScatterNodes()
         {
@@ -456,6 +407,7 @@ namespace Grass
                 ScatterBody body = new ScatterBody(bodyName, minSubdiv);
                 ScatterBodies.scatterBodies.Add(bodyName, body);
                 ScatterLog.Log("Parsing body: " + bodyName);
+                subdivisionRangeRestraint = 0;
                 for (int b = 0; b < globalNodes[i].config.nodes.Count; b++)
                 {
                     ConfigNode rootNode = globalNodes[i].config;
@@ -481,11 +433,46 @@ namespace Grass
                 
             }
         }
+        public void LoadNewScatter(string type)
+        {
+            if (!ScatterBodies.scatterBodies.ContainsKey(FlightGlobals.currentMainBody.name))
+            {
+                ScatterBodies.scatterBodies.Add(FlightGlobals.currentMainBody.name, new ScatterBody(FlightGlobals.currentMainBody.name, FlightGlobals.currentMainBody.pqsController.maxLevel.ToString()));
+            }
+
+            UrlDir.UrlConfig[] uiNode = GameDatabase.Instance.GetConfigs("ParallaxUIDefault");
+            for (int b = 0; b < uiNode[0].config.nodes.Count; b++)
+            {
+                ConfigNode rootNode = uiNode[0].config;
+                ConfigNode scatterNode = rootNode.nodes[b];
+                string name = scatterNode.GetValue("name");
+                Debug.Log("Parsing: " + name);
+                if (name == type)
+                {
+                    ConfigNode distributionNode = scatterNode.GetNode("Distribution");
+                    ConfigNode materialNode = scatterNode.GetNode("Material");
+                    ConfigNode subdivisionSettingsNode = scatterNode.GetNode("SubdivisionSettings");
+                    ConfigNode subObjectNode = scatterNode.GetNode("SubObjects");
+                    ConfigNode distributionNoiseNode = scatterNode.GetNode("DistributionNoise");
+
+                    ParseNewScatter(scatterNode, distributionNoiseNode, distributionNode, materialNode, subdivisionSettingsNode, subObjectNode, FlightGlobals.currentMainBody.name);
+                }
+            }
+        }
         public void ParseNewScatter(ConfigNode scatterNode, ConfigNode distributionNoiseNode, ConfigNode distributionNode, ConfigNode materialNode, ConfigNode subdivisionSettingsNode, ConfigNode subObjectNode, string bodyName)
         {
+            
             ScatterBody body = ScatterBodies.scatterBodies[bodyName];   //Bodies contain multiple scatters
             string scatterName = bodyName + "-" + scatterNode.GetValue("name");
-            
+
+            string repeatedName = scatterName;
+            int repeatedCount = 1;
+            while (body.scatters.ContainsKey(repeatedName))  //Just for the UI adding a new scatter to avoid adding duplicate
+            {
+                repeatedName = scatterName + repeatedCount.ToString();
+                repeatedCount++;
+            }
+            scatterName = repeatedName;
             ScatterLog.Log("Parsing scatter: " + scatterName);
             Scatter scatter = new Scatter(scatterName);
             scatter.planetName = bodyName;
@@ -509,6 +496,15 @@ namespace Grass
             string maxObjects = "";
             bool maxObjectsCheck = scatterNode.TryGetValue("maxObjects", ref maxObjects);
             if (maxObjectsCheck) { scatter.maxObjects = int.Parse(maxObjects); }
+            string hasCollider = "";
+            bool colliderCheck = ScatterGlobalSettings.enableCollisions ? scatterNode.TryGetValue("collideable", ref hasCollider) : false;
+            if (colliderCheck) { scatter.collideable = bool.Parse(hasCollider); }
+            string hasAlwaysCollideable = "";
+            bool alwaysCollideableCheck = ScatterGlobalSettings.enableCollisions ? scatterNode.TryGetValue("alwaysCollideable", ref hasAlwaysCollideable) : false;
+            if (alwaysCollideableCheck) { scatter.alwaysCollideable = bool.Parse(hasAlwaysCollideable); }
+            string hasCollisionMesh = "";
+            bool collisionMeshCheck = scatterNode.TryGetValue("collisionMesh", ref hasCollisionMesh);
+            if (collisionMeshCheck) { scatter.collisionMesh = hasCollisionMesh; }
 
             props.scatterDistribution = ParseDistribution(distributionNode);
             props.scatterDistribution.noise = ParseDistributionNoise(distributionNoiseNode, bodyName);
@@ -516,8 +512,12 @@ namespace Grass
             props.subdivisionSettings = ParseSubdivisionSettings(subdivisionSettingsNode, body);
             props.memoryMultiplier = 100;
             scatter.properties = props;
-            scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS"));
+            scatter.updateFPS = ParseFloat(ParseVar(scatterNode, "updateFPS", "30"));
             body.scatters.Add(scatterName, scatter);
+
+            if (subdivisionRangeRestraint == 0 && scatter.collideable) { subdivisionRangeRestraint = props.subdivisionSettings.range; }
+
+
         }
         public void ParseSharedScatter(string parentName, ConfigNode scatterNode, ConfigNode distributionNode, ConfigNode materialNode, string bodyName)
         {
@@ -541,6 +541,7 @@ namespace Grass
             ConfigNode lodNode = distributionNode.GetNode("LODs");
             distribution.lods = ParseLODs(lodNode);
             distribution._Range = body.scatters[bodyName + "-" + parentName].properties.scatterDistribution._Range;
+            distribution._SqrRange = distribution._Range * distribution._Range;
             props.scatterDistribution = distribution;
             scatter.properties = props;
             body.scatters.Add(scatterName, scatter);
@@ -549,12 +550,12 @@ namespace Grass
         {
             DistributionNoise distribution = new DistributionNoise();
 
-            string noiseMode = ParseVar(distributionNode, "mode");
+            string noiseMode = ParseVar(distributionNode, "mode", "Persistent");
             if (noiseMode.ToLower() == "nonpersistent") { distribution.noiseMode = DistributionNoiseMode.NonPersistent; }
             else if (noiseMode.ToLower() == "verticalstack") { distribution.noiseMode = DistributionNoiseMode.VerticalStack; }
             else { distribution.noiseMode = DistributionNoiseMode.Persistent; }
 
-            distribution.useNoiseProfile = (ParseVar(distributionNode, "useNoiseProfile"));
+            distribution.useNoiseProfile = (ParseVar(distributionNode, "useNoiseProfile", null));
             if (distribution.useNoiseProfile != null) { distribution.useNoiseProfile = bodyName + "-" + distribution.useNoiseProfile; }
             if (distribution.useNoiseProfile != null) { ScatterLog.SubLog("Using noise profile: " + distribution.useNoiseProfile); }
             if (distribution.useNoiseProfile != null && distribution.noiseMode != DistributionNoiseMode.Persistent) { ScatterLog.SubLog("[Exception] Attempting to use a noise profile for a non-persistent scatter. This only works if you want to share the same noise as another persistent scatter!"); }
@@ -567,14 +568,14 @@ namespace Grass
 
             if (distribution.noiseMode == DistributionNoiseMode.Persistent || distribution.noiseMode == DistributionNoiseMode.VerticalStack)
             {
-                distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency"));
-                distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity"));
-                distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence"));
-                distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves"));
-                distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed"));
+                distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency", "100"));
+                distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity", "4"));
+                distribution._Persistence = ParseFloat(ParseVar(distributionNode, "_Persistence", "0.5"));
+                distribution._Octaves = ParseFloat(ParseVar(distributionNode, "_Octaves", "4"));
+                distribution._Seed = (int)ParseFloat(ParseVar(distributionNode, "_Seed", "69420")); //Very mature
                 
 
-                string noiseType = ParseVar(distributionNode, "_NoiseType");
+                string noiseType = ParseVar(distributionNode, "_NoiseType", "1");
                 switch (noiseType)
                 {
                     default:
@@ -593,7 +594,7 @@ namespace Grass
                         distribution._NoiseType = 2;
                         break;
                 }
-                string noiseQuality = ParseVar(distributionNode, "_NoiseQuality");
+                string noiseQuality = ParseVar(distributionNode, "_NoiseQuality", "Low");
                 switch (noiseQuality)
                 {
                     default:
@@ -611,15 +612,15 @@ namespace Grass
                 distribution._SizeNoiseOffset = 0;
                 if (distribution.noiseMode == DistributionNoiseMode.VerticalStack)
                 {
-                    distribution._MaxStacks = (int)ParseFloat(ParseVar(distributionNode, "_MaxStacks"));
-                    distribution._StackSeparation = (int)ParseFloat(ParseVar(distributionNode, "_StackSeparation"));
+                    distribution._MaxStacks = (int)ParseFloat(ParseVar(distributionNode, "_MaxStacks", "1"));
+                    distribution._StackSeparation = (int)ParseFloat(ParseVar(distributionNode, "_StackSeparation", "10"));
                 }
             }
             else
             {
-                distribution._SizeNoiseScale = ParseFloat(ParseVar(distributionNode, "_SizeNoiseScale"));
-                distribution._ColorNoiseScale = ParseFloat(ParseVar(distributionNode, "_ColorNoiseScale"));
-                distribution._SizeNoiseOffset = ParseFloat(ParseVar(distributionNode, "_SizeNoiseOffset"));
+                distribution._SizeNoiseScale = ParseFloat(ParseVar(distributionNode, "_SizeNoiseScale", "4"));
+                distribution._ColorNoiseScale = ParseFloat(ParseVar(distributionNode, "_ColorNoiseScale", "4"));
+                distribution._SizeNoiseOffset = ParseFloat(ParseVar(distributionNode, "_SizeNoiseOffset", "0"));
             }
 
             return distribution;
@@ -628,21 +629,24 @@ namespace Grass
         {
             Distribution distribution = new Distribution();
             
-            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range")) * ScatterGlobalSettings.rangeMult;
-            distribution._RangePow = ParseFloat(ParseVar(distributionNode, "_RangePow"));
-            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier")) * ScatterGlobalSettings.densityMult;
-            distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength"));
-            distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale"));
-            distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower"));
-            distribution._SteepContrast = ParseFloat(ParseVar(distributionNode, "_SteepContrast"));
-            distribution._SteepMidpoint = ParseFloat(ParseVar(distributionNode, "_SteepMidpoint"));
-            distribution._MaxNormalDeviance = ParseFloat(ParseVar(distributionNode, "_NormalDeviance"));
-            distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale"));
-            distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale"));
-            distribution._MinAltitude = ParseFloat(ParseVar(distributionNode, "_MinAltitude"));
-            distribution._MaxAltitude = ParseFloat(ParseVar(distributionNode, "_MaxAltitude"));
-            distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance"));
-            distribution._Seed = ParseFloat(ParseVar(distributionNode, "_Seed"));
+            distribution._Range = ParseFloat(ParseVar(distributionNode, "_Range", "1000")) * ScatterGlobalSettings.rangeMult;
+            distribution._SqrRange = distribution._Range * distribution._Range;
+            distribution._RangePow = ParseFloat(ParseVar(distributionNode, "_RangePow", "1000"));
+            distribution._PopulationMultiplier = ParseFloat(ParseVar(distributionNode, "_PopulationMultiplier", "1")) * ScatterGlobalSettings.densityMult;
+            distribution._SizeNoiseStrength = ParseFloat(ParseVar(distributionNode, "_SizeNoiseStrength", "1"));
+            distribution._CutoffScale = ParseFloat(ParseVar(distributionNode, "_CutoffScale", "0"));
+            distribution._SteepPower = ParseFloat(ParseVar(distributionNode, "_SteepPower", "1"));
+            distribution._SteepContrast = ParseFloat(ParseVar(distributionNode, "_SteepContrast", "1"));
+            distribution._SteepMidpoint = ParseFloat(ParseVar(distributionNode, "_SteepMidpoint", "0.5"));
+            distribution._MaxNormalDeviance = ParseFloat(ParseVar(distributionNode, "_NormalDeviance", "1"));
+            distribution._MinScale = ParseVector(ParseVar(distributionNode, "_MinScale", "1,1,1"));
+            distribution._MaxScale = ParseVector(ParseVar(distributionNode, "_MaxScale", "1,1,1"));
+            distribution._MinAltitude = ParseFloat(ParseVar(distributionNode, "_MinAltitude", "0"));
+            distribution._MaxAltitude = ParseFloat(ParseVar(distributionNode, "_MaxAltitude", "1000000"));
+            distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance", "1"));
+            distribution._Seed = ParseFloat(ParseVar(distributionNode, "_Seed", "69"));
+            distribution._AltitudeFadeRange = ParseFloat(ParseVar(distributionNode, "_AltitudeFadeRange", "5"));
+
             if ((int)(distribution._PopulationMultiplier) == 0) { distribution._PopulationMultiplier = 1; }
             ConfigNode lodNode = distributionNode.GetNode("LODs");
             ConfigNode biomeBlacklist = null;  //optional
@@ -664,8 +668,8 @@ namespace Grass
             {
                 LOD lod = new LOD();
                 
-                lod.modelName = ParseVar(lodNodes[i], "model");
-                lod.mainTexName = ParseVar(lodNodes[i], "_MainTex");
+                lod.modelName = ParseVar(lodNodes[i], "model", "[Exception] No model defined in the scatter config");
+                lod.mainTexName = ParseVar(lodNodes[i], "_MainTex", "parent");
                 string normalName = "parent";
                 bool hasNormal = lodNodes[i].TryGetValue("_BumpMap", ref normalName);
                 if (!hasNormal) { normalName = "parent"; }
@@ -673,7 +677,7 @@ namespace Grass
                 if (lodNodes[i].HasValue("billboard") && lodNodes[i].GetValue("billboard").ToLower() == "true") { lod.isBillboard = true; Debug.Log("has billboard"); }
                 else { lod.isBillboard = false; }
 
-                if (lodNodes[i].HasValue("range")) { lod.range = ParseFloat(ParseVar(lodNodes[i], "range")); }
+                if (lodNodes[i].HasValue("range")) { lod.range = ParseFloat(ParseVar(lodNodes[i], "range", "5")); }
 
                 lods.lods[i] = lod;
                 //Parse models on main menu after they have loaded
@@ -815,16 +819,16 @@ namespace Grass
         {
             ScatterMaterial material = new ScatterMaterial();
 
-            material.shader = ScatterShaderHolder.GetShader(ParseVar(materialNode, "shader"));
+            material.shader = ScatterShaderHolder.GetShader(ParseVar(materialNode, "shader", "Custom/ParallaxInstanced"));
 
             material = GetShaderVars(material.shader.name, material, materialNode);
             if (!isSubObject)
             {
-                material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor"));
-                material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor"));
+                material._MainColor = ParseColor(ParseVar(materialNode, "_MainColor", "1,1,1,1"));
+                material._SubColor = ParseColor(ParseVar(materialNode, "_SubColor", "1,1,1,1"));
 
                 
-                material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength"));
+                material._ColorNoiseStrength = ParseFloat(ParseVar(materialNode, "_ColorNoiseStrength", "1"));
             }
 
             return material;
@@ -847,40 +851,24 @@ namespace Grass
                 props.mode = SubdivisionMode.FixedRange;
             }
 
-            props.level = (int)ParseFloat(ParseVar(subdivNode, "subdivisionLevel"));
-            props.range = ParseFloat(ParseVar(subdivNode, "subdivisionRange"));
+            props.level = (int)ParseFloat(ParseVar(subdivNode, "subdivisionLevel", "1"));
+            props.range = ParseFloat(ParseVar(subdivNode, "subdivisionRange", "1000"));
+            
             string minLevel = "";
             bool hasMinLevel = subdivNode.TryGetValue("minimumSubdivision", ref minLevel);
             props.minLevel = hasMinLevel ? (int)ParseFloat(minLevel) : body.minimumSubdivision;
 
             return props;
         }
-        
-        public SubObjectProperties ParseSubObjectProperties(ConfigNode subNode)
-        {
-            SubObjectProperties props = new SubObjectProperties();
-            props.model = subNode.GetValue("model");
-            props._NoiseScale = ParseFloat(ParseVar(subNode, "_NoiseScale"));
-            props._NoiseAmount = ParseFloat(ParseVar(subNode, "_NoiseAmount"));
-            props._Density = ParseFloat(ParseVar(subNode, "_Density"));
-            props.material = ParseSubObjectMaterial(subNode.GetNode("Material"));
-            return props;
-        }
-        public ScatterMaterial ParseSubObjectMaterial(ConfigNode subNode)
-        {
-            ScatterMaterial mat = ParseMaterial(subNode, true);
-            
-            
-            return mat;
-        }
-        public string ParseVar(ConfigNode scatter, string valueName)
+       
+        public string ParseVar(ConfigNode scatter, string valueName, string fallback)
         {
             string data = null;
             bool succeeded = scatter.TryGetValue(valueName, ref data);
             if (!succeeded)
             {
-                ScatterLog.SubLog("Unable to get the value of " + valueName);
-                return null;
+                ScatterLog.SubLog("[Warning] Unable to get the value of " + valueName + ", it has been set to " + fallback);
+                return fallback;
             }
             else
             {

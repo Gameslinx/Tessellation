@@ -1,4 +1,5 @@
-﻿using ParallaxGrass;
+﻿using Grass.DebugStuff;
+using ParallaxGrass;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,7 +40,7 @@ namespace Grass
                     ScatterLog.Log("Processing a body change from " + currentBody + " to " + FlightGlobals.currentMainBody);
                     if (onBodyChange != null) { onBodyChange(currentBody, FlightGlobals.currentMainBody.name); }    //Dominant body changed
                                                                                                                     //Submissive body when? o_O wdym by that
-                    currentBody = FlightGlobals.currentMainBody.name;                                               
+                    currentBody = FlightGlobals.currentMainBody.name;
                 }       
             }
             if (currentScene != HighLogic.LoadedScene)
@@ -61,9 +62,9 @@ namespace Grass
                 {
                     foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
                     {
-                        foreach (KeyValuePair<string, ScatterCompute> scatter in data.Value.comps)
+                        foreach (KeyValuePair<Scatter, ScatterCompute> scatter in data.Value.comps)
                         {
-                            scatter.Value.Start();
+                            //scatter.Value.Start();
                         }
                     }
                     lastOpacity = opacity;

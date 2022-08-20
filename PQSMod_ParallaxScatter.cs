@@ -30,6 +30,9 @@ namespace ParallaxGrass
                 int cleanedCount = 0;
                 int actualCleanedCount = 0;
                 float totalMem = 0;
+
+                float bestCase = 0;
+                float worstCase = 0;
                 foreach (QuadData data in PQSMod_ParallaxScatter.quadList.Values)
                 {
                     if (!data.quad.isVisible)
@@ -38,7 +41,11 @@ namespace ParallaxGrass
                     }
                     foreach (ScatterCompute sc in data.comps.Values)
                     {
-                        totalMem += sc.GetTotalMemoryUsage(); //(float)sc.totalMem / (1024f * 1024f);
+                        Vector3 usage = sc.GetTotalMemoryUsage();
+                        Debug.Log(" - - - Best case: " + usage.z.ToString("F3") + " - - - Worst case: " + usage.y.ToString("F3"));
+                        bestCase += usage.z;
+                        worstCase += usage.y;
+                        totalMem += usage.x; //(float)sc.totalMem / (1024f * 1024f);
                         if (!sc.quad.isVisible || sc.cleaned)
                         {
                             cleanedCount++;
@@ -62,15 +69,13 @@ namespace ParallaxGrass
                     }
                 }
                 Debug.Log("Absolute total memory usage of everything (in MB): " + totalMem);
+                Debug.Log("Out of the PositionBuffers, best case object usage is " + bestCase + " MB and the actual memory footprint is " + worstCase + " MB");
+                Debug.Log("This results in " + (100f - ((bestCase / worstCase) * 100f)) + "% memory that is being wasted and can be saved");
             }
 
             if (flag2)
             {
-                foreach (ScatterComponent sc in ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name])
-                {
-                    Debug.Log(sc.scatter.scatterName + " has " + sc.scatterQueue.Count + " items in the queue");
-                    sc.CheckQueue();
-                }
+
             }
         }
     }

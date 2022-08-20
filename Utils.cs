@@ -71,27 +71,6 @@ namespace ScatterConfiguratorUtils
                 //ScatterLog.Log("Exception performing dispose safety check on " + nameThisBufferSomethingUseful + " because it is null!");
             }
         }
-        public static ComputeShader GetCorrectComputeShader(Scatter scatter, out ComputeShaderType shaderType)
-        {
-            ComputeShader distribute;
-            shaderType = ComputeShaderType.distributeNearest;
-            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
-            {
-                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeNearest"));
-                shaderType = ComputeShaderType.distributeNearest;
-            }
-            else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent)
-            {
-                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
-                shaderType= ComputeShaderType.distributeFixed;
-            }
-            else
-            {
-                distribute = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
-                shaderType = ComputeShaderType.distributeFixedToHeight;
-            }
-            return distribute;
-        }
         public static QuadDistributionData GetDistributionData(Scatter thisScatter, PQ quad)
         {
             DistributionNoise noise = thisScatter.properties.scatterDistribution.noise;
@@ -118,7 +97,6 @@ namespace ScatterConfiguratorUtils
             if (FlightGlobals.ActiveVessel != null && !FlightGlobals.ready) { distribute.SetVector("_ShaderOffset", Vector3.zero); }    //During scene change
 
             distribute.SetInt("_MaxCount", (triCount / 3) * (int)scatter.properties.scatterDistribution._PopulationMultiplier * quadSubdivisionDifference);
-            if (scatter.scatterName == "Mun-SmallRocks" && scatter.properties.maxCount != 0) { distribute.SetInt("_MaxCount", (int)scatter.properties.maxCount); }
             distribute.SetVector("minScale", scatter.properties.scatterDistribution._MinScale);
             distribute.SetVector("maxScale", scatter.properties.scatterDistribution._MaxScale);
             distribute.SetFloat("minAltitude", scatter.properties.scatterDistribution._MinAltitude);
@@ -146,6 +124,10 @@ namespace ScatterConfiguratorUtils
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             distribute.SetMatrix("_WorldToPlanet", body.gameObject.transform.worldToLocalMatrix);
             distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance);
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
+            {
+                distribute.SetFloat("altFadeRange", scatter.properties.scatterDistribution._AltitudeFadeRange);
+            }
 
             UnityEngine.Vector2d latlon = LatLon.GetLatitudeAndLongitude(body.BodyFrame, body.transform.position, transform.position);
             double lat = System.Math.Abs(latlon.x) % 45.0 - 22.5;
@@ -223,7 +205,7 @@ namespace ScatterConfiguratorUtils
                 force = null;
             }
         }
-        public static Material SetShaderProperties(Material mat, ScatterMaterial scatterMaterial, string scatterName)
+        public static void SetShaderProperties(ref Material mat, ref ScatterMaterial scatterMaterial, string scatterName)
         {
             Dictionary<string, string> textures = scatterMaterial.Textures;
             Dictionary<string, float> floats = scatterMaterial.Floats;
@@ -257,7 +239,6 @@ namespace ScatterConfiguratorUtils
                 mat.SetColor(colorKeys[i], colors[colorKeys[i]]);
             }
             mat.SetFloat("_InitialTime", Time.realtimeSinceStartup);
-            return mat;
         }
         public static readonly Dictionary<string, string>
             VarFromLabels = new Dictionary<string, string>
@@ -336,9 +317,9 @@ namespace ScatterConfiguratorUtils
         private static float activeVectorZStringLV = 0;
 
         private static readonly GUIStyle TexStyle = new GUIStyle(GUI.skin.textArea) { wordWrap = true };
-        private static readonly GUIStyle ResetButtonStyle = new GUIStyle(GUI.skin.button) { fontSize = 9 };
-        private static readonly GUIStyle FloatStyle = new GUIStyle(GUI.skin.textArea);
-        private static readonly GUIStyle ColorStyle = new GUIStyle(GUI.skin.textArea);
+        private static readonly GUIStyle ResetButtonStyle = HighLogic.Skin.button;
+        private static readonly GUIStyle FloatStyle = HighLogic.Skin.textField;
+        private static readonly GUIStyle ColorStyle = HighLogic.Skin.textField;
 
         /// <summary>
         /// Float input field for in-game cfg editing. Behaves exactly like UnityEditor.EditorGUILayout.FloatField
@@ -530,7 +511,7 @@ namespace ScatterConfiguratorUtils
             string str = recorded ? activeSliderFieldString : value.ToString();
 
             // pass it in the text field
-            string strValue = GUI.HorizontalSlider(pos, value, min, max).ToString("F4");
+            string strValue = GUI.HorizontalSlider(pos, value, min, max, HighLogic.Skin.horizontalSlider, HighLogic.Skin.horizontalSliderThumb).ToString("F4");
 
             // Update stored value if this one is recorded
             if (recorded)
@@ -569,55 +550,47 @@ namespace ScatterConfiguratorUtils
         public static string TexField(string value)
         {
             // Get rect and control for this float field for identification
-            Rect pos = GUILayoutUtility.GetRect(new GUIContent(value), GUI.skin.label, GUILayout.ExpandWidth(false),
-                GUILayout.MinWidth(200));
-            int texFieldID = GUIUtility.GetControlID("TexField".GetHashCode(), FocusType.Keyboard, pos) + 1;
-            if (texFieldID == 0)
+            Rect pos = GUILayoutUtility.GetRect(new GUIContent(value.ToString(CultureInfo.InvariantCulture)),
+                GUI.skin.label, GUILayout.ExpandWidth(false), GUILayout.MinWidth(200));
+
+            int floatFieldID = GUIUtility.GetControlID("StringField".GetHashCode(), FocusType.Keyboard, pos) + 1;
+            if (floatFieldID == 0)
                 return value;
 
             // has the value been recorded?
-            bool recorded = activeFieldID == texFieldID;
+            bool recorded = activeFieldID == floatFieldID;
             // is the field being edited?
-            bool active = texFieldID == GUIUtility.keyboardControl;
+            bool active = floatFieldID == GUIUtility.keyboardControl;
 
             if (active && recorded && activeTexFieldLastValue != value)
             {
                 // Value has been modified externally
                 activeTexFieldLastValue = value;
-                activeTexFieldString = string.Copy(value);
+                activeTexFieldString = value.ToString(CultureInfo.InvariantCulture);
             }
 
             // Get stored string for the text field if this one is recorded
-            string str = recorded ? activeTexFieldString : string.Copy(value);
+            string str = recorded ? activeTexFieldString : value.ToString(CultureInfo.InvariantCulture);
 
             // pass it in the text field
-            string strValue = GUI.TextField(pos, str, TexStyle);
+            string strValue = GUI.TextField(pos, str, FloatStyle);
 
             // Update stored value if this one is recorded
             if (recorded)
                 activeTexFieldString = strValue;
 
             // Try Parse if value got changed. If the string could not be parsed, ignore it and keep last value
-            bool valid = true;
-            if (strValue != value)
+            bool parsed = true;
+            if (strValue != value.ToString(CultureInfo.InvariantCulture))
             {
-                string path = KSPUtil.ApplicationRootPath + "GameData/" + strValue;
 
-                if (!System.IO.File.Exists(path))
-                    valid = false;
-
-                if (!path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase) &&
-                    !path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                    valid = false;
-
-                if (valid)
-                    value = activeTexFieldLastValue = strValue;
+                value = activeTexFieldLastValue = strValue;
             }
 
             if (active && !recorded)
             {
                 // Gained focus this frame
-                activeFieldID = texFieldID;
+                activeFieldID = floatFieldID;
                 activeTexFieldString = strValue;
                 activeTexFieldLastValue = value;
             }
@@ -625,8 +598,8 @@ namespace ScatterConfiguratorUtils
             {
                 // Lost focus this frame
                 activeFieldID = -1;
-                if (!valid)
-                    value = activeTexFieldLastValue;
+                if (!parsed)
+                    value = strValue;
             }
 
             return value;
@@ -822,55 +795,81 @@ namespace ScatterConfiguratorUtils
             foreach (string scatterKey in body.scatters.Keys)
             {
                 Scatter scatter = body.scatters[scatterKey];
-                ConfigNode scatterNode = parallaxScattersNode.AddNode("Scatter");
-                scatterNode.AddValue("name", scatter.scatterName);
-                scatterNode.AddValue("model", scatter.model);
-                scatterNode.AddValue("updateFPS", scatter.updateFPS);
-                scatterNode.AddValue("cullingRange", scatter.cullingRange);
-                scatterNode.AddValue("cullingLimit", scatter.cullingLimit);
-                scatterNode.AddValue("alignToTerrainNormal", scatter.alignToTerrainNormal);
-                ConfigNode subdivisionNode = scatterNode.AddNode("SubdivisionSettings");
-                subdivisionNode.AddValue("subdivisionLevel", scatter.properties.subdivisionSettings.level);
-                subdivisionNode.AddValue("subdivisionRangeMode", scatter.properties.subdivisionSettings.mode.ToString());
-                subdivisionNode.AddValue("subdivisionRange", scatter.properties.subdivisionSettings.range);
-                ConfigNode distNoiseNode = scatterNode.AddNode("DistributionNoise");
-                DistributionNoise noiseDist = scatter.properties.scatterDistribution.noise;
-                distNoiseNode.AddValue("mode", noiseDist.noiseMode.ToString());
-                if (noiseDist.noiseMode == DistributionNoiseMode.Persistent)
+                ConfigNode scatterNode;
+                if (!scatter.shared)
                 {
-                    distNoiseNode.AddValue("_Frequency", noiseDist._Frequency);
-                    distNoiseNode.AddValue("_Persistence", noiseDist._Persistence);
-                    distNoiseNode.AddValue("_Lacunarity", noiseDist._Lacunarity);
-                    distNoiseNode.AddValue("_Octaves", noiseDist._Octaves);
-                    distNoiseNode.AddValue("_Seed", noiseDist._Seed);
-                    distNoiseNode.AddValue("_NoiseType", noiseDist._NoiseType);
-                    if (noiseDist._NoiseQuality == NoiseQuality.Low) { distNoiseNode.AddValue("_NoiseQuality", "Low"); }
-                    if (noiseDist._NoiseQuality == NoiseQuality.Standard) { distNoiseNode.AddValue("_NoiseQuality", "Standard"); }
-                    if (noiseDist._NoiseQuality == NoiseQuality.High) { distNoiseNode.AddValue("_NoiseQuality", "High"); }
+                    scatterNode = parallaxScattersNode.AddNode("Scatter");
                 }
                 else
                 {
-                    distNoiseNode.AddValue("_SizeNoiseScale", noiseDist._SizeNoiseScale);
-                    distNoiseNode.AddValue("_ColorNoiseScale", noiseDist._ColorNoiseScale);
-                    distNoiseNode.AddValue("_SizeNoiseOffset", noiseDist._SizeNoiseOffset);
+                    scatterNode = parallaxScattersNode.AddNode("SharedScatter");
+                }
+                scatterNode.AddValue("name", scatter.scatterName.Split('-')[1].Replace("-", string.Empty));
+                scatterNode.AddValue("model", scatter.model);
+                if (!scatter.shared)
+                {
+                    scatterNode.AddValue("updateFPS", scatter.updateFPS);
+                    scatterNode.AddValue("alignToTerrainNormal", scatter.alignToTerrainNormal);
+                    scatterNode.AddValue("cullingRange", scatter.cullingRange);
+                    scatterNode.AddValue("cullingLimit", scatter.cullingLimit);
+                    scatterNode.AddValue("maxObjects", scatter.maxObjects);
+                }
+                
+                scatterNode.AddValue("shadowMode", scatter.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.On ? "forcedFull" : "standard");
+                if (scatter.shared) { scatterNode.AddValue("parent", scatter.sharedParent); }
+                
+                if (!scatter.shared)
+                {
+                    ConfigNode subdivisionNode = scatterNode.AddNode("SubdivisionSettings");
+                    subdivisionNode.AddValue("subdivisionLevel", scatter.properties.subdivisionSettings.level);
+                    subdivisionNode.AddValue("subdivisionRangeMode", scatter.properties.subdivisionSettings.mode.ToString());
+                    subdivisionNode.AddValue("subdivisionRange", scatter.properties.subdivisionSettings.range);
+                    subdivisionNode.AddValue("minimumSubdivision", scatter.properties.subdivisionSettings.minLevel);
+                    ConfigNode distNoiseNode = scatterNode.AddNode("DistributionNoise");
+                    DistributionNoise noiseDist = scatter.properties.scatterDistribution.noise;
+                    distNoiseNode.AddValue("mode", noiseDist.noiseMode.ToString());
+                    if (noiseDist.noiseMode == DistributionNoiseMode.Persistent)
+                    {
+                        distNoiseNode.AddValue("_Frequency", noiseDist._Frequency);
+                        distNoiseNode.AddValue("_Persistence", noiseDist._Persistence);
+                        distNoiseNode.AddValue("_Lacunarity", noiseDist._Lacunarity);
+                        distNoiseNode.AddValue("_Octaves", noiseDist._Octaves);
+                        distNoiseNode.AddValue("_Seed", noiseDist._Seed);
+                        distNoiseNode.AddValue("_NoiseType", noiseDist._NoiseType);
+                        if (noiseDist._NoiseQuality == NoiseQuality.Low) { distNoiseNode.AddValue("_NoiseQuality", "Low"); }
+                        if (noiseDist._NoiseQuality == NoiseQuality.Standard) { distNoiseNode.AddValue("_NoiseQuality", "Standard"); }
+                        if (noiseDist._NoiseQuality == NoiseQuality.High) { distNoiseNode.AddValue("_NoiseQuality", "High"); }
+                    }
+                    else
+                    {
+                        distNoiseNode.AddValue("_SizeNoiseScale", noiseDist._SizeNoiseScale);
+                        distNoiseNode.AddValue("_ColorNoiseScale", noiseDist._ColorNoiseScale);
+                        distNoiseNode.AddValue("_SizeNoiseOffset", noiseDist._SizeNoiseOffset);
+                    }
                 }
                 ConfigNode distributionNode = scatterNode.AddNode("Distribution");
                 Distribution dist = scatter.properties.scatterDistribution;
-                distributionNode.AddValue("_Seed", dist._Seed);
-                distributionNode.AddValue("_SpawnChance", dist._SpawnChance);
-                distributionNode.AddValue("_Range", dist._Range);
-                distributionNode.AddValue("_PopulationMultiplier", dist._PopulationMultiplier);
-                distributionNode.AddValue("_SizeNoiseStrength", dist._SizeNoiseStrength);
-                distributionNode.AddValue("_MinScale", dist._MinScale);
-                distributionNode.AddValue("_MaxScale", dist._MaxScale);
-                distributionNode.AddValue("_CutoffScale", dist._CutoffScale);
-                distributionNode.AddValue("_SteepPower", dist._SteepPower);
-                distributionNode.AddValue("_SteepContrast", dist._SteepContrast);
-                distributionNode.AddValue("_SteepMidpoint", dist._SteepMidpoint);
-                distributionNode.AddValue("_NormalDeviance", dist._MaxNormalDeviance);
-                distributionNode.AddValue("_MinAltitude", dist._MinAltitude);
-                distributionNode.AddValue("_MaxAltitude", dist._MaxAltitude);
-                distributionNode.AddValue("_RangePow", dist._RangePow);
+                if (!scatter.shared)
+                {
+                    
+                    distributionNode.AddValue("_Seed", dist._Seed);
+                    distributionNode.AddValue("_SpawnChance", dist._SpawnChance);
+                    distributionNode.AddValue("_Range", dist._Range);
+                    distributionNode.AddValue("_PopulationMultiplier", dist._PopulationMultiplier);
+                    distributionNode.AddValue("_SizeNoiseStrength", dist._SizeNoiseStrength);
+                    distributionNode.AddValue("_MinScale", dist._MinScale);
+                    distributionNode.AddValue("_MaxScale", dist._MaxScale);
+                    distributionNode.AddValue("_CutoffScale", dist._CutoffScale);
+                    distributionNode.AddValue("_SteepPower", dist._SteepPower);
+                    distributionNode.AddValue("_SteepContrast", dist._SteepContrast);
+                    distributionNode.AddValue("_SteepMidpoint", dist._SteepMidpoint);
+                    distributionNode.AddValue("_NormalDeviance", dist._MaxNormalDeviance);
+                    distributionNode.AddValue("_MinAltitude", dist._MinAltitude);
+                    distributionNode.AddValue("_MaxAltitude", dist._MaxAltitude);
+                    distributionNode.AddValue("_RangePow", dist._RangePow);
+                    if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.NearestQuads) { distributionNode.AddValue("_AltitudeFadeRange", dist._RangePow); }
+                }
+                
                 ConfigNode lodNode = distributionNode.AddNode("LODs");
                 foreach (Grass.LOD lod in dist.lods.lods)
                 {
@@ -878,6 +877,8 @@ namespace ScatterConfiguratorUtils
                     configLOD.AddValue("model", lod.modelName);
                     configLOD.AddValue("range", lod.range);
                     configLOD.AddValue("billboard", lod.isBillboard);
+                    configLOD.AddValue("_MainTex", lod.mainTexName);
+                    configLOD.AddValue("_BumpMap", lod.normalName);
                 }
                 ConfigNode materialNode = scatterNode.AddNode("Material");
                 ScatterMaterial mat = scatter.properties.scatterMaterial;
@@ -886,7 +887,6 @@ namespace ScatterConfiguratorUtils
                 materialNode.AddValue("_SubColor", mat._SubColor);
                 materialNode.AddValue("_ColorNoiseStrength", mat._ColorNoiseStrength);
                 SaveMaterialNode(materialNode, mat);
-                ConfigNode subObjectsNode = scatterNode.AddNode("SubObjects");
             }
             node.Save(path);
             

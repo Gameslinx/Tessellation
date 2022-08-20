@@ -1,4 +1,5 @@
 ﻿using Grass;
+using Grass.DebugStuff;
 using ScatterConfiguratorUtils;
 using System;
 using System.Collections;
@@ -10,7 +11,7 @@ using UnityEngine.Rendering;
 
 namespace ParallaxGrass
 {
-    struct PositionData
+    public struct PositionData
     {
         public Vector3 pos;
         public Matrix4x4 mat;
@@ -42,12 +43,13 @@ namespace ParallaxGrass
     {
         public PQ quad;
         public Mesh mesh;
-        public Dictionary<string, ScatterCompute> comps = new Dictionary<string, ScatterCompute>();
+        public Dictionary<Scatter, ScatterCompute> comps = new Dictionary<Scatter, ScatterCompute>();
         public MeshData data;
         public MeshData subdividedData;
         string sphereName;
         public Mesh subMesh;
         public float quadWidth;
+        public float sqrQuadWidth;
         public bool subdivisionAlreadyRequested = false; //ScatterCompute calls back to here to subdivide the quad only when it gets in range, and only once
 
         public ComputeBuffer vertexBuffer;
@@ -57,7 +59,11 @@ namespace ParallaxGrass
         public ComputeBuffer subdividedVertexBuffer;
         public ComputeBuffer subdividedNormalBuffer;
         public ComputeBuffer subdividedTriangleBuffer;
+        public Scatter[] scatters;
+        public bool cleaned = false;
 
+        public CollisionHandlerAdvanced collisionHandler;
+        
         public QuadData(PQ pq)
         {
             quad = pq;
@@ -75,36 +81,22 @@ namespace ParallaxGrass
             subdividedData = new MeshData();
             subMesh = GameObject.Instantiate(mesh);
             DetermineQuadWidth();
+
             
-            if (quad.subdivision == quad.sphereRoot.maxLevel)   //Only subdivide maxLevel quads
-            {
-                //Range check here
-            }
+            
             //subdividedData.vertices = subMesh.vertices;
             //subdividedData.normals = subMesh.normals;
             //subdividedData.tris = subMesh.triangles;
             sphereName = quad.sphereRoot.name;
-            InitializeScatters();
-        }
-        public void InitializeScatters()    //Setup fixed and nearest scatters and assign them ScatterComputes
-        {
-
-            Scatter[] scatters = ScatterBodies.scatterBodies[sphereName].scatters.Values.ToArray();
-            for (int i = 0; i < scatters.Length; i++)
+            scatters = ScatterBodies.scatterBodies[sphereName].scatters.Values.ToArray();
+            if (quad.subdivision == quad.sphereRoot.maxLevel)
             {
-
-                ScatterComponent manager = ScatterManagerPlus.scatterComponents[sphereName].Find(x => x.scatter.scatterName == scatters[i].scatterName);
-                if (quad.subdivision >= scatters[i].properties.subdivisionSettings.minLevel && !scatters[i].shared)    //Only add stuff if it's within the minimum subdivision level
-                {
-                    //If quad is only in 1 biome and that biome is blacklisted...
-                    if (InBlacklistedBiome(PQSMod_ScatterDistribute.scatterData.perQuadBiomeData[quad], scatters[i].properties.scatterDistribution.blacklist.fastBiomes)) // PQSMod_ScatterDistribute.scatterData.distributionData[scatters[i].scatterName].data[quad].biomes.Count == 1 && scatters[i].properties.scatterDistribution.blacklist.fastBiomes.ContainsKey(PQSMod_ScatterDistribute.scatterData.distributionData[scatters[i].scatterName].data[quad].biomes[0]))
-                    {
-                        continue;   //Don't add this one :)
-                    }
-                    ScatterCompute comp = new ScatterCompute(scatters[i], quad, manager, this, sphereName, ref data, ref subdividedData);
-                    comps.Add(scatters[i].scatterName, comp);
-                }
+                collisionHandler = new CollisionHandlerAdvanced(ref quad, quadWidth * 2);
+                collisionHandler.maxDataCount = GetColliderDataCount();
             }
+            ScatterManagerPlus.OnQuadRangeCheck += RangeCheck;
+            RangeCheck();
+            //InitializeScatters();
         }
         public bool InBlacklistedBiome(List<string> biomes, Dictionary<string, string> blacklist)
         {
@@ -117,12 +109,25 @@ namespace ParallaxGrass
             }
             return false;
         }
+        public int GetColliderDataCount()   //Get number of scatters with colliders in this biome
+        {
+            int count = 0;
+            for (int i = 0; i < scatters.Length; i++)
+            {
+                if (scatters[i].collideable && !InBlacklistedBiome(PQSMod_ScatterDistribute.scatterData.perQuadBiomeData[quad], scatters[i].properties.scatterDistribution.blacklist.fastBiomes))
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
         public void DetermineQuadWidth()                        //Get distance between opposite diagonal verts on the quad to estimate its hypotenuse
         {
             if (data.vertices == null) { return; } //Yet again, wait for subdivision to complete :)
             Vector3 pos1 = quad.gameObject.transform.TransformPoint(data.vertices[0]);  //Top left
             Vector3 pos2 = quad.gameObject.transform.TransformPoint(data.vertices[data.vertices.Length - 1]); //Bottom right
             quadWidth = Vector3.Distance(pos1, pos2) / 2;   //Distance from centre to corner
+            sqrQuadWidth = quadWidth * quadWidth;
         }
         public void SubdivideQuad()
         {
@@ -141,6 +146,66 @@ namespace ParallaxGrass
             subdividedTriangleBuffer.SetData(subdividedData.tris);
             subdivisionAlreadyRequested = true;
         }
+        public float GetNearestRangeToALoadedCraft()
+        {
+            float minDist = 100000;
+            for (int i = 0; i < FlightGlobals.VesselsLoaded.Count; i++)
+            {
+                if (ScatterGlobalSettings.onlyQueryControllable && !FlightGlobals.VesselsLoaded[i].isCommandable) { continue; }
+                float craftDist = Vector3.Distance(FlightGlobals.VesselsLoaded[i].transform.position, quad.gameObject.transform.position);
+                if (craftDist < minDist) { minDist = craftDist; }
+            }
+            return minDist;
+        }
+        float dist = 0;
+        bool containsComp = false;
+        Scatter rangeCheckScatter;
+        public void RangeCheck()
+        {
+            if (cleaned) { return; }
+            dist = (GlobalPoint.originPoint - quad.transform.position).sqrMagnitude - sqrQuadWidth;
+            for (int i = 0; i < scatters.Length; i++)
+            {
+                rangeCheckScatter = scatters[i];
+                if (rangeCheckScatter.shared) { continue; }
+                if ((quad.subdivision >= rangeCheckScatter.properties.subdivisionSettings.minLevel))  //Quad in subdivision limit - Will be auto destroyed on OnQuadDestroy so don't need to else {} here
+                {
+                    containsComp = comps.TryGetValue(rangeCheckScatter, out ScatterCompute comp);
+      
+                    if ((dist < rangeCheckScatter.properties.scatterDistribution._SqrRange) || (quad.subdivision == quad.sphereRoot.maxLevel && rangeCheckScatter.collideable))          //Quad in range limit - Clean it up when it's out of range
+                    {
+                        //Start the scatter
+                        if (!containsComp)
+                        {
+                            if (InBlacklistedBiome(PQSMod_ScatterDistribute.scatterData.perQuadBiomeData[quad], rangeCheckScatter.properties.scatterDistribution.blacklist.fastBiomes))
+                            {
+                                continue;   //Don't add this one :)
+                            }
+                            if (rangeCheckScatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
+                            {
+                                SubdivideQuad();
+                            }
+                            
+                            ScatterComponent manager = ScatterManagerPlus.scatterComponents[sphereName].Find(x => x.scatter.scatterName == rangeCheckScatter.scatterName);
+                            ScatterCompute newComp = new ScatterCompute(rangeCheckScatter, quad, manager, this, sphereName, ref data, ref subdividedData, ref collisionHandler);
+                            comps.Add(rangeCheckScatter, newComp);
+                        }
+                    }
+                    else    //Outside of range, clean up the scatter
+                    {
+                        if (containsComp)
+                        {
+                            if (!comp.cleaned)
+                            {
+                                comp.Cleanup();
+                            }
+                            comps.Remove(rangeCheckScatter);
+                        }
+                    }
+                }
+            }
+        }
+       
         public void Cleanup()   //Called when the quad is destroyed. Purge anything memory intensive, because this won't be destroyed for a while
         {
             if (vertexBuffer != null) { vertexBuffer.Release(); vertexBuffer = null; }
@@ -149,17 +214,19 @@ namespace ParallaxGrass
             if (subdividedVertexBuffer != null) { subdividedVertexBuffer.Release(); subdividedVertexBuffer = null; }
             if (subdividedNormalBuffer != null) { subdividedNormalBuffer.Release(); subdividedNormalBuffer = null; }
             if (subdividedTriangleBuffer != null) { subdividedTriangleBuffer.Release(); subdividedTriangleBuffer = null; }
+            if (collisionHandler != null) { collisionHandler.Cleanup(); }
             foreach (ScatterCompute scatter in comps.Values)
             {
                 scatter.Cleanup();
             }
             comps.Clear();
+            cleaned = true;
+            ScatterManagerPlus.OnQuadRangeCheck -= RangeCheck;
+            //quad.gameObject.GetComponent<MeshRenderer>().material.SetColor("_Color", new Color(0, 0, 0));
         }
     }
     public class ScatterCompute
     {
-        //public CollisionHandler collisionHandler;
-
         public Scatter scatter;
         public Properties properties;
         public PQ quad;
@@ -200,11 +267,15 @@ namespace ParallaxGrass
         public float quadWidth = 0;
         public MeshRenderer quadMeshRenderer;
         public bool cleaned = false;
-        public bool active = false;    //Set true when quad is in subdivision range. True by default for persistent scatters
         public bool subdivided = false;
         public QuadDistributionData distributionData;
-
-        public ScatterCompute(Scatter scatter, PQ quad, ScatterComponent pqsMod, QuadData parent, string sphereName, ref MeshData meshData, ref MeshData subdividedData)
+        public bool updateTime = true;
+        public PositionData[] transformData;            //Stores position, transform and colour data for each scatter object
+        
+        public CollisionHandlerAdvanced collisionHandler;
+        public Matrix4x4 oqtw = Matrix4x4.identity;
+        public Vector3 oldShaderOffset = Vector3.zero;
+        public ScatterCompute(Scatter scatter, PQ quad, ScatterComponent pqsMod, QuadData parent, string sphereName, ref MeshData meshData, ref MeshData subdividedData, ref CollisionHandlerAdvanced collisionHandler)
         {
             this.scatter = scatter;
             this.quad = quad;
@@ -213,6 +284,7 @@ namespace ParallaxGrass
             this.sphereName = sphereName;
             this.meshData = meshData;   //Contains either regular or subdivided mesh
             quadWidth = parent.quadWidth;
+            this.collisionHandler = collisionHandler;
             if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.NearestQuads)
             {
                 this.meshData = subdividedData;
@@ -222,11 +294,9 @@ namespace ParallaxGrass
                 this.meshData = meshData;
             }
             Setup();
-            if (scatter.properties.subdivisionSettings.mode == SubdivisionMode.FixedRange) { active = true; }
-            if (active) { Start(); }
-            
+            Start();
         }
-        public float GetTotalMemoryUsage()
+        public Vector3 GetTotalMemoryUsage()
         {
             float total = 0;
             Debug.Log(" - Vertex Buffer: Count: " + vertexBuffer.count + ", Stride: " + vertexBuffer.stride + ", Total: " + ((float)(vertexBuffer.count * vertexBuffer.stride) / (1024f * 1024f)) + " MB");
@@ -253,14 +323,14 @@ namespace ParallaxGrass
 
             Debug.Log("Total (one quad) " + (total / (1024f * 1024f)) + " MB");
 
-            
+            float capacity = positionBuffer.count * positionBuffer.stride;  //Memory usage
+            float actual = (float)count[0] * positionBuffer.stride;         //Memory usage if count was object count
 
-            return total / (1024f * 1024f);
+            return new Vector3(total / (1024f * 1024f), capacity / (1024f * 1024f), actual / (1024f * 1024f));    //total memory usage, PB capacity, PB actual memory usage if cap = count
         }
         public void Setup()
         {
             pqsMod.OnForceEvaluate += EvaluatePositions;
-            pqsMod.OnRangeCheck += AlternativeStart;
             GameEvents.onVesselChange.Add(OnVesselSwitch);
             GameEvents.onVesselWillDestroy.Add(OnVesselDestroyed);
             distributionData = scatter.properties.subdivisionSettings.mode == SubdivisionMode.NearestQuads ? default(QuadDistributionData) : Utils.GetDistributionData(scatter, quad);
@@ -282,21 +352,31 @@ namespace ParallaxGrass
         }
         public void Start()  //Subscribe events here. Determine subdivision level, if the quad needs subdividing, etc
         {
-            //if (cleaned) { return; }
+            //distribute = pqsMod.InstantiateNew(scatter.properties.scatterDistribution.noise.noiseMode);
+            //distributeIndex = distribute.FindKernel("DistributePoints");
+            //if (cleaned) { UpdateQueue(); return; }
+            //InitializeGenerate();
+            //PrepareGenerate();
+            //DispatchGenerate();
+            //return;
+
             if (ComputeShaderAvailable())   //Generate immediately
             {
                 distribute = pqsMod.computePool[pqsMod.computePool.Count - 1];  //Take last item on list to prevent re-ordering
+                if (distribute == null) { distribute = pqsMod.InstantiateNew(scatter.properties.scatterDistribution.noise.noiseMode); } //Only happens in the space center scene, because dontdestroyonload doesn't work for compute shaders or something idk but yeah, number of total compute shaders does stay the same
                 pqsMod.computePool.RemoveAt(pqsMod.computePool.Count - 1);
+                if (cleaned) { UpdateQueue(); return; }
                 distributeIndex = distribute.FindKernel("DistributePoints");
-                if (!active || cleaned) { UpdateQueue(); return; }
+                
                 InitializeGenerate();
-                PrepareGenerate(true);
+                PrepareGenerate();
                 DispatchGenerate();
             }
             else                            //Add to the quad queue and wait for a shader to become available
             {
                 pqsMod.scatterQueue.Enqueue(this);
             }
+            
         }
         public bool ComputeShaderAvailable()
         {
@@ -309,37 +389,9 @@ namespace ParallaxGrass
                 return false;
             }
         }
-        public void AlternativeStart()
-        {
-            if (scatter.properties.subdivisionSettings.mode != SubdivisionMode.NearestQuads) { return; }
-            if (!active)    //Run once - This is the range check
-            {
-                if (FlightGlobals.ready && Vector3.Distance(quad.gameObject.transform.position, GlobalPoint.originPoint) - quadWidth < scatter.properties.subdivisionSettings.range)   //Distance check - In range AND subdivided
-                {
-                    if (!subdivided) { parent.SubdivideQuad(); subdivided = true;  }
-                    active = true;
-                    triCount = meshData.tris.Length;
-                    memoryUsage = (int)(triCount * properties.scatterDistribution._PopulationMultiplier * quadSubdivDifference * properties.scatterDistribution.noise._MaxStacks);
-                    generateDispatchAmount = Mathf.CeilToInt((((float)triCount) / 3f) / 32f);
-                    Start();
-                    
-                }
-            }
-            else
-            {
-                if (Vector3.Distance(quad.gameObject.transform.position, GlobalPoint.originPoint) - quadWidth >= scatter.properties.subdivisionSettings.range)   //Distance check - Not in range OR not subdivided
-                {
-                    active = false;
-                    Hibernate();
-                }
-            }
-        }
-        
         public void SetupComputeShaders() 
         {
-            //distribute = Utils.GetCorrectComputeShader(scatter, out shaderType);
             evaluate = GameObject.Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
-            //distributeIndex = distribute.FindKernel("DistributePoints");
             evaluateIndex = evaluate.FindKernel("EvaluatePoints");
 
             int maxLevel = quad.sphereRoot.maxLevel;
@@ -351,7 +403,6 @@ namespace ParallaxGrass
         }
         public void InitializeGenerate()
         {
-            if (!active) { return; }
             if (noiseBuffer != null) { noiseBuffer.Release(); }
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); }
             if (indirectArgs != null) { indirectArgs.Release(); }
@@ -394,33 +445,36 @@ namespace ParallaxGrass
             distribute.SetBuffer(distributeIndex, "Positions", positionBuffer);
             distribute.SetBuffer(distributeIndex, "Normals", normalBuffer);
         }
-        public void PrepareGenerate(bool updateTime) //Each time a quad is built, generate scatter positions
+        public void PrepareGenerate() //Each time a quad is built, generate scatter positions
         {
             Utils.SetDistributionVars(ref distribute, scatter, quad.gameObject.transform, quadSubdivDifference, triCount, sphereName, distributeIndex);
+            
+            
             if (updateTime)
             {
-                distribute.SetFloat("updateTime", 1);
+                distribute.SetBool("updateTime", true);
             }
             else
             {
-                distribute.SetFloat("updateTime", 0);
+                distribute.SetBool("updateTime", false);
             }
         }
         public void DispatchGenerate()
         {
-            if (!active) { return; }
             positionBuffer.SetCounterValue(0);
             if (scatter == null) { Debug.Log("Scatter is null lmao"); }
             distribute.SetVector("_ShaderOffset", -(Vector3)FloatingOrigin.TerrainShaderOffset);
+            oldShaderOffset = FloatingOrigin.TerrainShaderOffset;
+            oqtw = quad.gameObject.transform.localToWorldMatrix;
             distribute.Dispatch(distributeIndex, generateDispatchAmount, scatter.properties.scatterDistribution.noise._MaxStacks, 1);
             ComputeBuffer.CopyCount(positionBuffer, distributeCountBuffer, 0);
-            AsyncGPUReadback.Request(distributeCountBuffer, AwaitDistributeReadback);
-            currentlyReadingDist = true;
             
+            currentlyReadingDist = true;
+            AsyncGPUReadback.Request(distributeCountBuffer, AwaitDistributeReadback);
         }
         private void AwaitDistributeReadback(AsyncGPUReadbackRequest req)
         {
-            if (cleaned || !active) { UpdateQueue(); return; }    //Quad was cleaned up in the time it took for the GPU to finish generating positions on this quad. L + No speed
+            if (cleaned) { UpdateQueue(); return; }    //Quad was cleaned up in the time it took for the GPU to finish generating positions on this quad. L + No speed
             if (req.hasError)
             {
                 ScatterLog.Log("[Exception] Async GPU Readback error! (In GeneratePositions())");
@@ -428,17 +482,25 @@ namespace ParallaxGrass
                 return;
             }
             objectCount = req.GetData<int>(0).ToArray()[0];
+            objectCount = (int)Mathf.Min(objectCount, positionBuffer.count);    //Buffer can sometimes be smaller than its counter at low spawn chances
             workGroups[0] = Mathf.CeilToInt(((float)objectCount) / 32f);
             indirectArgs.SetData(workGroups);
             currentlyReadingDist = false;
 
-            Debug.Log("Readback: " + scatter.scatterName);
+            if (scatter.collideable && quad.subdivision == quad.sphereRoot.maxLevel && !collisionHandler.allDataPresent)
+            {
+                transformData = new PositionData[objectCount];
+                positionBuffer.GetData(transformData);
+                collisionHandler.AddData(scatter, transformData, oqtw.inverse, oldShaderOffset);
+            }
+
             InitializeEvaluate();
             UpdateQueue();          //Dequeue and process the next quad
         }
         public void UpdateQueue()   //Return compute shader to the queue and process the next quad
         {
-            pqsMod.computePool.Add(distribute);
+            //return;
+            pqsMod.computePool.Add(distribute); 
             while (pqsMod.scatterQueue.Count > 0)   //Run until a quad has not been cleaned
             {
                 ScatterCompute nextItem = pqsMod.scatterQueue.Dequeue();
@@ -453,16 +515,14 @@ namespace ParallaxGrass
         {
             if (currentlyReadingDist) { return; }
             if (objectCount == 0) { return; }
-            if (!pqsMod.buffersCreated) { Debug.Log("[Exception] Buffers not created for " + scatter.scatterName); return; }
-            Debug.Log("Evaluate initialized: " + scatter.scatterName + " at offset " + FloatingOrigin.TerrainShaderOffset.ToString("F3"));
+            if (!pqsMod.buffersCreated) { Debug.Log("[Exception] Buffers not created, returning"); return; }
+            Utils.SetEvaluationVars(ref evaluate, scatter, quad.gameObject.transform, objectCount);
             evaluate.SetBuffer(evaluateIndex, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
             evaluate.SetBuffer(evaluateIndex, "Positions", positionBuffer);
             evaluate.SetBuffer(evaluateIndex, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
             evaluate.SetBuffer(evaluateIndex, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
-
-            Utils.SetEvaluationVars(ref evaluate, scatter, quad.gameObject.transform, objectCount);
+            
             initializedEvaluate = true;
-
             EvaluatePositions();
         }
         public void EvaluatePositions()
@@ -472,36 +532,20 @@ namespace ParallaxGrass
             if (!initializedEvaluate) { return; }
             if (objectCount == 0) { return; }
             if (!quadMeshRenderer.isVisible) { return; }
-            if (Vector3.Distance(quad.gameObject.transform.position, GlobalPoint.originPoint) - quadWidth > scatter.properties.scatterDistribution._Range) { return; }
-            if (FlightGlobals.ActiveVessel == null) { return; }
-            if (!active) { return; }
-            //Debug.Log("Dispatching evaluate indirectly");
-            
+            if ((quad.gameObject.transform.position - GlobalPoint.originPoint).sqrMagnitude - parent.sqrQuadWidth > scatter.properties.scatterDistribution._SqrRange) { return; }
+
             evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));
             evaluate.SetVector("_CameraPos", ActiveBuffers.cameraPos);
             evaluate.SetVector("_CraftPos", GlobalPoint.originPoint);
             evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
             evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);
-            
-
             evaluate.DispatchIndirect(evaluateIndex, indirectArgs, 0);
-        }
-        public void Hibernate() //Used in range check to clean up data that could be used again
-        {
-            if (noiseBuffer != null) { noiseBuffer.Release(); }
-            if (distributeCountBuffer != null) { distributeCountBuffer.Release(); }
-            if (indirectArgs != null) { indirectArgs.Release(); }
-            if (positionBuffer != null) { positionBuffer.Release(); }
+            //pqsMod.pc.Setup(Buffers.activeBuffers[scatter.scatterName].buffer, Buffers.activeBuffers[scatter.scatterName].farBuffer, Buffers.activeBuffers[scatter.scatterName].furtherBuffer, scatter);
 
-            active = false;
         }
         public void Cleanup()
         {
-            //Debug.Log("Cleanup called for scatter: " + scatter.scatterName);   
-           
-            //Events
             pqsMod.OnForceEvaluate -= EvaluatePositions;
-            pqsMod.OnRangeCheck -= AlternativeStart;
             GameEvents.onVesselChange.Remove(OnVesselSwitch);
             GameEvents.onVesselWillDestroy.Remove(OnVesselDestroyed);
 
@@ -510,16 +554,14 @@ namespace ParallaxGrass
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); distributeCountBuffer = null; }
             if (indirectArgs != null) { indirectArgs.Release(); indirectArgs = null; }
             if (positionBuffer != null) { positionBuffer.Release(); positionBuffer = null; }
-
             //if (dummyCount != null) { dummyCount.Release(); }
 
             //UnityEngine.Object.Destroy(distribute);
             UnityEngine.Object.Destroy(evaluate);
+            //UnityEngine.Object.Destroy(distribute);
             //if (collisionHandler != null) { collisionHandler.Cleanup(); collisionHandler = null; }
             //ShaderPool.ReturnShader(distribute, shaderType);
             //ShaderPool.ReturnShader(evaluate, ComputeShaderType.evaluate);
-
-            active = false;
             subdivided = false;
             cleaned = true;
         }

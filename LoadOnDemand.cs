@@ -46,9 +46,9 @@ namespace Grass
                 string[] texKeys = scatter.properties.scatterMaterial.Textures.Keys.ToArray();
                 for (int b = 0; b < texKeys.Length; b++)
                 {
-                    ScatterLog.Log("[OnDemand] Loading texture: " + scatter.properties.scatterMaterial.Textures[texKeys[b]]);
                     if (!activeTextures.ContainsKey(scatter.scatterName + "-" + texKeys[b]))
                     {
+                        ScatterLog.Log("[OnDemand] Loading texture: " + scatter.properties.scatterMaterial.Textures[texKeys[b]]);
                         activeTextures.Add(scatter.scatterName + "-" + texKeys[b], LoadTexture(scatter.properties.scatterMaterial.Textures[texKeys[b]]));
                     }
                     
@@ -57,7 +57,6 @@ namespace Grass
                 {
                     string texname = scatter.properties.scatterDistribution.lods.lods[b].mainTexName;
                     string normName = scatter.properties.scatterDistribution.lods.lods[b].normalName;   //I really need to rewrite this
-                    Debug.Log("LOD name: " + texname);
                     if (texname != "parent")
                     {
                         if (!activeTextures.ContainsKey(scatter.scatterName + "-" + texname))
@@ -85,6 +84,12 @@ namespace Grass
 
             ScatterLog.Log("Loading Parallax Scatter Texture: " + name);
             string filePath = KSPUtil.ApplicationRootPath + "GameData/" + name;
+            if (!File.Exists(filePath))
+            {
+                ScatterLog.Log("[Exception] Unable to find this file: " + name);
+                return Texture2D.whiteTexture;
+            }
+
             if (name.EndsWith(".dds"))
             {
                 return LoadDDSTexture(filePath);

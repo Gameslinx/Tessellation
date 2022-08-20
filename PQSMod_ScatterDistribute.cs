@@ -61,7 +61,7 @@ namespace Grass
         }
         public override void OnSetup()
         {
-            if (alreadySetupSpaceCenter) { return; }
+            //if (alreadySetupSpaceCenter) { return; }
             bodyName = sphere.name;
             
             scatters = ScatterBodies.scatterBodies[sphere.name].scatters;
@@ -242,6 +242,7 @@ namespace Grass
             }
             for (int i = 0; i < scatters.Values.Count; i++)
             {
+                if (i > keys.Length - 1) { return; }    //Only required for when creating a new scatter
                 string scatterName = keys[i];
                 if (scatters[scatterName].shared) { continue; }
                 if (scatters[scatterName].properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.NonPersistent)

@@ -36,6 +36,9 @@ namespace ScatterConfiguratorUtils
         private static bool displayDeviance;
         private static bool displayDistribution;
         private static bool showNoiseDistribution;
+        private static bool showLODs;
+
+        private static bool justResized = false;
         public enum ChangeType
         {
             Distribution,
@@ -48,15 +51,15 @@ namespace ScatterConfiguratorUtils
             TerrainMaterial,
             DistributionMaterial,
             Memory,
-            Evaluate
+            Evaluate,
+            Manager,
+            Model,
+            Texture
         }
         public void Start()
         {
-            CelestialBody currentBody = FlightGlobals.currentMainBody;
-            lastBodyName = currentBody.name;
-
-            BodyScatters = ScatterBodies.scatterBodies.ContainsKey(currentBody.name) ? ScatterBodies.scatterBodies[currentBody.name].scatters : null;
-            Debug.Log("Body scatters length: " + BodyScatters.Count);
+            if (!FlightGlobals.ready) { return; }
+            BodyScatters = ScatterBodies.scatterBodies.ContainsKey(FlightGlobals.currentMainBody?.name) ? ScatterBodies.scatterBodies[FlightGlobals.currentMainBody?.name].scatters : null;
         }
 
         public void Update()
@@ -84,7 +87,7 @@ namespace ScatterConfiguratorUtils
                         );
                 }
             }
-
+            if (!FlightGlobals.ready) { return; }
             if (lastBodyName != FlightGlobals.currentMainBody?.name)
                 this.Start();
 
@@ -101,24 +104,53 @@ namespace ScatterConfiguratorUtils
             if (!ShowUI)
                 return;
             
-            window = GUILayout.Window(GetInstanceID(), window, DrawWindow, "Parallax Configurator");
+            window = GUILayout.Window(GetInstanceID(), window, DrawWindow, "Parallax Configurator", HighLogic.Skin.window);
         }
         public static bool displayCount = false;
+        private static bool showCreateScatter = false;
         private static void DrawWindow(int windowID)
         {
             string currentKey = BodyScatters.Keys.ToArray()[currentScatterIndex];
             currentScatter = BodyScatters[currentKey];
             GUILayout.BeginVertical();
 
-            GUIStyle alignment = GUI.skin.GetStyle("Label");
+            GUIStyle alignment = HighLogic.Skin.label;//GUI.skin.GetStyle("Label");
             alignment.alignment = TextAnchor.MiddleCenter;
 
             GUILayout.Label("Currently displaying scatter: " + currentScatter.scatterName, alignment, GUILayout.ExpandWidth(true));
             GUILayout.BeginHorizontal();
 
-            CreateAdvanceButton("Previous Scatter", ref currentScatterIndex, BodyScatters.Values.Count, 0.5f, false);
-            CreateAdvanceButton("Next Scatter", ref currentScatterIndex, BodyScatters.Values.Count, 0.5f, true);
+            CreateAdvanceButton("Previous Scatter", ref currentScatterIndex, BodyScatters.Values.Count, 0.333f, false);
+            if (GUILayout.Button("Create Scatter", HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * 0.333f)))
+            {
+                showCreateScatter = !showCreateScatter;
+                justResized = true;
+            }
+            CreateAdvanceButton("Next Scatter", ref currentScatterIndex, BodyScatters.Values.Count, 0.333f, true);
             GUILayout.EndHorizontal();
+            if (showCreateScatter)
+            {
+                
+                JustResized();
+                GUILayout.BeginVertical();
+                GUILayout.Label("Create Scatter", alignment, GUILayout.ExpandWidth(true));
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Create Non Persistent Scatter", HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * 0.333f)))
+                {
+                    CreateNonPersistentScatter();
+                }
+                if (GUILayout.Button("Clone This Scatter", HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * 0.333f)))
+                {
+                    CloneThisScatter();
+                }
+                if (GUILayout.Button("Create Persistent Scatter", HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * 0.333f)))
+                {
+                    CreatePersistentScatter();
+                }
+                GUILayout.EndHorizontal();
+                GUILayout.EndVertical();
+            }
+
             GUILayout.BeginHorizontal();
 
             string showHide = "Hide this scatter";
@@ -128,7 +160,7 @@ namespace ScatterConfiguratorUtils
             {
                 showHide = "Show this scatter";
             }
-            if (GUILayout.Button(showHide))
+            if (GUILayout.Button(showHide, HighLogic.Skin.button))
             {
                 anyValueHasChanged = true;
                 currentChangeType = ChangeType.Visibility;
@@ -138,10 +170,6 @@ namespace ScatterConfiguratorUtils
             }
             GetBaseScatterProps(currentScatter);
             GetScatterProperties(currentScatter, alignment);
-            //if (currentSub != null)
-            //{
-            //    currentScatter.subObjects[currentSubIndex] = currentSub;
-            //}
 
 
             GUILayout.EndVertical();
@@ -151,14 +179,15 @@ namespace ScatterConfiguratorUtils
         static bool forceFullShadows = false;
         private static void GetBaseScatterProps(Scatter scatter)
         {
-            scatter.scatterName = TextAreaLabelString("Name", scatter.scatterName, ChangeType.Base);
             scatter.updateFPS = TextAreaLabelFloat("Update Rate (FPS)", scatter.updateFPS, ChangeType.Base);
-            scatter.model = TextAreaLabelModel("Model", scatter.model, ChangeType.Base);
+            scatter.model = TextAreaLabelString("Model", scatter.model, ChangeType.Model);
+            scatter.maxObjects = (int)TextAreaLabelSlider("Max Objects", scatter.maxObjects, 0, 100000, ChangeType.Manager);
+            scatter.cullingRange = (int)TextAreaLabelFloat("Culling Range", scatter.cullingRange, ChangeType.Evaluate);
+            scatter.cullingLimit = (int)TextAreaLabelFloat("Culling Limit", scatter.cullingLimit, ChangeType.Evaluate);
             alignToTerrainNormal = scatter.alignToTerrainNormal;
             alignToTerrainNormal = GUILayout.Toggle(alignToTerrainNormal, "Align To Terrain Normal");
             if (scatter.alignToTerrainNormal != alignToTerrainNormal)
             {
-                Debug.Log(alignToTerrainNormal);
                 scatter.alignToTerrainNormal = alignToTerrainNormal;
                 currentChangeType = ChangeType.Distribution;
                 anyValueHasChanged = true;
@@ -167,7 +196,7 @@ namespace ScatterConfiguratorUtils
             if (scatter.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.On) { forceFullShadows = true; scatterIsForcingShadows = true; }
             
             //forceFullShadows = scatter.forceFullShadows;
-            forceFullShadows = GUILayout.Toggle(forceFullShadows, "Align To Terrain Normal");
+            forceFullShadows = GUILayout.Toggle(forceFullShadows, "Force Full Shadows");
             if (scatterIsForcingShadows != forceFullShadows)
             {
                 Debug.Log(forceFullShadows);
@@ -184,25 +213,27 @@ namespace ScatterConfiguratorUtils
                 }
             }
         }
+        private static void JustResized()
+        {
+            if (justResized) { window.height = absoluteSize.height; justResized = false; }
+        }
         static bool showDistribution = false;
         static bool showMaterial = false;
         static bool showSubdivision = false;
-        static bool showSubObject = false;
         private static void GetScatterProperties(Scatter scatter, GUIStyle alignment)
         {
             Properties mainProps = scatter.properties;
             Distribution distProps = scatter.properties.scatterDistribution;
-            mainProps.maxCount = TextAreaLabelSlider("Max Count", scatter.properties.maxCount, 0, 30000, ChangeType.Distribution);
-            scatter.cullingRange = (int)TextAreaLabelFloat("Culling Range", scatter.cullingRange, ChangeType.Evaluate);
-            scatter.cullingLimit = (int)TextAreaLabelFloat("Culling Limit", scatter.cullingLimit, ChangeType.Evaluate);
+            
             scatter.properties = mainProps;
             ScatterComponent pqsMod = ScatterManagerPlus.scatterComponents[scatter.planetName].Find(x => x.scatter.scatterName == scatter.scatterName);
             //currentChangeType = ChangeType.Memory;
             //anyValueHasChanged = true;
             //bool displayDeviance = false;
-            if (GUILayout.Button("Display Distribution Settings"))
+            if (GUILayout.Button("Display Distribution Settings", HighLogic.Skin.button))
             {
                 showDistribution = !showDistribution;
+                justResized = true;
                 if (!showDistribution)
                 {
                     window.height = absoluteSize.height;
@@ -210,7 +241,12 @@ namespace ScatterConfiguratorUtils
             }
             if (showDistribution)
             {
-                if (GUILayout.Button("Show Distribution Noise"))
+                JustResized();
+                showMaterial = false;
+                showSubdivision = false;
+                showNoiseDistribution = false;
+
+                if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent && GUILayout.Button("Show Distribution Noise", HighLogic.Skin.button))
                 {
                     displayDistribution = !displayDistribution;
                     if (!displayDistribution)
@@ -228,7 +264,7 @@ namespace ScatterConfiguratorUtils
                         currentChangeType = ChangeType.DistributionMaterial;
                     }
                 }
-                if (GUILayout.Button("Show Normal Deviancy"))
+                if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.Persistent && GUILayout.Button("Show Normal Deviancy", HighLogic.Skin.button))
                 {
                     displayDeviance = !displayDeviance;
                     if (!displayDeviance)
@@ -249,9 +285,9 @@ namespace ScatterConfiguratorUtils
                 
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Distribution Settings", alignment, GUILayout.ExpandWidth(true));
+                distProps._Seed = TextAreaLabelFloat("Location Seed", distProps._Seed, ChangeType.Distribution);
                 distProps._PopulationMultiplier = TextAreaLabelSlider("Population Multiplier", distProps._PopulationMultiplier, 1, 100, ChangeType.Distribution);//TextAreaLabelFloat("Population Multiplier", distProps._PopulationMultiplier, ChangeType.Distribution);
                 distProps._Range = TextAreaLabelFloat("Max Range", distProps._Range, ChangeType.Distribution);
-                distProps._RangePow = TextAreaLabelFloat("Range Fade Power", distProps._RangePow, ChangeType.Distribution);
                 distProps._SpawnChance = TextAreaLabelFloat("Spawn Chance", distProps._SpawnChance, ChangeType.Distribution);
                 distProps._SizeNoiseStrength = TextAreaLabelFloat("Size Noise Strength", distProps._SizeNoiseStrength, ChangeType.Distribution);
                 distProps._MinScale = TextAreaLabelVector("Min Scale", distProps._MinScale, ChangeType.Distribution);
@@ -263,11 +299,47 @@ namespace ScatterConfiguratorUtils
                 distProps._MaxNormalDeviance = TextAreaLabelFloat("Max Normal Deviance", distProps._MaxNormalDeviance, ChangeType.Distribution);
                 distProps._MinAltitude = TextAreaLabelFloat("Min Altitude", distProps._MinAltitude, ChangeType.Distribution);
                 distProps._MaxAltitude = TextAreaLabelFloat("Max Altitude", distProps._MaxAltitude, ChangeType.Distribution);
+                distProps._AltitudeFadeRange = TextAreaLabelSlider("Altitude Fade Range", distProps._AltitudeFadeRange, 0.001f, 20, ChangeType.Distribution);
+                
                 //GUILayout.EndVertical();
                 scatter.properties.scatterDistribution = distProps;
+                if (GUILayout.Button("Display LOD Settings", HighLogic.Skin.button))
+                {
+                    showLODs = !showLODs;
+                    if (!showLODs)
+                    {
+                        window.height = absoluteSize.height;
+                    }
+                }
+                if (showLODs)
+                {
+                    GUILayout.Label("Scatter LOD Settings", alignment, GUILayout.ExpandWidth(true));
+                    LODs lodProps = scatter.properties.scatterDistribution.lods;
+                    for (int i = 0; i < lodProps.lods.Length; i++)
+                    {
+                       
+                        GUILayout.Label("LOD " + (i + 1).ToString(), alignment, GUILayout.ExpandWidth(true));
+                        Grass.LOD lod = lodProps.lods[i];
+                        lod.range = TextAreaLabelSlider("Range", lod.range, 0, scatter.properties.scatterDistribution._Range, ChangeType.Distribution);
+                        lod.modelName = TextAreaLabelString("LOD " + (i + 1) + " Model Name", lod.modelName, ChangeType.Model);
+                        lod.mainTexName = TextAreaLabelString("LOD " + (i + 1) + " Main Texture Name", lod.mainTexName, ChangeType.Texture);
+                        lod.normalName = TextAreaLabelString("LOD " + (i + 1) + " Normal Map Name", lod.normalName, ChangeType.Texture);
+
+                        bool isBillboard = lod.isBillboard;
+                        if(isBillboard != GUILayout.Toggle(isBillboard, "Billboard"))
+                        {
+                            lod.isBillboard = !isBillboard;
+                            currentChangeType = ChangeType.Material;
+                            anyValueHasChanged = true;
+                        }
+                        lodProps.lods[i] = lod;
+                    }
+                    scatter.properties.scatterDistribution.lods = lodProps;
+                }
             }
-            if (GUILayout.Button("Display Noise Settings"))
+            if (GUILayout.Button("Display Noise Settings", HighLogic.Skin.button))
             {
+                justResized = true;
                 showNoiseDistribution = !showNoiseDistribution;
                 if (!showNoiseDistribution)
                 {
@@ -276,6 +348,11 @@ namespace ScatterConfiguratorUtils
             }
             if (showNoiseDistribution)
             {
+                JustResized();
+                showMaterial = false;
+                showSubdivision = false;
+                showDistribution = false;
+
                 DistributionNoise props = scatter.properties.scatterDistribution.noise;
                 if (props.noiseMode == DistributionNoiseMode.Persistent || props.noiseMode == DistributionNoiseMode.VerticalStack)
                 {
@@ -299,8 +376,9 @@ namespace ScatterConfiguratorUtils
                 }
                 scatter.properties.scatterDistribution.noise = props;
             }
-            if (GUILayout.Button("Display Material Settings"))
+            if (GUILayout.Button("Display Material Settings", HighLogic.Skin.button))
             {
+                justResized = true;
                 showMaterial = !showMaterial;
                 if (!showMaterial)
                 {
@@ -309,6 +387,11 @@ namespace ScatterConfiguratorUtils
             }
             if (showMaterial)
             {
+                JustResized();
+                showSubdivision = false;
+                showNoiseDistribution = false;
+                showDistribution = false;
+
                 ScatterMaterial props = scatter.properties.scatterMaterial;
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Material Settings", alignment, GUILayout.ExpandWidth(true));
@@ -316,8 +399,9 @@ namespace ScatterConfiguratorUtils
                 scatter.properties.scatterMaterial = props;
                 //GUILayout.EndVertical();
             }
-            if (GUILayout.Button("Display Subdivision Settings"))
+            if (GUILayout.Button("Display Subdivision Settings", HighLogic.Skin.button))
             {
+                justResized = true;
                 showSubdivision = !showSubdivision;
                 if (!showSubdivision)
                 {
@@ -326,29 +410,40 @@ namespace ScatterConfiguratorUtils
             }
             if (showSubdivision)
             {
+                JustResized();
+                showMaterial = false;
+                showNoiseDistribution = false;
+                showDistribution = false;
+
                 SubdivisionProperties props = scatter.properties.subdivisionSettings;
                 //GUILayout.BeginVertical();
                 GUILayout.Label("Scatter Subdivision Settings", alignment, GUILayout.ExpandWidth(true));
                 GUILayout.Label("<color=#FFAA00>SubdivisionMode cannot be changed in the UI!</color>", GUILayout.ExpandWidth(true));
-                props.range = TextAreaLabelFloat("Subdivision Range", props.range, ChangeType.Subdivision);
+                props.range = TextAreaLabelSlider("Subdivision Range", props.range, 0, scatter.properties.scatterDistribution._Range * 10, ChangeType.Subdivision);
                 props.level = (int)TextAreaLabelFloat("Subdivision Level", props.level, ChangeType.Subdivision);
 
                 scatter.properties.subdivisionSettings = props;
-                //GUILayout.EndVertical();
-            }
-
-            if (GUILayout.Button("Display Sub Object Settings"))
-            {
-                showSubObject = !showSubObject;
-                if (!showSubObject)
+                foreach (QuadData qd in PQSMod_ParallaxScatter.quadList.Values)
                 {
-                    window.height = absoluteSize.height;
+                    foreach (Scatter sc in qd.scatters)
+                    {
+                        if (sc.scatterName == scatter.scatterName)
+                        {
+                            sc.properties.subdivisionSettings.range = props.range;
+                        }
+                    }
                 }
+                //GUILayout.EndVertical();
             }
             CreateSaveButton();
         }
         private static ScatterMaterial SetupMaterialUI(ScatterMaterial scatterMat)
         {
+            for (int i = 0; i < scatterMat.Textures.Keys.Count; i++)
+            {
+                string currentKey = scatterMat.Textures.Keys.ToArray()[i];
+                scatterMat.Textures[currentKey] = TextAreaLabelString(currentKey, scatterMat.Textures[currentKey], ChangeType.Texture);
+            }
             for (int i = 0; i < scatterMat.Vectors.Keys.Count; i++)
             {
                 string currentKey = scatterMat.Vectors.Keys.ToArray()[i];
@@ -375,27 +470,7 @@ namespace ScatterConfiguratorUtils
         }
         static void CreateSaveButton()
         {
-            if (GUILayout.Button("Get Total Scene Vertices"))
-            {
-                int totalCount = 0;
-                for (int i = 0; i < BodyScatters.Keys.Count; i++)
-                {
-                    Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
-                    //totalCount += currentScatter.GetGlobalVertexCount(thisScatter);
-                }
-                ScatterLog.Log("Total vertices in the scene right now: " + totalCount);
-            }
-            if (GUILayout.Button("Get Total Scene VRAM"))
-            {
-                float totalCount = 0;
-                for (int i = 0; i < BodyScatters.Keys.Count; i++)
-                {
-                    Scatter thisScatter = BodyScatters[BodyScatters.Keys.ToArray()[i]];
-                    //totalCount += currentScatter.GetPlanetVRAMUsage(thisScatter);
-                }
-                ScatterLog.Log("Total VRAM usage in the scene right now: " + totalCount);
-            }
-            if (GUILayout.Button("Save " + FlightGlobals.currentMainBody.name + "'s Scatters To Config"))
+            if (GUILayout.Button("Save " + (FlightGlobals.currentMainBody != null ? FlightGlobals.currentMainBody.name : "(No Body)")+ "'s Scatters To Config", HighLogic.Skin.button))
             {
                 ConfigUtil.SaveAllToConfig(FlightGlobals.currentMainBody.name);
             }
@@ -407,7 +482,7 @@ namespace ScatterConfiguratorUtils
             {
                 name = "";
             }
-            if (!add && GUILayout.Button(name, GUILayout.Width(absoluteSize.width * widthPerc)))
+            if (!add && GUILayout.Button(name, HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * widthPerc)))
             {
                 toAdvance--;
                 if (toAdvance < 0)
@@ -419,7 +494,7 @@ namespace ScatterConfiguratorUtils
                     currentSubIndex = 0;
                 }
             }
-            if (add && GUILayout.Button(name, GUILayout.Width(absoluteSize.width * widthPerc)))
+            if (add && GUILayout.Button(name, HighLogic.Skin.button, GUILayout.Width(absoluteSize.width * widthPerc)))
             {
                 toAdvance++;
                 alignToTerrainNormal = false;
@@ -433,6 +508,52 @@ namespace ScatterConfiguratorUtils
                     currentSubIndex = 0;
                 }
             }
+        }
+        static void CreateNonPersistentScatter()
+        {
+            ScatterLoader.Instance.LoadNewScatter("NewNonPersistentScatter");
+            LoadOnDemand.Load(FlightGlobals.currentMainBody.name);
+            ScatterManagerPlus.Instance.Restart();
+            PQ[] keys = PQSMod_ParallaxScatter.quadList.Keys.ToArray();
+            for (int i = 0; i < keys.Length; i++)
+            {
+                PQ key = keys[i];
+                PQSMod_ParallaxScatter.quadList[key].Cleanup();
+                PQSMod_ParallaxScatter.quadList[key] = new QuadData(key);
+            }
+        }
+        static void CloneThisScatter()
+        {
+            UrlDir.UrlConfig[] configs = GameDatabase.Instance.GetConfigs("ParallaxScatters");
+            for (int i = 0; i < configs.Length; i++)
+            {
+                UrlDir.UrlConfig config = configs[i];
+                if (config.config.GetValue("body") == currentScatter.planetName)
+                {
+                    Debug.Log("Found body: " + currentScatter.planetName);
+                    ConfigNode[] nodes = config.config.GetNodes("Scatter");
+                    for (int b = 0; b < nodes.Length; b++)
+                    {
+                        if (config.config.GetValue("body") + "-" + nodes[b].GetValue("name") == currentScatter.scatterName)
+                        {
+                            Debug.Log("Found scatter: " + currentScatter.scatterName);
+                            ScatterLoader.Instance.ParseNewScatter(nodes[b], nodes[b].GetNode("DistributionNoise"), nodes[b].GetNode("Distribution"), nodes[b].GetNode("Material"), nodes[b].GetNode("SubdivisionSettings"), null, currentScatter.planetName);
+                        }
+                    }
+                }
+                
+            }
+
+            LoadOnDemand.Load(FlightGlobals.currentMainBody.name);
+            ScatterManagerPlus.Instance.Restart();
+            FlightGlobals.currentMainBody.pqsController.RebuildSphere();
+        }
+        static void CreatePersistentScatter()
+        {
+            ScatterLoader.Instance.LoadNewScatter("NewPersistentScatter");
+            LoadOnDemand.Load(FlightGlobals.currentMainBody.name);
+            ScatterManagerPlus.Instance.Restart();
+            FlightGlobals.currentMainBody.pqsController.RebuildSphere();
         }
         private static string TextAreaLabelTexture(string label, string value, ChangeType type)
         {
@@ -481,11 +602,83 @@ namespace ScatterConfiguratorUtils
             GUILayout.BeginHorizontal();
             string newValue = InputFields.TexField(label, value);
             GUILayout.EndHorizontal();
-
             if (newValue != value)
             {
-                anyValueHasChanged = true;
-                currentChangeType = type;
+                bool fileExists = File.Exists(KSPUtil.ApplicationRootPath + "GameData/" + newValue + (type == ChangeType.Model ? ".mu" : ""));
+                if (fileExists)
+                {
+                    ScatterLog.Log("[UI] Found file: " + newValue);
+                    anyValueHasChanged = true;
+                    currentChangeType = type;
+                    if (type == ChangeType.Texture)
+                    {
+                        foreach (ScatterComponent sc in ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name])
+                        {
+                            if (sc.scatter.scatterName == currentScatter.scatterName && !label.Contains("LOD"))
+                            {
+                                Texture2D tex = LoadOnDemand.LoadTexture(newValue);
+                                sc.pc.material.SetTexture(label, tex);
+                                
+                                Debug.Log("Set texture: " + newValue);
+                            }
+                            if (sc.scatter.scatterName == currentScatter.scatterName && label.Contains("LOD"))  //Have to set the texture on the material manually. It's funky, just calling SetupAgain would work with LODs but not the main tex, despite loading the correct texture
+                            {
+                                Texture2D newTex = LoadOnDemand.LoadTexture(newValue);
+                                if (label.Contains("LOD 1 Main"))   //This is so scuffed
+                                {
+                                    sc.pc.materialFar.SetTexture("_MainTex", newTex);
+                                }
+                                if (label.Contains("LOD 1 Normal"))
+                                {
+                                    sc.pc.materialFar.SetTexture("_BumpMap", newTex);
+                                }
+                                if (label.Contains("LOD 2 Main"))
+                                {
+                                    sc.pc.materialFurther.SetTexture("_MainTex", newTex);
+                                }
+                                if (label.Contains("LOD 2 Normal"))
+                                {
+                                    sc.pc.materialFurther.SetTexture("_BumpMap", newTex);
+                                }
+                            }
+                        }
+                    }
+                    if (type == ChangeType.Model)
+                    {
+                        foreach (ScatterComponent sc in ScatterManagerPlus.scatterComponents[FlightGlobals.currentMainBody.name])
+                        {
+                            if (sc.scatter.scatterName == currentScatter.scatterName)
+                            {
+                                if (label.Contains("Model") && !label.Contains("LOD"))
+                                {
+                                    Debug.Log("Finding: " + newValue);
+                                    GameObject go = GameDatabase.Instance.GetModel(newValue);
+                                    if (go == null) { ScreenMessages.PostScreenMessage("This model is not loaded"); return value; }
+                                    Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
+                                    sc.pc.mesh = mesh;
+                                    sc.pc.vertexCount = mesh.vertexCount;
+                                    sc.pc.ReInitializeBuffers();
+                                }
+                                if (label.Contains("LOD 1 Model"))
+                                {
+                                    GameObject go = GameDatabase.Instance.GetModel(newValue);
+                                    Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
+                                    sc.pc.farMesh = mesh;
+                                    sc.pc.farVertexCount = mesh.vertexCount;
+                                    sc.pc.ReInitializeBuffers();
+                                }
+                                if (label.Contains("LOD 2 Model"))
+                                {
+                                    GameObject go = GameDatabase.Instance.GetModel(newValue);
+                                    Mesh mesh = Instantiate(go.GetComponent<MeshFilter>().mesh);
+                                    sc.pc.furtherMesh = mesh;
+                                    sc.pc.furtherVertexCount = mesh.vertexCount;
+                                    sc.pc.ReInitializeBuffers();
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             return newValue;
@@ -595,6 +788,49 @@ namespace ScatterConfiguratorUtils
             if (type == ChangeType.Evaluate)
             {
                 ForceFullUpdate(currentScatter);
+            }
+            if (type == ChangeType.Manager)
+            {
+                List<ScatterComponent> scatterComponents = ScatterManagerPlus.scatterComponents[currentScatter.planetName];
+                foreach (ScatterComponent scatterComponent in scatterComponents)
+                {
+                    if (scatterComponent.scatter.scatterName == currentScatter.scatterName)
+                    {
+                        scatterComponent.OnDisable();
+                        scatterComponent.scatter = currentScatter;
+                        scatterComponent.OnEnable();
+                    }
+                }
+            }
+            if (type == ChangeType.Texture)
+            {
+                //LoadOnDemand.Load(FlightGlobals.currentMainBody.name);
+                //List<ScatterComponent> scatterComponents = ScatterManagerPlus.scatterComponents[currentScatter.planetName];
+                //foreach (ScatterComponent scatterComponent in scatterComponents)
+                //{
+                //    if (scatterComponent.scatter.scatterName == currentScatter.scatterName)
+                //    {
+                //        //scatterComponent.pc.SetupAgain(currentScatter);
+                //        Destroy(scatterComponent.pc);
+                //        scatterComponent.pc = ScatterManagerPlus.gameObjects[currentScatter.planetName].AddComponent<PostCompute>();
+                //        scatterComponent.pc.scatterName = currentScatter.scatterName;
+                //        scatterComponent.pc.planetName = currentScatter.planetName;
+                //        scatterComponent.pc.scatterProps = currentScatter.properties;
+                //        scatterComponent.pc.Setup(Buffers.activeBuffers[scatterComponent.scatter.scatterName].buffer, Buffers.activeBuffers[scatterComponent.scatter.scatterName].farBuffer, Buffers.activeBuffers[scatterComponent.scatter.scatterName].furtherBuffer, currentScatter);
+                //    }
+                //}
+            }
+            if (type == ChangeType.Model)
+            {
+                ScreenMessages.PostScreenMessage("Note: Models can only be loaded if the file existed BEFORE the game was started");
+                List<ScatterComponent> scatterComponents = ScatterManagerPlus.scatterComponents[currentScatter.planetName];
+                foreach (ScatterComponent scatterComponent in scatterComponents)
+                {
+                    if (scatterComponent.scatter.scatterName == currentScatter.scatterName)
+                    {
+                        scatterComponent.pc.SetupAgain(currentScatter);
+                    }
+                }
             }
         }
         public void ForceMaterialUpdate(Scatter scatter)
