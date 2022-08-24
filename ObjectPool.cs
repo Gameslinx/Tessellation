@@ -28,14 +28,15 @@ namespace Grass
             ObjectPool.material.bounciness = 0;
             ObjectPool.material.bounceCombine = PhysicMaterialCombine.Average;
 
-            for (int i = 0; i < 5000; i++)
+            for (int i = 0; i < 250; i++)
             {
                 GameObject go = new GameObject();
                 MeshCollider comp = go.AddComponent<MeshCollider>();
                 comp.sharedMaterial = ObjectPool.material;
                 go.AddComponent<AutoDisabler>();
-                //go.AddComponent<MeshRenderer>();
-                //go.AddComponent<MeshFilter>();
+                go.AddComponent<MeshRenderer>();
+                go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+                go.AddComponent<MeshFilter>();
                 go.SetActive(false);
                 GameObject.DontDestroyOnLoad(go);
                 gameObjects.Add(go);
@@ -54,8 +55,9 @@ namespace Grass
                 GameObject go = new GameObject();
                 go.AddComponent<MeshCollider>();
                 go.AddComponent<AutoDisabler>();
-                //go.AddComponent<MeshRenderer>();
-                //go.AddComponent<MeshFilter>();
+                go.AddComponent<MeshRenderer>();
+                go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+                go.AddComponent<MeshFilter>();
                 GameObject.DontDestroyOnLoad(go);
                 return go;
             }

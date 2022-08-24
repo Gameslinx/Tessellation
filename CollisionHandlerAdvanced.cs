@@ -26,6 +26,21 @@ namespace Grass
     public static class QuadColliderData
     {
         public static Dictionary<PQ, List<Position>> data = new Dictionary<PQ, List<Position>>();   //So that the Octree can retrieve position data
+
+        public delegate void QuadDataCreated(PQ quad, List<Position> data);
+        public static event QuadDataCreated onQuadColliderDataCreated;
+
+        public delegate void QuadDataDestroyed(PQ quad);
+        public static event QuadDataDestroyed onQuadColliderDataDestroyed;
+
+        public static void DataCreated(PQ quad, List<Position> data)
+        {
+            if (onQuadColliderDataCreated != null) { onQuadColliderDataCreated(quad, data); }
+        }
+        public static void DataRemoved(PQ quad)
+        {
+            if (onQuadColliderDataDestroyed != null) { onQuadColliderDataDestroyed(quad); }
+        }
     }
     public class AutoDisabler : MonoBehaviour
     {
@@ -51,15 +66,15 @@ namespace Grass
     }
     public class Position
     {
-        public float bound;         //Mesh size
-        public GameObject collider;        //The actual collider object
-        public AutoDisabler autoDisabler;
-        public Scatter scatter;
+        public float bound;                 //Max mesh size in one dimension
+        public GameObject collider;         //The actual collider gameObject, but this is null when the craft is not in range
+        public AutoDisabler autoDisabler;   //The component which turns off the collider if it has not been in range recently
+        public Scatter scatter;             //The scatter this position belongs to
 
-        public Vector3 worldPos;            //Only assigned on GO creation - Needs to be oldQuadPos - newQuadPos
-        public Quaternion rot;
-        public Vector3 scale;
-        public Mesh collisionMesh;
+        public Vector3 worldPos;            //Only assigned on GO creation - In order to use this position use (worldPos + (quadOriginalPosition - quad.gameObject.transform.position))
+        public Quaternion rot;              //GameObject rotation
+        public Vector3 scale;               //GameObject scale
+        public Mesh collisionMesh;          
 
         public Vector3 quadOriginalPosition;
         public PQ quad;
@@ -220,6 +235,7 @@ namespace Grass
                         CreateData(keys[i], scatterData[keys[i]]);
                     }
                     QuadColliderData.data.Add(quad, positions);
+                    QuadColliderData.DataCreated(quad, positions);
                     CreateOctree();
                     initialized = true;
                 }
@@ -229,7 +245,7 @@ namespace Grass
                     for (int i = 0; i < FlightGlobals.VesselsLoaded.Count; i++)
                     {
                         if (ScatterGlobalSettings.onlyQueryControllable && !FlightGlobals.VesselsLoaded[i].isCommandable) { continue; }
-                        maxBounds = Mathf.Max(Mathf.Max(FlightGlobals.VesselsLoaded[i].vesselSize.x, FlightGlobals.VesselsLoaded[i].vesselSize.y), FlightGlobals.VesselsLoaded[i].vesselSize.z) * 1.731f;
+                        maxBounds = Mathf.Max(Mathf.Max(FlightGlobals.VesselsLoaded[i].vesselSize.x, FlightGlobals.VesselsLoaded[i].vesselSize.y), FlightGlobals.VesselsLoaded[i].vesselSize.z) * 2.4f;
                         vesselBoundingBox = new Bounds(FlightGlobals.VesselsLoaded[i].transform.position + (quadOriginalPosition - quad.gameObject.transform.position), new Vector3(maxBounds, maxBounds, maxBounds));
                         vesselSearchBox = OctTreeUtils.GetBounds(vesselBoundingBox);
                         tree.QueryRange(ref vesselSearchBox, ref nearbyPoints);
@@ -262,6 +278,7 @@ namespace Grass
             {
                 QuadColliderData.data[quad].Clear();
                 QuadColliderData.data.Remove(quad);
+                QuadColliderData.DataRemoved(quad);
             }
             tree = null;
             initialized = false;

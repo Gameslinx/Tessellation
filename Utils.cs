@@ -171,7 +171,7 @@ namespace ScatterConfiguratorUtils
             evaluate.SetInt("_MaxCount", objectCount);
 
             evaluate.SetFloat("_CurrentTime", Time.timeSinceLevelLoad);
-            evaluate.SetFloat("_Pow", scatter.properties.scatterDistribution._RangePow);
+            evaluate.SetFloat("_FadePow", scatter.properties.scatterDistribution._RangePow);
             evaluate.SetFloats("_CameraFrustumPlanes", ActiveBuffers.planeNormals);             //Frustum culling
             evaluate.SetFloat("_CullLimit", scatter.cullingLimit);
             float cullingRangePerc = scatter.cullingRange / scatter.properties.scatterDistribution._Range;

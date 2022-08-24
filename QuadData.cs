@@ -91,7 +91,7 @@ namespace ParallaxGrass
             scatters = ScatterBodies.scatterBodies[sphereName].scatters.Values.ToArray();
             if (quad.subdivision == quad.sphereRoot.maxLevel)
             {
-                collisionHandler = new CollisionHandlerAdvanced(ref quad, quadWidth * 2);
+                collisionHandler = new CollisionHandlerAdvanced(ref quad, quadWidth * 1.5f);
                 collisionHandler.maxDataCount = GetColliderDataCount();
             }
             ScatterManagerPlus.OnQuadRangeCheck += RangeCheck;
@@ -126,8 +126,21 @@ namespace ParallaxGrass
             if (data.vertices == null) { return; } //Yet again, wait for subdivision to complete :)
             Vector3 pos1 = quad.gameObject.transform.TransformPoint(data.vertices[0]);  //Top left
             Vector3 pos2 = quad.gameObject.transform.TransformPoint(data.vertices[data.vertices.Length - 1]); //Bottom right
-            quadWidth = Vector3.Distance(pos1, pos2) / 2;   //Distance from centre to corner
+            quadWidth = Vector3.Distance(pos1, pos2) / 1.5f;   //Distance from centre to corner
             sqrQuadWidth = quadWidth * quadWidth;
+
+            //if (quad.subdivision == quad.sphereRoot.maxLevel)
+            //{
+            //    for (int i = 0; i < data.vertices.Length; i++)
+            //    {
+            //        GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            //        go.transform.position = quad.gameObject.transform.TransformPoint(data.vertices[i]);
+            //        go.transform.parent = quad.transform;
+            //        go.GetComponent<MeshRenderer>().material.SetColor("_Color", Color.white * ((float)i / 225.0f));
+            //        go.transform.localScale = Vector3.one * 60f;
+            //    }
+            //}
+
         }
         public void SubdivideQuad()
         {
@@ -359,6 +372,8 @@ namespace ParallaxGrass
             //PrepareGenerate();
             //DispatchGenerate();
             //return;
+
+            
 
             if (ComputeShaderAvailable())   //Generate immediately
             {

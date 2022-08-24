@@ -288,6 +288,7 @@ namespace ScatterConfiguratorUtils
                 distProps._Seed = TextAreaLabelFloat("Location Seed", distProps._Seed, ChangeType.Distribution);
                 distProps._PopulationMultiplier = TextAreaLabelSlider("Population Multiplier", distProps._PopulationMultiplier, 1, 100, ChangeType.Distribution);//TextAreaLabelFloat("Population Multiplier", distProps._PopulationMultiplier, ChangeType.Distribution);
                 distProps._Range = TextAreaLabelFloat("Max Range", distProps._Range, ChangeType.Distribution);
+                distProps._RangePow = TextAreaLabelSlider("Range Fade Power", distProps._RangePow, 0, 100, ChangeType.Distribution);
                 distProps._SpawnChance = TextAreaLabelFloat("Spawn Chance", distProps._SpawnChance, ChangeType.Distribution);
                 distProps._SizeNoiseStrength = TextAreaLabelFloat("Size Noise Strength", distProps._SizeNoiseStrength, ChangeType.Distribution);
                 distProps._MinScale = TextAreaLabelVector("Min Scale", distProps._MinScale, ChangeType.Distribution);

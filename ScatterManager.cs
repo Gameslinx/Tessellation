@@ -201,6 +201,13 @@ namespace Grass
                     }
                 }
             }
+            foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
+            {
+                foreach (KeyValuePair<Scatter, ScatterCompute> sc in data.Value.comps)
+                {
+                    sc.Value.Start();
+                }
+            }
             //foreach (KeyValuePair<string, GameObject> go in gameObjects)
             //{
             //    if (go.Key == FlightGlobals.currentMainBody.name && !go.Value.activeSelf)
@@ -270,7 +277,6 @@ namespace Grass
             CreateBuffers();
             CreateComputes(scatter.properties.scatterDistribution.noise.noiseMode, FlightGlobals.GetBodyByName(scatter.planetName).pqsController.maxLevel - scatter.properties.subdivisionSettings.minLevel + 1);
             co = StartCoroutine(OnUpdate());
-            StartCoroutine(WaitForFlight());    //Wait until flight and regenerate. In some edge cases without this, the nearest quad scatters would disappear on scene change. No idea why. Yet
         }
         public void OnDisable()
         {
@@ -410,18 +416,7 @@ namespace Grass
                 yield return rapidWait;
             }
         }
-        public IEnumerator WaitForFlight()  //Should only be used for NearestQuad scatters, then remove this method entirely when I fix body1 -> track -> body2 -> track -> body1 which makes them disappear
-        {
-            yield return new WaitUntil(() => FlightGlobals.ready);
-            Debug.Log("FlightGlobals: Ready");
-            foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
-            {
-                foreach (KeyValuePair<Scatter, ScatterCompute> sc in data.Value.comps)
-                {
-                    sc.Value.Start();
-                }
-            }
-        }
+        
     }
     public class SharedScatterComponent : MonoBehaviour
     {

@@ -64,7 +64,7 @@ namespace Grass
                     {
                         foreach (KeyValuePair<Scatter, ScatterCompute> scatter in data.Value.comps)
                         {
-                            //scatter.Value.Start();
+                            scatter.Value.Start();
                         }
                     }
                     lastOpacity = opacity;

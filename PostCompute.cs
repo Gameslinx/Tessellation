@@ -194,15 +194,15 @@ namespace ComputeLoader
                 this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
                 if (this.mesh != null)
                 {
-                    Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
+                    Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 15);
                 }
                 if (this.farMesh != null)
                 {
-                    Graphics.DrawMeshInstancedIndirect(this.farMesh, 0, this.materialFar, this.bounds, this.farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 0);
+                    Graphics.DrawMeshInstancedIndirect(this.farMesh, 0, this.materialFar, this.bounds, this.farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 15);
                 }
                 if (this.furtherMesh != null)
                 {
-                    Graphics.DrawMeshInstancedIndirect(this.furtherMesh, 0, this.materialFurther, this.bounds, this.furtherArgsBuffer, 0, null, this.shadowCastingMode, true, 0);
+                    Graphics.DrawMeshInstancedIndirect(this.furtherMesh, 0, this.materialFurther, this.bounds, this.furtherArgsBuffer, 0, null, this.shadowCastingMode, true, 15);
                     return;
                 }
             }

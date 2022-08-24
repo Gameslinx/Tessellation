@@ -1,3 +1,5 @@
+﻿using Expansions.Missions;
+using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +16,64 @@ namespace ParallaxQualityLibrary
         //Holds all possible shader properties
         
 
+    }
+    public class AsteroidMaterial
+    {
+        public Material asteroidMaterial { get; set; }
+        public string shaderName;
+        public string[] shaderVars;
+    }
+
+    public class ParallaxAsteroidMed : AsteroidMaterial
+    {
+        public ParallaxAsteroidMed()
+        {
+            shaderName = "Custom/ParallaxAsteroidMed";
+            shaderVars = new string[]
+            {
+                "_SurfaceTexture",
+                "_BumpMap",
+                "_SurfaceTextureScale",
+                "_Hapke",
+                "_NormalSpecularInfluence",
+                "_Metallic",
+                "_MetallicTint",
+                "_Gloss",
+                "_EmissionColor",
+                "_SteepContrast",
+                "_SteepMidpoint",
+                "_SteepTex",
+                "_BumpMapSteep",
+                "_SteepPower"
+            };
+        }
+    }
+    public class ParallaxAsteroidUltra : AsteroidMaterial
+    {
+        public ParallaxAsteroidUltra()
+        {
+            shaderName = "Custom/ParallaxAsteroidUltra";
+            shaderVars = new string[]
+            {
+                "_SurfaceTexture",
+                "_BumpMap",
+                "_DispTex",
+                "_SurfaceTextureScale",
+                "_Hapke",
+                "_NormalSpecularInfluence",
+                "_Metallic",
+                "_MetallicTint",
+                "_Gloss",
+                "_displacement_scale",
+                "_displacement_offset",
+                "_EmissionColor",
+                "_SteepContrast",
+                "_SteepMidpoint",
+                "_SteepTex",
+                "_BumpMapSteep",
+                "_SteepPower"
+            };
+        }
     }
     public class Parallax
     {
@@ -96,6 +156,8 @@ namespace ParallaxQualityLibrary
                 "_InfluenceMap",
                 "_Metallic",
                 "_MetallicTint",
+                "_FresnelPower",
+                "_FresnelColor",
                 "_Gloss",
                 "_NormalSpecularInfluence",
                 "_SteepPower",
@@ -157,6 +219,8 @@ namespace ParallaxQualityLibrary
                 "_InfluenceMap",
                 "_Metallic",
                 "_MetallicTint",
+                "_FresnelPower",
+                "_FresnelColor",
                 "_Gloss",
                 "_NormalSpecularInfluence",
                 "_displacement_scale",
@@ -216,6 +280,8 @@ namespace ParallaxQualityLibrary
                 "_InfluenceMap",
                 "_Metallic",
                 "_MetallicTint",
+                "_FresnelPower",
+                "_FresnelColor",
                 "_Gloss",
                 "_NormalSpecularInfluence",
                 "_SteepPower",
@@ -263,6 +329,8 @@ namespace ParallaxQualityLibrary
                 "_InfluenceMap",
                 "_Metallic",
                 "_MetallicTint",
+                "_FresnelPower",
+                "_FresnelColor",
                 "_Gloss",
                 "_NormalSpecularInfluence",
                 "_SteepPower",
@@ -310,6 +378,8 @@ namespace ParallaxQualityLibrary
                 "_InfluenceMap",
                 "_Metallic",
                 "_MetallicTint",
+                "_FresnelPower",
+                "_FresnelColor",
                 "_Gloss",
                 "_NormalSpecularInfluence",
                 "_SteepPower",
@@ -355,6 +425,8 @@ namespace ParallaxQualityLibrary
             "_InfluenceMap",
             "_Metallic",
             "_MetallicTint",
+            "_FresnelPower",
+            "_FresnelColor",
             "_Gloss",
             "_NormalSpecularInfluence",
             "_SteepPower",
@@ -411,6 +483,8 @@ namespace ParallaxQualityLibrary
             "_InfluenceMap",
             "_Metallic",
             "_MetallicTint",
+            "_FresnelPower",
+            "_FresnelColor",
             "_Gloss",
             "_NormalSpecularInfluence",
             "_Hapke",
@@ -465,6 +539,8 @@ namespace ParallaxQualityLibrary
             "_InfluenceMap",
             "_Metallic",
             "_MetallicTint",
+            "_FresnelPower",
+            "_FresnelColor",
             "_Gloss",
             "_NormalSpecularInfluence",
             "_SteepPower",
@@ -507,6 +583,8 @@ namespace ParallaxQualityLibrary
             "_InfluenceMap",
             "_Metallic",
             "_MetallicTint",
+            "_FresnelPower",
+            "_FresnelColor",
             "_Gloss",
             "_NormalSpecularInfluence",
             "_SteepPower",
@@ -549,6 +627,8 @@ namespace ParallaxQualityLibrary
             "_InfluenceMap",
             "_Metallic",
             "_MetallicTint",
+            "_FresnelPower",
+            "_FresnelColor",
             "_Gloss",
             "_NormalSpecularInfluence",
             "_SteepPower",
@@ -846,8 +926,9 @@ namespace ParallaxQualityLibrary
 
         public float _Metallic { get; set; }
         public float _Gloss { get; set; }
-
+        public float _FresnelPower { get; set; }
         public Color _MetallicTint { get; set; }
+        public Color _FresnelColor { get; set; }
         public float _NormalSpecularInfluence { get; set; }
         public float _SteepPower { get; set; }
         public float _SteepContrast { get; set; }
@@ -899,6 +980,101 @@ namespace ParallaxQualityLibrary
             }
             ParallaxLog.Log("Created body: " + bodyName);
         }
+    }
+    public class ParallaxAsteroidBody
+    {
+        public bool hasEmission = false;
+        public float spawnProbability = 1;
+        public AsteroidMaterial asteroidMaterial { get; set; }
+        public AsteroidAttributes asteroidAttributes { get; set; } = new AsteroidAttributes();
+        public string _SurfaceTexture { get; set; }
+        public string _SteepTex { get; set; }
+        public float _SurfaceTextureScale { get; set; }
+        public string _BumpMap { get; set; }
+        public string _BumpMapSteep { get; set; }
+        public string _DispTex { get; set; }
+        public float _displacement_scale { get; set; }
+        public float _displacement_offset { get; set; }
+        public float _Hapke { get; set; }
+        public float _NormalSpecularInfluence { get; set; }
+        public float _Metallic { get; set; }
+        public float _Gloss { get; set; }
+        public float _SteepPower { get; set; }
+        public float _SteepContrast { get; set; }
+        public float _SteepMidpoint { get; set; }
+        public Color _EmissionColor { get; set; }
+        public Color _MetallicTint { get; set; }
+        public ParallaxAsteroidBody(int qualityLevel, float probability)
+        {
+            spawnProbability = probability;
+            if (qualityLevel == 3)
+            {
+                asteroidMaterial = new ParallaxAsteroidUltra();
+            }
+            else
+            {
+                asteroidMaterial = new ParallaxAsteroidMed();
+            }
+        }
+    }
+    public class AsteroidAttributes
+    {
+        public bool generateElectrical = false;
+        public bool multiplyExtractionRate = false;
+        public float electricalRechargeRateMin { get; set; } = 0;
+        public float electricalRechargeRateMax { get; set; } = 0;
+        public bool hasEmissionLight = false;
+        public float emissionLightIntensity { get; set; } = 0;
+        public float emissionLightRange { get; set; } = 0;
+        public Color emissionLightColor { get; set; } = Color.black;
+        public Light emissionLight;
+        public bool hasParticles = false;
+        public Particles[] particles;
+
+    }
+    public class Particles
+    {
+        public float duration { get; set; } = 5;
+        public ParticleSystem.MinMaxCurve lifetime { get; set; } = 1;
+        public ParticleSystem.MinMaxCurve speed { get; set; } = 1;
+        public ParticleSystem.MinMaxCurve size { get; set; } = 1;
+        public float maxParticles { get; set; } = 1;
+        public Color startColor { get; set; } = Color.black;
+        public bool emission { get; set; } = true;
+        public ParticleSystem.MinMaxCurve rateOverTime { get; set; } = 1;
+        public ParticleSystem.MinMaxCurve rateOverDistance { get; set; } = 1;
+        public ParticleSystemShapeType shapeType { get; set; } = ParticleSystemShapeType.Sphere;
+        public float shapeRadius { get; set; } = 1;
+        public float shapeRadiusThickness { get; set; } = 0.5f;
+        public float shapeArc { get; set; } = 360;
+        public ParticleSystemShapeMultiModeValue arcMode { get; set; } = ParticleSystemShapeMultiModeValue.Random;
+        public float shapeArcSpread { get; set; } = 0;
+        public float shapeRandomDirection { get; set; } = 0;
+        public float shapeSphericalDirection { get; set; } = 0;
+        public float shapeRandomPositionSeed { get; set; } = 0;
+        public Vector3 shapeScale { get; set; } = Vector3.one;
+        public Vector3 shapeRotation { get; set; } = Vector3.zero;
+        public Vector3 shapePosition { get; set; } = Vector3.zero;
+        public Vector3 linearVelocity { get; set; } = Vector3.zero;
+        public ParticleSystem.MinMaxCurve orbitalVelocityX { get; set; } = 0;
+        public ParticleSystem.MinMaxCurve orbitalVelocityY { get; set; } = 0;
+        public ParticleSystem.MinMaxCurve orbitalVelocityZ { get; set; } = 0;
+        public Vector3 orbitalOffset { get; set; } = Vector3.zero;
+        public Vector3 offset { get; set; } = Vector3.zero;
+        public ParticleSystem.MinMaxCurve radial { get; set; } = 0;
+        public ParticleSystem.MinMaxCurve speedModifier { get; set; } = 0;
+        public string renderTexture { get; set; } = "";
+        public float minSize { get; set; } = 0;
+        public float maxSize { get; set; } = 2;
+        public bool limitVelocityOverLifetime { get; set; } = false;
+        public float velocitySpeedLimit { get; set; } = 10000;
+        public float velocityDampen { get; set; } = 0;
+        public float drag { get; set; } = 0;
+        public bool multiplyBySize { get; set; } = false;
+        public bool multiplyByVelocity { get; set; } = false;
+        public float donutRadius { get; set; } = 0;
+        public float angle { get; set; } = 0;
+        public AnimationCurve radialCurve { get; set; }
     }
     public static class ParallaxGlobal
     {
