@@ -542,11 +542,11 @@ namespace ParallaxGrass
         }
         public void EvaluatePositions()
         {
-            if (!quad.isVisible) { return; }
+            if (!quad.isVisible && scatter.properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.FixedAltitude) { return; }
             if (currentlyReadingDist) { return; }
             if (!initializedEvaluate) { return; }
             if (objectCount == 0) { return; }
-            if (!quadMeshRenderer.isVisible) { return; }
+            if (!quadMeshRenderer.isVisible && scatter.properties.scatterDistribution.noise.noiseMode != DistributionNoiseMode.FixedAltitude) { return; }
             if ((quad.gameObject.transform.position - GlobalPoint.originPoint).sqrMagnitude - parent.sqrQuadWidth > scatter.properties.scatterDistribution._SqrRange) { return; }
 
             evaluate.SetVector("_ShaderOffset", -((Vector3)FloatingOrigin.TerrainShaderOffset));

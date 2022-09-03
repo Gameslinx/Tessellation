@@ -2,6 +2,7 @@
 using Kopernicus.ConfigParser.BuiltinTypeParsers;
 using Kopernicus.ConfigParser.Enumerations;
 using Kopernicus.Configuration.ModLoader;
+using Kopernicus.Configuration.Parsing;
 using LibNoise;
 using System;
 using System.Collections;
@@ -51,8 +52,10 @@ namespace Grass
         Dictionary<string, Scatter> scatters;
         string[] keys;
         float initialTime;
-        public static bool alreadySetupSpaceCenter = false;
         public string bodyName;
+
+        public bool hasBlockMap = false;
+        public MapSO blockMap;
         public enum NoiseType
         {
             Perlin,
@@ -106,10 +109,6 @@ namespace Grass
             
             this.requirements = PQS.ModiferRequirements.MeshColorChannel;
 
-            if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
-            {
-                alreadySetupSpaceCenter = true;
-            }
             
         }
         public IModule GetNoiseType(PQSMod_VertexHeightNoise.NoiseType type, DistributionData data)
@@ -162,6 +161,8 @@ namespace Grass
             }
             //distributionData.Add(quad.name, new float[225]);
         }
+        string thisBiome = "";
+        string thisScatterName = "";
         public override void OnVertexBuildHeight(PQS.VertexBuildData data)
         {
             
@@ -169,19 +170,26 @@ namespace Grass
             {
                 return;
             }
-            string thisBiome = GetBiome(data.latitude, data.longitude, bodyName);
+            thisBiome = GetBiome(data.latitude, data.longitude, bodyName);
             if (!scatterData.perQuadBiomeData[data.buildQuad].Contains(thisBiome))
             {
                 scatterData.perQuadBiomeData[data.buildQuad].Add(thisBiome);            //Add biome to quad data
             }
 
+            float noiseMult = 1;
+            if (!data.allowScatter) { noiseMult = 0; }
+            if (hasBlockMap)
+            {
+                noiseMult = 1 - this.blockMap.GetPixelFloat(data.u, data.v);  //White on the map = blocked, and nothing will spawn there
+            }
+            
 
             for (int i = 0; i < keys.Length; i++)
             {
-                string scatterName = keys[i];
-                Scatter scatter = scatters[scatterName];
+                thisScatterName = keys[i];
+                Scatter scatter = scatters[thisScatterName];
                 if (scatter.shared) { continue; }
-                DistributionData distData = scatterData.distributionData[scatterName];
+                DistributionData distData = scatterData.distributionData[thisScatterName];
 
                 if (scatter.properties.scatterDistribution.blacklist.fastBiomes.ContainsKey(thisBiome))    //Don't generate noise on blacklisted biome, just add to the biome list and skip
                 {
@@ -194,12 +202,12 @@ namespace Grass
                     {
                         noise = 0;
                     }
-                    distData.data[data.buildQuad].data[data.vertIndex] = (float)noise;
+                    distData.data[data.buildQuad].data[data.vertIndex] = (float)noise * noiseMult;
                 }
-                else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
-                {
-                    //Biome already added
-                }
+                //else if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
+                //{
+                //    //Biome already added
+                //}
             }
         }
         private string GetBiome(double latitude, double longitude, string sphereName)
@@ -266,6 +274,12 @@ namespace Grass
         {
             get { return Mod.order; }
             set { Mod.order = int.MaxValue - 1; }
+        }
+        [ParserTarget("blockMap", Optional = true)]
+        public MapSOParserGreyScale<MapSO> BlockMap
+        {
+            get { return Mod.blockMap; }
+            set { Mod.blockMap = value; Mod.hasBlockMap = true; }
         }
     }
 }

@@ -78,6 +78,7 @@ namespace Grass
 
         public Vector3 quadOriginalPosition;
         public PQ quad;
+        bool active = false;
 
         public Position(ref Vector3 worldPos, Quaternion rot, Vector3 scale, float bound, Scatter scatter, Mesh collisionMesh, ref Vector3 quadOriginalPosition, PQ quad)
         {
@@ -98,28 +99,41 @@ namespace Grass
                 if (autoDisabler.active)
                 {
                     autoDisabler.lifeTime = 3;
+                    autoDisabler.alwaysOn = scatter.alwaysCollideable;
                     return;
                 }
                 //Otherwise it's inactive, which means the GO is in the pool so we need to fetch a new one
             }
             collider = ObjectPool.FetchObject();
             autoDisabler = collider.GetComponent<AutoDisabler>();
-
+            autoDisabler.alwaysOn = scatter.alwaysCollideable;
             Vector3 actualWorldPos = worldPos + (quad.gameObject.transform.position - quadOriginalPosition);    //Transform from old quad position to new quad position, parent and forget
             collider.transform.position = actualWorldPos;
             collider.transform.rotation = rot;
             collider.transform.localScale = scale;
 
             collider.GetComponent<MeshCollider>().sharedMesh = collisionMesh;
-
             //collider.GetComponent<MeshFilter>().sharedMesh = collisionMesh;
-            //collider.GetComponent<MeshRenderer>().sharedMaterial = new Material(Shader.Find("Standard"));
 
             collider.layer = quad.gameObject.layer;
             collider.tag = quad.gameObject.tag;
             collider.transform.parent = quad.transform;
 
             collider.SetActive(true);
+            active = true;
+        }
+        public void DestroyGameObject()
+        {
+            if (active)
+            {
+                active = false;
+                if (collider != null && autoDisabler != null && autoDisabler.active)
+                {
+                    collider.SetActive(false);
+                    autoDisabler.alwaysOn = false;
+                    ObjectPool.ReturnObject(collider);
+                }
+            }
         }
     }
     public class CollisionHandlerAdvanced   //Per quad
@@ -151,8 +165,7 @@ namespace Grass
             this.quad = quad;
             this.rangeLimit = rangeLimit;
             ScatterManagerPlus.OnQuadPhysicsCheck += RangeCheck;
-            
-            //LineController lc = quad.gameObject.AddComponent<LineController>(); //WARNING: Line Controller does not follow objects with changing shader offset. ONLY USE WHILE STATIONARY or close to origin!
+           
         }
         public void AddData(Scatter scatter, PositionData[] data, Matrix4x4 inverseQTW, Vector3 oldShaderOffset)   //Add data in quad LOCAL SPACE
         {
@@ -178,6 +191,7 @@ namespace Grass
         }
         float craftDist = 0;
         float minDist = 0;
+        float maxMeshBounds = 0;
         public void CreateData(Scatter scatter, PositionData[] data)
         {
             GameObject model = scatter.collisionMesh != null ? GameDatabase.Instance.GetModel(scatter.collisionMesh) : GameDatabase.Instance.GetModel(scatter.model);
@@ -192,7 +206,8 @@ namespace Grass
                 Quaternion rotation = Quaternion.LookRotation(data[i].mat.GetColumn(2), data[i].mat.GetColumn(1));
                 Vector3 scale = new Vector3(data[i].mat.GetColumn(0).magnitude, data[i].mat.GetColumn(1).magnitude, data[i].mat.GetColumn(2).magnitude);
 
-                float meshBound = Mathf.Max((data[i].mat.MultiplyPoint(mesh.bounds.min) - data[i].mat.MultiplyPoint(mesh.bounds.max)).sqrMagnitude, 10.0f);   //Length of mesh in world space
+                float meshBound = Mathf.Max((data[i].mat.MultiplyPoint(mesh.bounds.min) - data[i].mat.MultiplyPoint(mesh.bounds.max)).magnitude, 10.0f);   //Length of mesh in world space
+                if (meshBound > maxMeshBounds && !scatter.alwaysCollideable) { maxMeshBounds = meshBound; }
 
                 Position thisObject = new Position(ref pos, rotation, scale, meshBound, scatter, mesh, ref quadOriginalPosition, quad);   //Object has correct world space AT THS TIME THIS METHOD WAS CALLED. Transform craft search position to the quad's position AT THIS TIME
                 positions.Add(thisObject);
@@ -206,19 +221,22 @@ namespace Grass
             for (int i = 0; i < FlightGlobals.VesselsLoaded.Count; i++)
             {
                 if (ScatterGlobalSettings.onlyQueryControllable && !FlightGlobals.VesselsLoaded[i].isCommandable) { continue; }
-                if (FlightGlobals.VesselsLoaded[i].heightFromTerrain > 30 || FlightGlobals.VesselsLoaded[i].speed > 200) { continue; }
+                float heightFromSurface = Mathf.Min(FlightGlobals.VesselsLoaded[i].heightFromTerrain, (float)FlightGlobals.VesselsLoaded[i].altitude);
+                if (heightFromSurface > 100 || FlightGlobals.VesselsLoaded[i].speed > 250) { continue; }
                 craftDist = Vector3.Distance(FlightGlobals.VesselsLoaded[i].transform.position, quad.gameObject.transform.position);
                 if (craftDist < minDist) { minDist = craftDist; }
             }
         }
         public void CreateOctree()  //tree.Insert() creates a lot of garbage, idk why, but worth looking into because it causes a 15ms stutter
         {
+            Profiler.BeginSample("Create Octree");
             OctBoundingBox box = OctTreeUtils.GetBounds(quad.gameObject.GetComponent<Renderer>().bounds);   //This position is different when querying
             tree = new OctTree(box, quad);
             for (int i = 0; i < positions.Count; i++)
             {
                 tree.Insert(ref positions[i].worldPos, i);  //We can use the index when querying to return a position and get the GO, bounds and worldpos easily
             }
+            Profiler.EndSample();
         }
         public void RangeCheck()
         {
@@ -246,7 +264,9 @@ namespace Grass
                     {
                         if (ScatterGlobalSettings.onlyQueryControllable && !FlightGlobals.VesselsLoaded[i].isCommandable) { continue; }
                         maxBounds = Mathf.Max(Mathf.Max(FlightGlobals.VesselsLoaded[i].vesselSize.x, FlightGlobals.VesselsLoaded[i].vesselSize.y), FlightGlobals.VesselsLoaded[i].vesselSize.z) * 2.4f;
+                        maxBounds = Mathf.Max(maxMeshBounds, maxBounds); //If the craft is too small, use bounds of the largest, non-always-active mesh to prevent pop-in
                         vesselBoundingBox = new Bounds(FlightGlobals.VesselsLoaded[i].transform.position + (quadOriginalPosition - quad.gameObject.transform.position), new Vector3(maxBounds, maxBounds, maxBounds));
+                        
                         vesselSearchBox = OctTreeUtils.GetBounds(vesselBoundingBox);
                         tree.QueryRange(ref vesselSearchBox, ref nearbyPoints);
                     }
@@ -273,6 +293,10 @@ namespace Grass
             //        data[i].RemoveGameObject();
             //    }
             //}
+            for (int i = 0; i < positions.Count; i++)
+            {
+                positions[i].DestroyGameObject();
+            }
             positions.Clear();
             if (QuadColliderData.data.ContainsKey(quad))
             {
@@ -298,9 +322,12 @@ namespace Grass
 
             
             ScatterManagerPlus.OnQuadPhysicsCheck -= RangeCheck;
+            for (int i = 0; i < positions.Count; i++)
+            {
+                positions[i].DestroyGameObject();
+            }
             positions.Clear();
             scatterData.Clear();
-            //UnityEngine.Object.Destroy(quad.gameObject.GetComponent<LineController>());
             if (QuadColliderData.data.ContainsKey(quad))
             {
                 QuadColliderData.data[quad].Clear();

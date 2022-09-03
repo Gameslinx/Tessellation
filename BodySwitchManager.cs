@@ -38,7 +38,7 @@ namespace Grass
                 {
                     LoadOnDemand.OnBodyChange(FlightGlobals.currentMainBody.name);
                     ScatterLog.Log("Processing a body change from " + currentBody + " to " + FlightGlobals.currentMainBody);
-                    if (onBodyChange != null) { onBodyChange(currentBody, FlightGlobals.currentMainBody.name); }    //Dominant body changed
+                    if (onBodyChange != null && ScatterBodies.scatterBodies.ContainsKey(FlightGlobals.currentMainBody.name)) { onBodyChange(currentBody, FlightGlobals.currentMainBody.name); }    //Dominant body changed
                                                                                                                     //Submissive body when? o_O wdym by that
                     currentBody = FlightGlobals.currentMainBody.name;
                 }       

@@ -124,11 +124,17 @@ namespace ScatterConfiguratorUtils
             distribute.SetVector("_PlanetRelative", Utils.initialPlanetRelative);
             distribute.SetMatrix("_WorldToPlanet", body.gameObject.transform.worldToLocalMatrix);
             distribute.SetFloat("spawnChance", scatter.properties.scatterDistribution._SpawnChance);
+            distribute.SetFloat("rotationMult", scatter.properties.scatterDistribution._RotationMult);
+            
+
             if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.NonPersistent)
             {
                 distribute.SetFloat("altFadeRange", scatter.properties.scatterDistribution._AltitudeFadeRange);
             }
-
+            if (scatter.properties.scatterDistribution.noise.noiseMode == DistributionNoiseMode.FixedAltitude)
+            {
+                distribute.SetFloat("placementAltitude", scatter.properties.scatterDistribution.noise._PlacementAltitude);
+            }
             UnityEngine.Vector2d latlon = LatLon.GetLatitudeAndLongitude(body.BodyFrame, body.transform.position, transform.position);
             double lat = System.Math.Abs(latlon.x) % 45.0 - 22.5;
             double lon = System.Math.Abs(latlon.y) % 45.0 - 22.5;   //From -22.5 to 22.5 where 0 we want the highest density and -22.5 we want 1/3 density

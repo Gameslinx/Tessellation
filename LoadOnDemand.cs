@@ -20,9 +20,10 @@ namespace Grass
             //Now load all textures for this body
             Debug.Log("Body change! " + to);
             Unload();
-            Load(to);
-
-            
+            if (ScatterBodies.scatterBodies.ContainsKey(to))
+            {
+                Load(to);
+            }
         }
         public static void Unload()
         {

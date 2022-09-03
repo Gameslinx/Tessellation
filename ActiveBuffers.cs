@@ -9,13 +9,6 @@ namespace Grass
     public class GlobalPoint : MonoBehaviour
     {
         public static Vector3 originPoint = new Vector3(0f, 0f, 0f);
-        void Start()
-        {
-            if (HighLogic.LoadedScene == GameScenes.FLIGHT)
-            {
-                PQSMod_ScatterDistribute.alreadySetupSpaceCenter = false;
-            }
-        }
         void Update()
         {
             if (HighLogic.LoadedScene == GameScenes.FLIGHT)
@@ -73,7 +66,7 @@ namespace Grass
             if (cam == null) { return; }
             cameraPos = cam.gameObject.transform.position;
 
-            ConstructFrustumPlanes(Camera.main, out planeNormals);
+            ConstructFrustumPlanes(cam, out planeNormals);
         }
         private void ConstructFrustumPlanes(Camera camera, out float[] planeNormals)
         {
@@ -107,7 +100,6 @@ namespace Grass
             farBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             furtherBuffer = new ComputeBuffer(memory, stride, ComputeBufferType.Append);
             frameCountCreated = frameCount;
-            Debug.Log("DEBUG INTERNAL: CREATE BUFFERS");
         }
         public ComputeBuffer buffer;
         public ComputeBuffer farBuffer;
@@ -132,7 +124,6 @@ namespace Grass
             buffer = null;
             farBuffer = null;
             furtherBuffer = null;
-            Debug.Log("DEBUG INTERNAL: DISPOSE BUFFERS");
         }
         public float GetMemoryInMB()
         {

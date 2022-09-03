@@ -235,6 +235,7 @@ namespace ComputeLoader
         {
             bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 2.8f));
             if (scatterProps.scatterDistribution._Range < 5000) { bounds = new Bounds(Vector3.zero, Vector3.one * (scatterProps.scatterDistribution._Range * 30f)); }
+
             SetPlanetOrigin();
         }
         private void OnDestroy()

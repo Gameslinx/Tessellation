@@ -296,6 +296,10 @@ namespace Grass
             {
                 return GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
             }
+            if (noiseMode == DistributionNoiseMode.FixedAltitude)
+            {
+                return GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixedAlt"));
+            }
             if (noiseMode == DistributionNoiseMode.VerticalStack)
             {
                 return GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistFTH"));
@@ -326,6 +330,15 @@ namespace Grass
                 for (int i = 0; i < 10 * subdivisionDifference; i++)
                 {
                     ComputeShader cs = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixed"));
+                    DontDestroyOnLoad(cs);  //this doesn't work
+                    computePool.Add(cs);
+                }
+            }
+            if (noiseMode == DistributionNoiseMode.FixedAltitude)
+            {
+                for (int i = 0; i < 10 * subdivisionDifference; i++)
+                {
+                    ComputeShader cs = GameObject.Instantiate(ScatterShaderHolder.GetCompute("DistributeFixedAlt"));
                     DontDestroyOnLoad(cs);  //this doesn't work
                     computePool.Add(cs);
                 }

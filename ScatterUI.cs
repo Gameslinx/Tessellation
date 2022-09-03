@@ -355,7 +355,7 @@ namespace ScatterConfiguratorUtils
                 showDistribution = false;
 
                 DistributionNoise props = scatter.properties.scatterDistribution.noise;
-                if (props.noiseMode == DistributionNoiseMode.Persistent || props.noiseMode == DistributionNoiseMode.VerticalStack)
+                if (props.noiseMode == DistributionNoiseMode.Persistent || props.noiseMode == DistributionNoiseMode.VerticalStack || props.noiseMode == DistributionNoiseMode.FixedAltitude)
                 {
                     props._Frequency = TextAreaLabelFloat("Frequency", props._Frequency, ChangeType.Rebuild);
                     props._Persistence = TextAreaLabelFloat("Persistence", props._Persistence, ChangeType.Rebuild);

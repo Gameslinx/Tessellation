@@ -34,9 +34,12 @@ namespace Grass
                 MeshCollider comp = go.AddComponent<MeshCollider>();
                 comp.sharedMaterial = ObjectPool.material;
                 go.AddComponent<AutoDisabler>();
-                go.AddComponent<MeshRenderer>();
-                go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
-                go.AddComponent<MeshFilter>();
+
+                //go.AddComponent<MeshRenderer>();
+                //go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+                //go.AddComponent<MeshFilter>();
+
+
                 go.SetActive(false);
                 GameObject.DontDestroyOnLoad(go);
                 gameObjects.Add(go);
@@ -55,9 +58,13 @@ namespace Grass
                 GameObject go = new GameObject();
                 go.AddComponent<MeshCollider>();
                 go.AddComponent<AutoDisabler>();
-                go.AddComponent<MeshRenderer>();
-                go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
-                go.AddComponent<MeshFilter>();
+
+                //go.AddComponent<MeshRenderer>();
+                //go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
+                //go.AddComponent<MeshFilter>();
+
+                MeshCollider comp = go.AddComponent<MeshCollider>();
+                comp.sharedMaterial = ObjectPool.material;
                 GameObject.DontDestroyOnLoad(go);
                 return go;
             }

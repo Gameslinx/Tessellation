@@ -41,6 +41,8 @@ namespace Grass
         public float _StackSeparation;
 
         public string useNoiseProfile;
+
+        public float _PlacementAltitude;        //For fixedalt scatters this is the altitude stuff spawns at
     }
     public struct Distribution
     {
@@ -64,6 +66,7 @@ namespace Grass
         public float _MaxAltitude;
         public float _Seed;
         public float _AltitudeFadeRange;        //Fade out a scatter over a vertical distance according to size noise. Reduces harshness of a sudden cutoff
+        public float _RotationMult;             //Max amount of rotation applied to an object, from 0 to 1
     }
     public struct LODs
     {
@@ -107,7 +110,8 @@ namespace Grass
     {
         Persistent,
         NonPersistent,
-        VerticalStack
+        VerticalStack,
+        FixedAltitude
     }
     public enum SubdivisionMode
     {
@@ -553,12 +557,13 @@ namespace Grass
             string noiseMode = ParseVar(distributionNode, "mode", "Persistent");
             if (noiseMode.ToLower() == "nonpersistent") { distribution.noiseMode = DistributionNoiseMode.NonPersistent; }
             else if (noiseMode.ToLower() == "verticalstack") { distribution.noiseMode = DistributionNoiseMode.VerticalStack; }
+            else if (noiseMode.ToLower() == "fixedaltitude") { distribution.noiseMode = DistributionNoiseMode.FixedAltitude; }
             else { distribution.noiseMode = DistributionNoiseMode.Persistent; }
 
             distribution.useNoiseProfile = (ParseVar(distributionNode, "useNoiseProfile", null));
             if (distribution.useNoiseProfile != null) { distribution.useNoiseProfile = bodyName + "-" + distribution.useNoiseProfile; }
             if (distribution.useNoiseProfile != null) { ScatterLog.SubLog("Using noise profile: " + distribution.useNoiseProfile); }
-            if (distribution.useNoiseProfile != null && distribution.noiseMode != DistributionNoiseMode.Persistent) { ScatterLog.SubLog("[Exception] Attempting to use a noise profile for a non-persistent scatter. This only works if you want to share the same noise as another persistent scatter!"); }
+            if (distribution.useNoiseProfile != null && (distribution.noiseMode == DistributionNoiseMode.NonPersistent)) { ScatterLog.SubLog("[Exception] Attempting to use a noise profile for a non-persistent scatter. This only works if you want to share the same noise as another persistent scatter!"); }
             if (distribution.useNoiseProfile != null) { distribution._Frequency = 1; distribution._Lacunarity = 1; distribution._Persistence = 1; distribution._Octaves = 1; distribution._Seed = 1; distribution._NoiseType = 1; distribution._NoiseQuality = LibNoise.NoiseQuality.Low; distribution._MaxStacks = 1; distribution._StackSeparation = 1;  
                                                         return distribution; }
 
@@ -566,7 +571,7 @@ namespace Grass
             distribution._MaxStacks = 1;
             distribution._StackSeparation = 1;
 
-            if (distribution.noiseMode == DistributionNoiseMode.Persistent || distribution.noiseMode == DistributionNoiseMode.VerticalStack)
+            if (distribution.noiseMode == DistributionNoiseMode.Persistent || distribution.noiseMode == DistributionNoiseMode.VerticalStack || distribution.noiseMode == DistributionNoiseMode.FixedAltitude)
             {
                 distribution._Frequency = ParseFloat(ParseVar(distributionNode, "_Frequency", "100"));
                 distribution._Lacunarity = ParseFloat(ParseVar(distributionNode, "_Lacunarity", "4"));
@@ -615,6 +620,10 @@ namespace Grass
                     distribution._MaxStacks = (int)ParseFloat(ParseVar(distributionNode, "_MaxStacks", "1"));
                     distribution._StackSeparation = (int)ParseFloat(ParseVar(distributionNode, "_StackSeparation", "10"));
                 }
+                if (distribution.noiseMode == DistributionNoiseMode.FixedAltitude)
+                {
+                    distribution._PlacementAltitude = (int)ParseFloat(ParseVar(distributionNode, "_PlacementAltitude", "0"));
+                }
             }
             else
             {
@@ -646,6 +655,10 @@ namespace Grass
             distribution._SpawnChance = ParseFloat(ParseVar(distributionNode, "_SpawnChance", "1"));
             distribution._Seed = ParseFloat(ParseVar(distributionNode, "_Seed", "69"));
             distribution._AltitudeFadeRange = ParseFloat(ParseVar(distributionNode, "_AltitudeFadeRange", "5"));
+
+            string rotCheck = "1.0";
+            distributionNode.TryGetValue("_RotationMultiplier", ref rotCheck);
+            distribution._RotationMult = float.Parse(rotCheck);
 
             if ((int)(distribution._PopulationMultiplier) == 0) { distribution._PopulationMultiplier = 1; }
             ConfigNode lodNode = distributionNode.GetNode("LODs");
