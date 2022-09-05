@@ -38,10 +38,9 @@ As for system requirements, the trailer was recorded using the following specs -
 Keep in mind that the trailer was also recorded at 4k.
 
 ## Installation
-- Download the correct version of Parallax for your KSP version
-- Download and install the correct version of Kopernicus for your KSP version - USE BLEEDING EDGE FOR 1.9 AND ABOVE
-- Drag and drop the "Parallax" folder into GameData
-- If you are using the stock planets, also download the "Parallax_StockTextures" folder and drag that into GameData
-- If you are using the stock planets, also download the "Parallax_ScatterTextures" folder and drag that into GameData, merging with Parallax_StockTextures
-- Adjust any settings you need to in the config (Parallax/Config/ParallaxGlobal.cfg)
-- Launch the game, and make sure your terrain quality is set to high
+  1. Download the Parallax, Parallax_StockTextures and Parallax_ScatterTextures folders from the releases page (on the right)
+  2. Download and install Kopernicus. Version 139 or later is required.
+  3. Open the Parallax zip and move the Parallax folder to GameData
+  4. Open the Parallax_StockTextures zip and move Parallax_StockTextures to GameData
+  5. Open the Parallax_ScatterTextures zip and move Parallax_StockTextures to GameData - Merge it with the existing folder.
+  6. Launch the game. Set your terrain quality to High. Set your terrain shader quality to High or Ultra - Ultra will enable tessellation.
