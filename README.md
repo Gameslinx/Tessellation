@@ -42,5 +42,6 @@ Keep in mind that the trailer was also recorded at 4k.
 - Download and install the correct version of Kopernicus for your KSP version - USE BLEEDING EDGE FOR 1.9 AND ABOVE
 - Drag and drop the "Parallax" folder into GameData
 - If you are using the stock planets, also download the "Parallax_StockTextures" folder and drag that into GameData
+- If you are using the stock planets, also download the "Parallax_ScatterTextures" folder and drag that into GameData, merging with Parallax_StockTextures
 - Adjust any settings you need to in the config (Parallax/Config/ParallaxGlobal.cfg)
 - Launch the game, and make sure your terrain quality is set to high
