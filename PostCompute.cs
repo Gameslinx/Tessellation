@@ -129,6 +129,13 @@ namespace ComputeLoader
                 }
                 //subdivisionRange = (int)(((2 * Mathf.PI * FlightGlobals.currentMainBody.Radius) / 4) / (Mathf.Pow(2, FlightGlobals.currentMainBody.pqsController.maxLevel)));
                 //subdivisionRange = Mathf.Sqrt(Mathf.Pow(subdivisionRange, 2) + Mathf.Pow(subdivisionRange, 2));
+
+                if (!ScatterGlobalSettings.castShadows)
+                {
+                    shadowMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+
                 vertexCount = mesh.vertexCount;
                 farVertexCount = farMesh.vertexCount;
                 furtherVertexCount = furtherMesh.vertexCount;
@@ -183,7 +190,7 @@ namespace ComputeLoader
             materialFurther.SetBuffer("_Properties", mainFurther);
         }
 
-
+        public UnityEngine.Rendering.ShadowCastingMode shadowMode = UnityEngine.Rendering.ShadowCastingMode.On;
 
         public void Update()
         {
@@ -194,11 +201,11 @@ namespace ComputeLoader
                 this.UpdateBounds(FloatingOrigin.TerrainShaderOffset);
                 if (this.mesh != null)
                 {
-                    Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 15);
+                    Graphics.DrawMeshInstancedIndirect(this.mesh, 0, this.material, this.bounds, this.argsBuffer, 0, null, this.shadowMode, true, 15);
                 }
                 if (this.farMesh != null)
                 {
-                    Graphics.DrawMeshInstancedIndirect(this.farMesh, 0, this.materialFar, this.bounds, this.farArgsBuffer, 0, null, UnityEngine.Rendering.ShadowCastingMode.On, true, 15);
+                    Graphics.DrawMeshInstancedIndirect(this.farMesh, 0, this.materialFar, this.bounds, this.farArgsBuffer, 0, null, this.shadowMode, true, 15);
                 }
                 if (this.furtherMesh != null)
                 {

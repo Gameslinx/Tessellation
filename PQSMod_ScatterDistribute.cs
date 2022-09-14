@@ -64,7 +64,11 @@ namespace Grass
         }
         public override void OnSetup()
         {
-            //if (alreadySetupSpaceCenter) { return; }
+            if (!ScatterGlobalSettings.enableScatters)
+            {
+                this.modEnabled = false;
+                return;
+            }
             bodyName = sphere.name;
             
             scatters = ScatterBodies.scatterBodies[sphere.name].scatters;

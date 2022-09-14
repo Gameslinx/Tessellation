@@ -357,16 +357,21 @@ namespace Grass
     }
     public class ScatterGlobalSettings
     {
+        public static bool enableScatters = true;
+
         public static float densityMult = 1;
         public static float rangeMult = 1;
         public static bool frustumCull = true;
         public static float updateMult = 1;
+        public static float lodRangeMult = 1;
 
         public static float scatterTextureMult = 1.0f;
         public static int maxTextureRes = 8192;
 
         public static bool enableCollisions = false;
         public static bool onlyQueryControllable = true;
+
+        public static bool castShadows = true;
     }
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScatterLoader : MonoBehaviour
@@ -385,14 +390,18 @@ namespace Grass
             globalNodes = GameDatabase.Instance.GetConfigs("ParallaxScatters");
             settingsNode = GameDatabase.Instance.GetConfigs("ParallaxGlobalConfig").First();
             LoadGlobalSettings();
+            if (!ScatterGlobalSettings.enableScatters) { return; }
             LoadScatterNodes();
         }
         public void LoadGlobalSettings()
         {
             ConfigNode scatterNode = settingsNode.config.GetNode("ScatterSettings");
+            ScatterGlobalSettings.enableScatters = bool.Parse(scatterNode.GetValue("enableScatters"));
+
             ScatterGlobalSettings.densityMult = ParseFloat(ParseVar(scatterNode, "densityMultiplier", "1"));
             ScatterGlobalSettings.rangeMult = ParseFloat(ParseVar(scatterNode, "rangeMultiplier", "1"));
             ScatterGlobalSettings.updateMult = ParseFloat(ParseVar(scatterNode, "computeShaderUpdateMultiplier", "1"));
+            ScatterGlobalSettings.lodRangeMult = ParseFloat(ParseVar(scatterNode, "lodRangeMultiplier", "1"));
             ScatterGlobalSettings.frustumCull = bool.Parse(ParseVar(scatterNode, "frustumCulling", "true"));
 
             ConfigNode textureNode = settingsNode.config.GetNode("TextureSettings");
@@ -401,6 +410,10 @@ namespace Grass
 
             ConfigNode collisionsNode = settingsNode.config.GetNode("CollisionSettings");
             ScatterGlobalSettings.enableCollisions = bool.Parse(ParseVar(collisionsNode, "enableCollisions", "false"));
+
+            ScatterGlobalSettings.castShadows = bool.Parse(ParseVar(scatterNode, "castShadows", "true"));
+
+            InstallNotifs.PostSettings();
         }
         public void LoadScatterNodes()
         {
@@ -690,7 +703,7 @@ namespace Grass
                 if (lodNodes[i].HasValue("billboard") && lodNodes[i].GetValue("billboard").ToLower() == "true") { lod.isBillboard = true; Debug.Log("has billboard"); }
                 else { lod.isBillboard = false; }
 
-                if (lodNodes[i].HasValue("range")) { lod.range = ParseFloat(ParseVar(lodNodes[i], "range", "5")); }
+                if (lodNodes[i].HasValue("range")) { lod.range = ParseFloat(ParseVar(lodNodes[i], "range", "5")) * ScatterGlobalSettings.lodRangeMult; }
 
                 lods.lods[i] = lod;
                 //Parse models on main menu after they have loaded

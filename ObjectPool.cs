@@ -39,7 +39,6 @@ namespace Grass
                 //go.GetComponent<MeshRenderer>().material = new Material(Shader.Find("Standard"));
                 //go.AddComponent<MeshFilter>();
 
-
                 go.SetActive(false);
                 GameObject.DontDestroyOnLoad(go);
                 gameObjects.Add(go);

@@ -379,7 +379,6 @@ namespace Parallax
             QualitySettings.shadowCascade4Split = new Vector3(0.002f, 0.022f, 0.178f);
             Camera.main.nearClipPlane = 0.1f;
             Camera.current.nearClipPlane = 0.1f;
-            Sun.Instance.sunLight.shadowStrength = 1;
         }
         public void Update()
         {
@@ -456,11 +455,6 @@ namespace Parallax
                     thisBody.doubleHigh.parallaxMaterial.SetFloat("_PlanetRadius", planetRadius);
                     thisBody.full.parallaxMaterial.SetFloat("_PlanetRadius", planetRadius);
 
-                    if (FlightGlobals.currentMainBody.atmosphere)
-                    {
-                        //Set ambient light to a low level
-                        RenderSettings.ambientLight = Color.black;
-                    }
 
                     //Gotta start loading on demand - Destroy the previous textures then determine the textures that need loading now
                     //Basically create all the materials for a planet

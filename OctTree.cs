@@ -18,7 +18,7 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
             lr = gameObject.AddComponent<LineRenderer>();
             lr.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
             lr.material.SetColor("_Color", new Color(1, 0, 0, 1));
-            lr.widthMultiplier = 0.1f;
+            lr.widthMultiplier = 1f;
             lr.startColor = Color.red;
             lr.endColor = Color.red;
             lr.useWorldSpace = true;
@@ -138,15 +138,16 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
             if ((point - center).sqrMagnitude < diagDist) { return true; }
             return false;
         }
-        public bool IntersectsBounds(OctBoundingBox searchBounds, PQ quad)
+        public bool IntersectsBounds(OctBoundingBox searchBounds)  //Would be faster if octree was axis aligned. This is approximate, favouring speed over accuracy
         {
-            float diag = Vector3.Distance(center, center - halfLength + halfWidth + halfDepth);
-            float searchDiag = Vector3.Distance(searchBounds.center, searchBounds.center - searchBounds.halfLength + searchBounds.halfWidth + searchBounds.halfDepth);
-            float distance = Vector3.Distance(searchBounds.center, center);
-            if (distance < diag + searchDiag) { return true; }
+            float diag = Vector3.Magnitude(halfLength + halfWidth + halfDepth);
+            float searchDiag = Vector3.Magnitude(searchBounds.halfLength + searchBounds.halfWidth + searchBounds.halfDepth);
+            float distance = (searchBounds.center - center).sqrMagnitude;
+            float lim = diag + searchDiag;
+            if (distance < (lim * lim)) { return true; }
             return false;
         }
-        public void DrawBounds(int subdivisionLevel, PQ quad)
+        public void DrawBounds(int subdivisionLevel, PQ quad)   //For debug purposes only
         {
             float level = subdivisionLevel;
 
@@ -187,6 +188,7 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
         OctTree lowerBottomRight;
         bool subdivided = false;
         PQ quad;
+
         public OctTree(OctBoundingBox bounds, PQ quad)
         {
             this.bounds = bounds;
@@ -198,6 +200,11 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
             if (indices.Count < nodeCapacity && !subdivided)
             {
                 indices.Add(index);
+                //GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                //go.GetComponent<Collider>().enabled = false;
+                //go.transform.position = point;
+                //go.transform.localScale = Vector3.one * 9;
+                //go.transform.parent = quad.transform;
                 return true;
             }
             if (!subdivided)
@@ -233,15 +240,13 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
         }
         public void QueryRange(ref OctBoundingBox range, ref List<Vector3> pointsInRange)
         {
-            if (!bounds.IntersectsBounds(range, quad)) { return; }
+            if (!bounds.IntersectsBounds(range)) { return; }
             for (int i = 0; i < indices.Count; i++)
             {
                 Position pos = QuadColliderData.data[quad][indices[i]];
                 if (range.FastContainsPoint(pos.worldPos, pos.bound))
                 {
                     pointsInRange.Add(pos.worldPos);
-                    //pos.collider.SetActive(true);   //Start the lifetime towards its DEATH >:)
-                    //pos.autoDisabler.lifeTime = 3;
                     pos.CreateGameObject();
                 }
             }
@@ -258,19 +263,19 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
         }
         public void DrawBounds()
         {
-           //bounds.DrawBounds(subdivisionLevel, quad);
-           //if (subdivided)
-           //{
-           //    upperTopLeft.DrawBounds();
-           //    upperTopRight.DrawBounds();
-           //    upperBottomLeft.DrawBounds();
-           //    upperBottomRight.DrawBounds();
-           //
-           //    lowerTopLeft.DrawBounds();
-           //    lowerTopRight.DrawBounds();
-           //    lowerBottomLeft.DrawBounds();
-           //    lowerBottomRight.DrawBounds();
-           //}
+           bounds.DrawBounds(1, quad);
+           if (subdivided)
+           {
+               upperTopLeft.DrawBounds();
+               upperTopRight.DrawBounds();
+               upperBottomLeft.DrawBounds();
+               upperBottomRight.DrawBounds();
+           
+               lowerTopLeft.DrawBounds();
+               lowerTopRight.DrawBounds();
+               lowerBottomLeft.DrawBounds();
+               lowerBottomRight.DrawBounds();
+           }
         }
     }
 

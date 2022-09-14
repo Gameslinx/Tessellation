@@ -201,13 +201,7 @@ namespace Grass
                     }
                 }
             }
-            foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
-            {
-                foreach (KeyValuePair<Scatter, ScatterCompute> sc in data.Value.comps)
-                {
-                    sc.Value.Start();
-                }
-            }
+            RegenerateAllScatters();
             //foreach (KeyValuePair<string, GameObject> go in gameObjects)
             //{
             //    if (go.Key == FlightGlobals.currentMainBody.name && !go.Value.activeSelf)
@@ -230,20 +224,23 @@ namespace Grass
             //    }
             //}
         }
+        public void RegenerateAllScatters()
+        {
+            foreach (KeyValuePair<PQ, QuadData> data in PQSMod_ParallaxScatter.quadList)
+            {
+                foreach (KeyValuePair<Scatter, ScatterCompute> sc in data.Value.comps)
+                {
+                    sc.Value.Start();
+                }
+            }
+        }
         public void OnOffRails(Vessel v)
         {
             if (v.Landed && !v.parts[0].isKerbalEVA() && (v.parts.Where((x) => x.name == "groundAnchor").Count() == 0))
             {
-                Debug.Log("Vessel terrain height: " + v.heightFromTerrain);
-                Debug.Log("manager off rails");
                 Vector3d up = Vector3.Normalize(v.vesselTransform.position - v.mainBody.transform.position);
                 v.SetPosition(v.vesselTransform.position + up * 0.1d); //Avoid spawning inside scatter colliders. It's a pretty dog fix but I've given up on this
                 v.GetHeightFromTerrain();
-                List<Part> parts = v.parts;
-                for (int i = 0; i < parts.Count; i++)
-                {
-                }
-                Debug.Log("New vessel terrain height: " + v.heightFromTerrain);
             }
         }
     }
@@ -274,6 +271,7 @@ namespace Grass
         public void OnEnable()
         {
             Debug.Log("Scatter enabled: " + scatter.scatterName);
+            rapidWait = new WaitForSeconds(0.0606f * ScatterGlobalSettings.updateMult);
             CreateBuffers();
             CreateComputes(scatter.properties.scatterDistribution.noise.noiseMode, FlightGlobals.GetBodyByName(scatter.planetName).pqsController.maxLevel - scatter.properties.subdivisionSettings.minLevel + 1);
             co = StartCoroutine(OnUpdate());
@@ -441,6 +439,7 @@ namespace Grass
         void OnEnable()
         {
             Debug.Log("Shared scatter enabled: " + scatter.scatterName);
+            rapidWait = new WaitForSeconds(0.0606f * ScatterGlobalSettings.updateMult);
             co = StartCoroutine(OnUpdate());
         }
         void OnDisable()

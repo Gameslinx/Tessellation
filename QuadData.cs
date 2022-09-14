@@ -13,13 +13,13 @@ namespace ParallaxGrass
 {
     public struct PositionData
     {
-        public Vector3 pos;
+        //public Vector3 pos;
         public Matrix4x4 mat;
-        public Vector4 color;
+        //public Vector4 color;
         public static int Size()
         {
             return
-                sizeof(float) * 23;
+                sizeof(float) * 16;
         }
     }
     public struct GrassData
@@ -250,8 +250,12 @@ namespace ParallaxGrass
         ComputeShader distribute;
         ComputeShader evaluate;
 
+        ComputeShader trim;
+
+
         int distributeIndex;
         int evaluateIndex;
+        int trimIndex;
 
         public ComputeBuffer vertexBuffer;  //References the buffers in QuadData
         public ComputeBuffer normalBuffer;
@@ -262,6 +266,8 @@ namespace ParallaxGrass
 
         public ComputeBuffer distributeCountBuffer;
         public ComputeBuffer indirectArgs;
+
+        public ComputeBuffer trimBuffer;
 
         //public ComputeBuffer dummyCount;
 
@@ -288,6 +294,7 @@ namespace ParallaxGrass
         public CollisionHandlerAdvanced collisionHandler;
         public Matrix4x4 oqtw = Matrix4x4.identity;
         public Vector3 oldShaderOffset = Vector3.zero;
+
         public ScatterCompute(Scatter scatter, PQ quad, ScatterComponent pqsMod, QuadData parent, string sphereName, ref MeshData meshData, ref MeshData subdividedData, ref CollisionHandlerAdvanced collisionHandler)
         {
             this.scatter = scatter;
@@ -386,6 +393,8 @@ namespace ParallaxGrass
                 InitializeGenerate();
                 PrepareGenerate();
                 DispatchGenerate();
+
+
             }
             else                            //Add to the quad queue and wait for a shader to become available
             {
@@ -406,6 +415,9 @@ namespace ParallaxGrass
         }
         public void SetupComputeShaders() 
         {
+            trim = GameObject.Instantiate(ScatterShaderHolder.GetCompute("Trim"));
+            trimIndex = trim.FindKernel("CSMain");
+
             evaluate = GameObject.Instantiate(ScatterShaderHolder.GetCompute("EvaluatePoints"));
             evaluateIndex = evaluate.FindKernel("EvaluatePoints");
 
@@ -485,7 +497,14 @@ namespace ParallaxGrass
             ComputeBuffer.CopyCount(positionBuffer, distributeCountBuffer, 0);
             
             currentlyReadingDist = true;
-            AsyncGPUReadback.Request(distributeCountBuffer, AwaitDistributeReadback);
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Direct3D11)
+            {
+                AsyncGPUReadback.Request(distributeCountBuffer, AwaitDistributeReadback);
+            }
+            else
+            {
+                DirectDistributeReadback();
+            }
         }
         private void AwaitDistributeReadback(AsyncGPUReadbackRequest req)
         {
@@ -508,9 +527,30 @@ namespace ParallaxGrass
                 positionBuffer.GetData(transformData);
                 collisionHandler.AddData(scatter, transformData, oqtw.inverse, oldShaderOffset);
             }
-
+            InitializeTrim();
             InitializeEvaluate();
             UpdateQueue();          //Dequeue and process the next quad
+        }
+        private void DirectDistributeReadback()
+        {
+            if (cleaned) { UpdateQueue(); return; }    //Quad was cleaned up in the time it took for the GPU to finish generating positions on this quad. L + No speed
+
+            int[] objectCountData = new int[1];
+            distributeCountBuffer.GetData(objectCountData);
+            objectCount = (int)Mathf.Min(objectCountData[0], positionBuffer.count);    //Buffer can sometimes be smaller than its counter at low spawn chances
+            workGroups[0] = Mathf.CeilToInt(((float)objectCount) / 32f);
+            indirectArgs.SetData(workGroups);
+            currentlyReadingDist = false;
+
+            if (scatter.collideable && quad.subdivision == quad.sphereRoot.maxLevel && !collisionHandler.allDataPresent)
+            {
+                transformData = new PositionData[objectCount];
+                positionBuffer.GetData(transformData);
+                collisionHandler.AddData(scatter, transformData, oqtw.inverse, oldShaderOffset);
+            }
+            InitializeTrim();
+            InitializeEvaluate();
+            UpdateQueue();
         }
         public void UpdateQueue()   //Return compute shader to the queue and process the next quad
         {
@@ -526,6 +566,32 @@ namespace ParallaxGrass
                 }
             }
         }
+        public void InitializeTrim()
+        {
+            
+            if (currentlyReadingDist) { return; }
+            if (objectCount == 0) { return; }
+            if (!pqsMod.buffersCreated) { Debug.Log("[Exception] Buffers not created, returning"); return; }
+
+            //Debug.Log("Initializing trim");
+            if (trimBuffer != null) { trimBuffer.Release(); }
+            trimBuffer = new ComputeBuffer(objectCount, PositionData.Size(), ComputeBufferType.Structured);
+            trim.SetBuffer(trimIndex, "Input", positionBuffer);
+            trim.SetBuffer(trimIndex, "Output", trimBuffer);
+            trim.SetInt("maxCount", objectCount);
+
+            //float oldImpact = ((float)positionBuffer.count * (float)PositionData.Size()) / (1024f * 1024f);
+            //float newImpact = (((float)objectCount * (float)PositionData.Size()) / (1024f * 1024f));
+            //float percChange = (((oldImpact - newImpact) / oldImpact) * 100f);
+
+            trim.Dispatch(trimIndex, Mathf.CeilToInt((float)objectCount / 32f), 1, 1);
+            positionBuffer.Release();
+            
+            //Debug.Log("Memory impact (MB): " + newImpact);   //In MB
+            //Debug.Log(" - Old memory impact (MB): " + oldImpact);   //In MB
+            //Debug.Log(" - Saving (%): " + percChange + "\n");
+            
+        }
         public void InitializeEvaluate()
         {
             if (currentlyReadingDist) { return; }
@@ -533,7 +599,7 @@ namespace ParallaxGrass
             if (!pqsMod.buffersCreated) { Debug.Log("[Exception] Buffers not created, returning"); return; }
             Utils.SetEvaluationVars(ref evaluate, scatter, quad.gameObject.transform, objectCount);
             evaluate.SetBuffer(evaluateIndex, "Grass", Buffers.activeBuffers[scatter.scatterName].buffer);
-            evaluate.SetBuffer(evaluateIndex, "Positions", positionBuffer);
+            evaluate.SetBuffer(evaluateIndex, "Positions", trimBuffer);
             evaluate.SetBuffer(evaluateIndex, "FarGrass", Buffers.activeBuffers[scatter.scatterName].farBuffer);
             evaluate.SetBuffer(evaluateIndex, "FurtherGrass", Buffers.activeBuffers[scatter.scatterName].furtherBuffer);
             
@@ -569,10 +635,12 @@ namespace ParallaxGrass
             if (distributeCountBuffer != null) { distributeCountBuffer.Release(); distributeCountBuffer = null; }
             if (indirectArgs != null) { indirectArgs.Release(); indirectArgs = null; }
             if (positionBuffer != null) { positionBuffer.Release(); positionBuffer = null; }
+            if (trimBuffer != null) { trimBuffer.Release(); trimBuffer = null; }
             //if (dummyCount != null) { dummyCount.Release(); }
 
             //UnityEngine.Object.Destroy(distribute);
             UnityEngine.Object.Destroy(evaluate);
+            UnityEngine.Object.Destroy(trim);
             //UnityEngine.Object.Destroy(distribute);
             //if (collisionHandler != null) { collisionHandler.Cleanup(); collisionHandler = null; }
             //ShaderPool.ReturnShader(distribute, shaderType);

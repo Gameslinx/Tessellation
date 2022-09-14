@@ -76,6 +76,11 @@ namespace Grass
             // Ordering: [0] = Left, [1] = Right, [2] = Down, [3] = Up, [4] = Near, [5] = Far
             Plane[] planes = GeometryUtility.CalculateFrustumPlanes(camera);
 
+            if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Direct3D11)
+            {
+                planes[5].distance = 25000;
+            }
+
             planeNormals = new float[planes.Length * floatPerNormal];
             for (int i = 0; i < planes.Length; ++i)
             {

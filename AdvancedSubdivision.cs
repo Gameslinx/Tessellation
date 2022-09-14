@@ -83,6 +83,7 @@ namespace ParallaxOptimized
         public GameObject cutoutQuad;                                                   //The actual, new cutout part from the quad
         private Mesh mesh;
         private Mesh quadMesh;
+        private Mesh storedMesh;
         public float searchRadius;
 
         public ASQuad newQuad = new ASQuad();
@@ -93,6 +94,7 @@ namespace ParallaxOptimized
 
         float timeSinceLastUpdate = 0;
         int subdivisionLevel;
+        private bool cleaned = false;
 
         public AdvancedSubdivision(PQ quad, ref GameObject fakeQuad, ref Mesh quadMesh, float searchRadius, ref Material quadMaterial, int subdivisionLevel)
         {
@@ -107,7 +109,8 @@ namespace ParallaxOptimized
             this.subdivisionLevel = subdivisionLevel;
             this.searchRadius = Mathf.Max((searchRadius / 15f) * 2.5f, 50);    //5x5 square of vertices, or a range of 50 meters (on small planets)
             this.searchRadius *= this.searchRadius;
-
+            this.storedMesh = GameObject.Instantiate(quad.mesh);
+            GameEvents.onVesselChange.Add(OnVesselSwitch);
             Initialize();
         }
 
@@ -161,12 +164,15 @@ namespace ParallaxOptimized
             }
         }
         bool completedOneCheck = false;
-        public void RangeCheck(ref Vector3 originPoint)
+        public void RangeCheck(ref Vector3 originPoint, bool force)
         {
-            if (!FlightGlobals.ready) { return; }
-            if (completedOneCheck && (Time.realtimeSinceStartup - timeSinceLastUpdate < 2 || (FlightGlobals.ActiveVessel != null && (FlightGlobals.ActiveVessel.speed < 0.3f || FlightGlobals.ActiveVessel.speed > 100)))) { return; }
-            timeSinceLastUpdate = Time.realtimeSinceStartup;
-            completedOneCheck = true;
+            if (!force)
+            {
+                if (!FlightGlobals.ready || cleaned) { return; }
+                if (completedOneCheck && (Time.realtimeSinceStartup - timeSinceLastUpdate < 2 || (FlightGlobals.ActiveVessel != null && (FlightGlobals.ActiveVessel.speed > 100)))) { return; }
+                timeSinceLastUpdate = Time.realtimeSinceStartup;
+                completedOneCheck = true;
+            }
 
             newQuad.Clear();
             oldQuad.Clear();
@@ -202,14 +208,37 @@ namespace ParallaxOptimized
             quadMesh.colors = oldQuad.newColors.ToArray();
             fakeQuad.GetComponent<MeshFilter>().sharedMesh = quadMesh;
         }
+        public void OnVesselSwitch(Vessel v)
+        {
+            RebuildMesh();
+            Vector3 craftPos = v.transform.position;
+            RangeCheck(ref craftPos, true);
+        }
+        public void RebuildMesh()
+        {
+            oldQuad.Clear();
+            for (int i = 0; i < quadTris.Length; i++)
+            {
+                oldQuad.AppendTriangle(quadTris[i]);                                        //Construct old quad mesh with the new quad mesh missing. Funny quirky goofy ahh jigsaw
+            }
+            quadMesh.Clear();
+            quadMesh.vertices = oldQuad.newVerts.ToArray();
+            quadMesh.triangles = oldQuad.newTris.ToArray();
+            quadMesh.normals = oldQuad.newNormals.ToArray();
+            quadMesh.colors = oldQuad.newColors.ToArray();
+            fakeQuad.GetComponent<MeshFilter>().sharedMesh = quadMesh;
+        }
         public void Cleanup()
         {
+            GameEvents.onVesselChange.Remove(OnVesselSwitch);
+            RebuildMesh();
             newQuad.Clear();
             oldQuad.Clear();
             UnityEngine.GameObject.Destroy(cutoutQuad);
             quadVerts = null;
             quadIndices = null;
             quadTris = null;
+            cleaned = true;
         }
     }
 }

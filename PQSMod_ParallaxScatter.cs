@@ -82,6 +82,13 @@ namespace ParallaxGrass
     public class PQSMod_ParallaxScatter : PQSMod
     {
         public static Dictionary<PQ, QuadData> quadList = new Dictionary<PQ, QuadData>(); //This WILL always reach 0 when no quads are in range
+        public override void OnSetup()
+        {
+            if (!ScatterGlobalSettings.enableScatters)
+            {
+                this.modEnabled = false;
+            }
+        }
         public override void OnQuadBuilt(PQ quad)
         {
             if (quad.subdivision > ScatterBodies.scatterBodies[quad.sphereRoot.name].minimumSubdivision)       //Do everything scatter related within allowed subdivision
