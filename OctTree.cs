@@ -151,25 +151,26 @@ namespace Grass //Use an octree to quickly get the nearby points to the craft
         {
             float level = subdivisionLevel;
 
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength + halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength - halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength - halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength + halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength + halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength + halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength - halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength - halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength + halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength + halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength + halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength + halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength + halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength - halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength - halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center + halfLength - halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength - halfWidth - halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength - halfWidth + halfDepth);
-            quad.gameObject.GetComponent<LineController>().AddPoint(center - halfLength - halfWidth - halfDepth);
+            var lc = quad.gameObject.GetComponent<LineController>();
+            lc.AddPoint(center - halfLength + halfWidth + halfDepth);
+            lc.AddPoint(center - halfLength - halfWidth + halfDepth);
+            lc.AddPoint(center + halfLength - halfWidth + halfDepth);
+            lc.AddPoint(center + halfLength + halfWidth + halfDepth);
+            lc.AddPoint(center - halfLength + halfWidth + halfDepth);
+            lc.AddPoint(center - halfLength + halfWidth - halfDepth);
+            lc.AddPoint(center - halfLength - halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength - halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength + halfWidth - halfDepth);
+            lc.AddPoint(center - halfLength + halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength + halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength + halfWidth + halfDepth);
+            lc.AddPoint(center + halfLength + halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength - halfWidth - halfDepth);
+            lc.AddPoint(center + halfLength - halfWidth + halfDepth);
+            lc.AddPoint(center + halfLength - halfWidth - halfDepth);
+            lc.AddPoint(center - halfLength - halfWidth - halfDepth);
+            lc.AddPoint(center - halfLength - halfWidth + halfDepth);
+            lc.AddPoint(center - halfLength - halfWidth - halfDepth);
         }
     }
     public class OctTree
