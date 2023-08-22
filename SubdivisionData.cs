@@ -62,6 +62,8 @@ namespace ParallaxOptimized
     {
         public PQ quad;
         public int subdivisionLevel;
+        public string cbNameLaterName;
+        public bool usesCbNameLater = false;
         public bool subdividable = false;
         public GameObject newQuad;
         public bool initialized = false;
@@ -71,12 +73,17 @@ namespace ParallaxOptimized
         public Material quadMaterial;
         public bool materialCreated = false;
         public AdvancedSubdivision subdivisionComponent;
-        public SubdivisionData(PQ quad, int subdivisionLevel, float subdivisionRadius, bool subdividable)
+        public SubdivisionData(PQ quad, int subdivisionLevel, float subdivisionRadius, bool subdividable, bool usesCbNameLater, string cbNameLaterName)
         {
             this.quad = quad;
             this.subdivisionLevel = subdivisionLevel;
             this.subdividable = subdividable;
             this.subdivisionSearchRadius = subdivisionRadius;
+            this.usesCbNameLater = usesCbNameLater;
+            if (this.usesCbNameLater)
+            {
+                this.cbNameLaterName = cbNameLaterName;
+            }
             quadMaterial = DetermineMaterial();
 
             if (subdividable)
@@ -166,7 +173,7 @@ namespace ParallaxOptimized
         }
         public Material DetermineMaterial()
         {
-            ParallaxBody body = ParallaxBodies.parallaxBodies[quad.sphereRoot.name];
+            ParallaxBody body = ParallaxBodies.parallaxBodies[usesCbNameLater ? cbNameLaterName : quad.sphereRoot.name];
 
             float lowStart = body._LowStart;
             float lowEnd = body._LowEnd;
