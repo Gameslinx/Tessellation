@@ -37,6 +37,7 @@ namespace Grass
             GameEvents.onVesselGoOffRails.Add(OnOffRails);
             GameEvents.onFlightReady.Add(OnFlightReady);
             GameEvents.OnFlightGlobalsReady.Add(FlightGlobalsReady);
+            GameEvents.onVesselDestroy.Add(VesselDestroyed));
         }
         void OnDisable()
         {
@@ -45,7 +46,16 @@ namespace Grass
             GameEvents.onVesselGoOffRails.Remove(OnOffRails);
             GameEvents.onFlightReady.Remove(OnFlightReady);
             GameEvents.OnFlightGlobalsReady.Remove(FlightGlobalsReady);
+            GameEvents.onVesselDestroy.Remove(VesselDestroyed);
         }
+        private void VesselDestroyed(Vessel v)
+		{
+			if (v.Equals(FlightGlobals.ActiveVessel))
+			{
+				Debug.Log("Vessel destroyed - Regenerating scatters");
+				this.RegenerateAllScatters();
+			}
+		}
         public void FlightGlobalsReady(bool ready)
         {
             if (!ready)
